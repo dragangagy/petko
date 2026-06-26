@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="sr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Петко">
+    <title>Петко</title>
+    <link rel="manifest" href="manifest.webmanifest?v=51">
+    <link rel="icon" href="logo-icon.png" type="image/png">
+    <link rel="stylesheet" href="styles.css?v=51">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <button class="try-button" id="tryButton" type="button" aria-label="Број покушаја">0/6</button>
+        <div class="brand">
+          <span class="neon-line"></span>
+          <h1>Петко</h1>
+        </div>
+        <button class="icon-button" id="shareButton" type="button" aria-label="Подели резултат">↗</button>
+      </header>
+
+      <section class="status-panel" aria-live="polite">
+        <div class="status-brand">
+          <img class="status-logo" src="logo-cut.png" alt="G-Lab">
+          <div class="status-signature">
+            <span class="signature-main">G-Lab Team</span>
+            <span class="signature-main signature-gap">IT Research &amp; Development</span>
+            <small>Concept, design and realization by our team.</small>
+            <small>© 2025 G-Lab - Dragan Milošević</small>
+            <small>All rights reserved.</small>
+          </div>
+        </div>
+        <div class="status-copy">
+          <span class="eyebrow" id="modeLabel">Обичан</span>
+          <p id="message">Pogodi rec od 5 slova.</p>
+        </div>
+        <div class="score-stack">
+          <div class="score-pill">
+            <span id="tryCount">0</span><span>/6</span>
+          </div>
+          <div class="points-pill">
+            <div class="score-count" id="scoreCount">
+              <span class="score-total" id="scoreTotalLine">0/0</span>
+              <span class="score-difference" id="scoreDifferenceLine">0</span>
+            </div>
+          </div>
+          <div class="award-pop" id="awardPop" hidden></div>
+        </div>
+      </section>
+
+      <section class="game-type-row" aria-label="Тип игре">
+        <button class="type-button active" type="button" data-type="normal">Обичан</button>
+        <button class="type-button" type="button" data-type="competitive">Такмичарски</button>
+      </section>
+
+      <button class="next-button" id="nextLevelButton" type="button" hidden>Даље</button>
+
+      <section class="mode-row" aria-label="Број речи">
+        <button class="mode-button active" type="button" data-mode="1">1</button>
+        <button class="mode-button" type="button" data-mode="2">2</button>
+        <button class="mode-button" type="button" data-mode="4">4</button>
+        <button class="mode-button" type="button" data-mode="8">8</button>
+      </section>
+
+      <section class="listing-panel" aria-label="Листа резултата">
+        <div class="listing-head">
+          <span>Листа</span>
+          <small id="listingMeta">локално</small>
+        </div>
+        <div class="player-row">
+          <input id="playerNameInput" maxlength="18" placeholder="Надимак" autocomplete="nickname">
+          <button id="saveNameButton" type="button">ОК</button>
+        </div>
+        <ol class="listing-list" id="listingList"></ol>
+      </section>
+
+      <section class="boards" id="boards" aria-label="Табла игре"></section>
+
+      <section class="keyboard" id="keyboard" aria-label="Тастатура"></section>
+
+      <div class="score-burst" id="scoreBurst" hidden></div>
+    </main>
+
+    <template id="boardTemplate">
+      <article class="board-card">
+        <div class="board-title"></div>
+        <div class="grid"></div>
+      </article>
+    </template>
+
+    <script src="app.js?v=51"></script>
+  </body>
+</html>
