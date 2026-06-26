@@ -24,9 +24,9 @@ Then set these values in `app.js`:
 
 ```js
 const SUPABASE_CONFIG = {
-  url: "YOUR_SUPABASE_PROJECT_URL",
-  anonKey: "YOUR_SUPABASE_ANON_PUBLIC_KEY",
-  table: "petko_scores"
+  url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
+  anonKey: "YOUR_SB_PUBLISHABLE_KEY",
+  table: "scores"
 };
 ```
 

@@ -7812,10 +7812,11 @@ const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
+const USED_WORDS_KEY = "petko-used-words-v1";
 const SUPABASE_CONFIG = {
-  url: "",
-  anonKey: "",
-  table: "petko_scores"
+  url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
+  anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
+  table: "scores"
 };
 
 const boardsEl = document.querySelector("#boards");
@@ -7832,8 +7833,10 @@ const awardPopEl = document.querySelector("#awardPop");
 const scoreBurstEl = document.querySelector("#scoreBurst");
 const listingListEl = document.querySelector("#listingList");
 const listingMetaEl = document.querySelector("#listingMeta");
+const playerStatsEl = document.querySelector("#playerStats");
 const playerNameInput = document.querySelector("#playerNameInput");
 const saveNameButton = document.querySelector("#saveNameButton");
+const solutionsPanelEl = document.querySelector("#solutionsPanel");
 const shareButton = document.querySelector("#shareButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
 const modeButtons = [...document.querySelectorAll(".mode-button")];
@@ -7909,6 +7912,38 @@ function displayWords(words) {
   return words.map(displayWord).join(", ");
 }
 
+function loadUsedWords() {
+  try {
+    const words = JSON.parse(localStorage.getItem(USED_WORDS_KEY) || "[]");
+    return Array.isArray(words) ? words.filter((word) => WORD_SET.has(word)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberUsedWords(words) {
+  const limit = Math.max(1, Math.floor(WORDS.length * 0.5));
+  const seen = new Set();
+  const merged = [...words, ...loadUsedWords()].filter((word) => {
+    if (!WORD_SET.has(word) || seen.has(word)) return false;
+    seen.add(word);
+    return true;
+  });
+  localStorage.setItem(USED_WORDS_KEY, JSON.stringify(merged.slice(0, limit)));
+}
+
+function pickFreshWord(startIndex, used, chosen) {
+  for (let step = 0; step < WORDS.length; step += 1) {
+    const word = WORDS[(startIndex + step) % WORDS.length];
+    if (!used.has(word) && !chosen.has(word)) return word;
+  }
+  for (let step = 0; step < WORDS.length; step += 1) {
+    const word = WORDS[(startIndex + step) % WORDS.length];
+    if (!chosen.has(word)) return word;
+  }
+  return WORDS[startIndex % WORDS.length];
+}
+
 function dailyOffset() {
   const start = new Date("2026-01-01T00:00:00");
   const today = new Date();
@@ -7937,7 +7972,11 @@ function saveResults(results) {
 }
 
 function supabaseConfigured() {
-  return Boolean(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
+  return Boolean(
+    SUPABASE_CONFIG.url &&
+    SUPABASE_CONFIG.anonKey &&
+    SUPABASE_CONFIG.anonKey !== "PASTE_SB_PUBLISHABLE_KEY_HERE"
+  );
 }
 
 function supabaseUrl(path) {
@@ -7964,12 +8003,43 @@ function savePlayerName(value) {
   return clean;
 }
 
+function ensurePlayerName() {
+  const saved = loadPlayerName();
+  if (saved) return saved;
+  const entered = window.prompt("Унеси надимак за ранг листу:", "") || "";
+  return savePlayerName(entered);
+}
+
 function deviceId() {
   let id = localStorage.getItem(DEVICE_ID_KEY);
   if (id) return id;
   id = crypto.randomUUID ? crypto.randomUUID() : `d-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   localStorage.setItem(DEVICE_ID_KEY, id);
   return id;
+}
+
+function dayNumber(dateText) {
+  const date = new Date(`${dateText}T00:00:00`);
+  return Math.floor(date.getTime() / 86400000);
+}
+
+function currentStreakFor(status) {
+  if (status !== "finished") return 0;
+  let streak = 1;
+  let expected = dayNumber(todayId()) - 1;
+  const previous = loadResults()
+    .filter((result) => result.date !== todayId() && isFinalResult(result))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  for (const result of previous) {
+    const day = dayNumber(result.date);
+    if (day !== expected) break;
+    if (result.status !== "finished") break;
+    streak += 1;
+    expected -= 1;
+  }
+
+  return streak;
 }
 
 function todayResult() {
@@ -8019,7 +8089,15 @@ function upsertTodayResult(patch) {
 function chooseTargets(count) {
   const offset = dailyOffset();
   const levelOffset = gameType === "competitive" ? competitiveLevelIndex * 5 : normalGameSeed * 7;
-  return Array.from({ length: count }, (_, index) => WORDS[(offset + levelOffset + index * 11) % WORDS.length]);
+  const used = new Set(loadUsedWords());
+  const chosen = new Set();
+  const words = Array.from({ length: count }, (_, index) => {
+    const word = pickFreshWord(offset + levelOffset + index * 11, used, chosen);
+    chosen.add(word);
+    return word;
+  });
+  rememberUsedWords(words);
+  return words;
 }
 
 function showCompetitiveIntro() {
@@ -8050,6 +8128,7 @@ function showCompetitiveIntro() {
   document.body.dataset.competitiveLocked = "false";
   boardsEl.innerHTML = "";
   boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  renderSolutionsPanel(false);
   keyboardEl.innerHTML = "";
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
@@ -8115,6 +8194,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
   done = false;
   keyStates = new Map();
   bonusFlashRows = new Set();
+  renderSolutionsPanel(false);
 
   document.body.dataset.gameType = gameType;
   boardsEl.classList.toggle("multi", mode > 1);
@@ -8151,7 +8231,9 @@ function render() {
   renderBoards();
   renderKeyboard();
   tryCountEl.textContent = String(guesses.length);
-  tryButton.textContent = `${guesses.length}/${maxAttempts()}`;
+  tryButton.textContent = gameType === "competitive"
+    ? `${guesses.length}/${maxAttempts()}`
+    : `${guesses.length}/∞`;
   updateScoreDisplay();
   requestAnimationFrame(positionKeyboard);
 }
@@ -8165,14 +8247,23 @@ function renderBoards() {
     const title = fragment.querySelector(".board-title");
     const grid = fragment.querySelector(".grid");
     const solvedTry = solvedAt[boardIndex];
+    const collapseSolved = gameType === "competitive" && (mode === 4 || mode === 8) && solvedTry;
 
-    title.textContent = mode === 1
+    title.textContent = collapseSolved
+      ? displayWord(target)
+      : mode === 1
       ? ""
       : solvedTry
         ? `Реч ${boardIndex + 1} ОК`
         : `Реч ${boardIndex + 1}`;
 
-    for (let rowIndex = 0; rowIndex < maxAttempts(); rowIndex += 1) {
+    if (collapseSolved) {
+      card.classList.add("solved", "collapsed");
+      boardsEl.append(fragment);
+      return;
+    }
+
+    for (let rowIndex = 0; rowIndex < visibleRows(); rowIndex += 1) {
       const row = document.createElement("div");
       row.className = "row";
       if (bonusFlashRows.has(rowIndex)) row.classList.add("bonus-flash");
@@ -8192,6 +8283,20 @@ function renderBoards() {
 
     if (solvedTry) card.classList.add("solved");
     boardsEl.append(fragment);
+  });
+}
+
+function renderSolutionsPanel(show) {
+  if (!solutionsPanelEl) return;
+  solutionsPanelEl.innerHTML = "";
+  solutionsPanelEl.hidden = !show || !targets.length;
+  if (solutionsPanelEl.hidden) return;
+
+  targets.forEach((target, index) => {
+    const chip = document.createElement("div");
+    chip.className = `solution-chip ${solvedAt[index] ? "solved" : "unsolved"}`;
+    chip.textContent = displayWord(target);
+    solutionsPanelEl.append(chip);
   });
 }
 
@@ -8272,6 +8377,7 @@ function submitGuess() {
     done = true;
     if (gameType === "competitive") {
       applyFailurePenalty();
+      renderSolutionsPanel(true);
       messageEl.textContent = finalMessage("failed");
       finishCompetitive("failed");
     } else {
@@ -8368,8 +8474,13 @@ function levelPoints() {
 }
 
 function maxAttempts() {
-  if (gameType !== "competitive") return MAX_ROWS;
+  if (gameType !== "competitive") return Infinity;
   return COMPETITIVE_LEVEL_ATTEMPTS[competitiveLevelIndex] || MAX_ROWS;
+}
+
+function visibleRows() {
+  if (gameType === "competitive") return maxAttempts();
+  return Math.max(MAX_ROWS, guesses.length + (done ? 0 : 1));
 }
 
 function currentFinalScore() {
@@ -8415,6 +8526,7 @@ function resultWords() {
 
 function resultPayload(status) {
   const finalScore = currentFinalScore();
+  const streak = currentStreakFor(status);
   return {
     status,
     date: todayId(),
@@ -8425,7 +8537,9 @@ function resultPayload(status) {
     level: competitiveLevelIndex + 1,
     words: resultWords(),
     points: `неуспех ${COMPETITIVE_FAIL_PENALTY}, ${COMPETITIVE_LEVELS.map((_, index) => levelLabel(index)).join(", ")}, бонус +${UNUSED_ATTEMPT_BONUS} за сваки неискоришћен покушај`,
-    attempts: COMPETITIVE_LEVEL_ATTEMPTS[competitiveLevelIndex]
+    attempts: COMPETITIVE_LEVEL_ATTEMPTS[competitiveLevelIndex],
+    wins: status === "finished" ? 1 : 0,
+    streak
   };
 }
 
@@ -8433,29 +8547,19 @@ function onlineScorePayload(result) {
   const total = Number(result.score) || 0;
   const started = Number(result.started) || 0;
   return {
-    play_date: result.date || todayId(),
-    device_id: deviceId(),
-    player_name: loadPlayerName() || "Играч",
-    status: result.status,
-    started,
-    total_score: total,
-    score_difference: scoreDifferenceValue(total, started),
-    final_score: Number(result.finalScore) || 0,
-    completed: Number(result.completed) || 0,
-    level: Number(result.level) || 0,
-    words: result.words || "",
-    points: result.points || "",
-    attempts: Number(result.attempts) || 0,
-    updated_at: new Date().toISOString()
+    nickname: loadPlayerName() || "Играч",
+    score: scoreDifferenceValue(total, started),
+    attempts: started,
+    wins: Number(result.wins) || 0,
+    streak: Number(result.streak) || 0
   };
 }
 
 async function submitOnlineResult(result) {
   if (!supabaseConfigured() || !isFinalResult(result)) return false;
-  const table = SUPABASE_CONFIG.table;
-  const response = await fetch(supabaseUrl(`${table}?on_conflict=play_date,device_id`), {
+  const response = await fetch(supabaseUrl(SUPABASE_CONFIG.table), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    headers: supabaseHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify(onlineScorePayload(result))
   });
   if (!response.ok) throw new Error("Supabase submit failed");
@@ -8465,15 +8569,29 @@ async function submitOnlineResult(result) {
 async function fetchOnlineLeaderboard() {
   if (!supabaseConfigured()) return null;
   const query = [
-    `select=player_name,started,total_score,score_difference,completed,status,updated_at`,
-    `play_date=eq.${todayId()}`,
-    `order=score_difference.desc,total_score.desc,completed.desc,updated_at.asc`,
-    `limit=20`
+    `select=nickname,score,attempts,wins,streak,created_at`,
+    `order=score.desc,created_at.asc`,
+    `limit=100`
   ].join("&");
   const response = await fetch(supabaseUrl(`${SUPABASE_CONFIG.table}?${query}`), {
     headers: supabaseHeaders()
   });
   if (!response.ok) throw new Error("Supabase leaderboard failed");
+  return response.json();
+}
+
+async function fetchOnlinePlayerStats(nickname) {
+  if (!supabaseConfigured() || !nickname) return null;
+  const query = [
+    `select=nickname,score,attempts,wins,streak,created_at`,
+    `nickname=eq.${encodeURIComponent(nickname)}`,
+    `order=created_at.desc`,
+    `limit=1000`
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${SUPABASE_CONFIG.table}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) throw new Error("Supabase stats failed");
   return response.json();
 }
 
@@ -8550,6 +8668,7 @@ function finishCompetitive(status) {
   competitiveRunActive = false;
   if (awardPopEl && status === "failed") awardPopEl.hidden = true;
   bonusFlashRows = new Set();
+  ensurePlayerName();
   const result = resultPayload(status);
   saveTodayLock(result);
   upsertTodayResult(result);
@@ -8709,6 +8828,11 @@ function renderListing() {
   const finalResults = results.filter(isFinalResult);
   listingListEl.innerHTML = "";
   if (playerNameInput) playerNameInput.value = loadPlayerName();
+  if (playerStatsEl) {
+    playerStatsEl.textContent = supabaseConfigured()
+      ? "Унеси надимак за online статистику."
+      : "Online статистика није активна док се не унесе Supabase key.";
+  }
   listingMetaEl.textContent = supabaseConfigured()
     ? "онлајн..."
     : finalResults.length ? "локално" : "нема резултата";
@@ -8733,27 +8857,45 @@ function renderListing() {
 
 function renderOnlineLeaderboard(rows) {
   listingListEl.innerHTML = "";
-  listingMetaEl.textContent = "онлајн";
+  listingMetaEl.textContent = "TOP 100";
   if (!rows.length) {
     const item = document.createElement("li");
-    item.textContent = "Још нема online резултата за данас.";
+    item.textContent = "Још нема online резултата.";
     listingListEl.append(item);
     return;
   }
 
   rows.forEach((row, index) => {
     const item = document.createElement("li");
-    const status = row.status === "finished" ? "готово" : "крај";
-    item.textContent = `${index + 1}. ${row.player_name || "Играч"} · ${formatScore(row.score_difference)} · ${formatScore(row.started)}/${formatScore(row.total_score)} · ${row.completed}/4 · ${status}`;
+    item.textContent = `${index + 1}. ${row.nickname || "Играч"} · ${formatScore(row.score || 0)} · покушаји ${formatScore(row.attempts || 0)} · победе ${formatScore(row.wins || 0)} · низ ${formatScore(row.streak || 0)}`;
     listingListEl.append(item);
   });
 }
 
+function renderPlayerStats(rows) {
+  if (!playerStatsEl) return;
+  if (!Array.isArray(rows) || !rows.length) {
+    playerStatsEl.textContent = "Још нема online статистике за овај надимак.";
+    return;
+  }
+
+  const wins = rows.reduce((sum, row) => sum + (Number(row.wins) || 0), 0);
+  const attempts = rows.reduce((sum, row) => sum + (Number(row.attempts) || 0), 0);
+  const best = Math.max(...rows.map((row) => Number(row.score) || 0));
+  const streak = Number(rows[0]?.streak) || 0;
+  playerStatsEl.textContent = `Победе ${formatScore(wins)} · Покушаји ${formatScore(attempts)} · Најбољи ${formatScore(best)} · Streak ${formatScore(streak)}`;
+}
+
 function refreshOnlineLeaderboard() {
   if (!supabaseConfigured() || !listingListEl) return;
-  fetchOnlineLeaderboard()
-    .then((rows) => {
+  const nickname = loadPlayerName();
+  Promise.all([
+    fetchOnlineLeaderboard(),
+    fetchOnlinePlayerStats(nickname)
+  ])
+    .then(([rows, stats]) => {
       if (Array.isArray(rows)) renderOnlineLeaderboard(rows);
+      if (nickname) renderPlayerStats(stats);
     })
     .catch(() => {
       listingMetaEl.textContent = "локално";

@@ -7,9 +7,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Петко">
     <title>Петко</title>
-    <link rel="manifest" href="manifest.webmanifest?v=51">
+    <link rel="manifest" href="manifest.webmanifest?v=53">
     <link rel="icon" href="logo-icon.png" type="image/png">
-    <link rel="stylesheet" href="styles.css?v=51">
+    <link rel="stylesheet" href="styles.css?v=53">
   </head>
   <body>
     <main class="app-shell">
@@ -74,8 +74,11 @@
           <input id="playerNameInput" maxlength="18" placeholder="Надимак" autocomplete="nickname">
           <button id="saveNameButton" type="button">ОК</button>
         </div>
+        <div class="player-stats" id="playerStats">Статистика ће се приказати после online резултата.</div>
         <ol class="listing-list" id="listingList"></ol>
       </section>
+
+      <section class="solutions-panel" id="solutionsPanel" hidden aria-label="Решења"></section>
 
       <section class="boards" id="boards" aria-label="Табла игре"></section>
 
@@ -91,6 +94,6 @@
       </article>
     </template>
 
-    <script src="app.js?v=51"></script>
+    <script src="app.js?v=53"></script>
   </body>
 </html>
