@@ -7811,6 +7811,7 @@ const UNUSED_ATTEMPT_BONUS = 5;
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
+const NORMAL_PROGRESS_KEY = "petko-normal-progress-v1";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
@@ -7860,6 +7861,7 @@ let done = false;
 let score = 0;
 let keyStates = new Map();
 let competitiveRunActive = false;
+let normalStartedCounted = false;
 let lastLevelAward = null;
 let competitiveIntro = false;
 let bonusFlashRows = new Set();
@@ -8000,6 +8002,12 @@ function bumpNormalFinished() {
   renderNormalStats();
 }
 
+function markNormalStarted() {
+  if (gameType !== "normal" || normalStartedCounted) return;
+  normalStartedCounted = true;
+  bumpNormalStarted();
+}
+
 function renderNormalStats() {
   if (!normalStatsEl) return;
   const stats = loadNormalStats();
@@ -8132,6 +8140,10 @@ function clearCompetitiveProgress() {
   localStorage.removeItem(COMPETITIVE_PROGRESS_KEY);
 }
 
+function clearNormalProgress() {
+  localStorage.removeItem(NORMAL_PROGRESS_KEY);
+}
+
 function loadCompetitiveProgress() {
   try {
     const progress = JSON.parse(localStorage.getItem(COMPETITIVE_PROGRESS_KEY) || "null");
@@ -8141,15 +8153,17 @@ function loadCompetitiveProgress() {
 }
 
 function saveCompetitiveProgress() {
-  if (gameType !== "competitive" || !competitiveRunActive || done) return;
+  if (gameType !== "competitive" || !competitiveRunActive) return;
   const progress = {
     date: todayId(),
     status: "in_progress",
     mode,
+    done,
     competitiveLevelIndex,
     competitiveStarted,
     competitiveCompleted,
     score,
+    lastLevelAward,
     targets,
     competitiveWordsPlayed,
     solvedAt,
@@ -8161,11 +8175,37 @@ function saveCompetitiveProgress() {
   localStorage.setItem(COMPETITIVE_PROGRESS_KEY, JSON.stringify(progress));
 }
 
+function loadNormalProgress() {
+  try {
+    const progress = JSON.parse(localStorage.getItem(NORMAL_PROGRESS_KEY) || "null");
+    if (progress && progress.status === "in_progress") return progress;
+  } catch {}
+  return null;
+}
+
+function saveNormalProgress() {
+  if (gameType !== "normal" || done) return;
+  if (!normalStartedCounted && !current && !guesses.length) return;
+  const progress = {
+    status: "in_progress",
+    mode,
+    normalGameSeed,
+    normalStartedCounted,
+    targets,
+    solvedAt,
+    guesses,
+    current,
+    keyStates: [...keyStates.entries()],
+    updatedAt: new Date().toISOString()
+  };
+  localStorage.setItem(NORMAL_PROGRESS_KEY, JSON.stringify(progress));
+}
+
 function restoreCompetitiveProgress(progress) {
   gameType = "competitive";
   competitiveIntro = false;
   competitiveRunActive = true;
-  done = false;
+  done = Boolean(progress.done);
   mode = progress.mode || 1;
   competitiveLevelIndex = progress.competitiveLevelIndex || 0;
   competitiveStarted = progress.competitiveStarted || 1;
@@ -8177,7 +8217,7 @@ function restoreCompetitiveProgress(progress) {
   guesses = Array.isArray(progress.guesses) ? progress.guesses : [];
   current = progress.current || "";
   keyStates = new Map(Array.isArray(progress.keyStates) ? progress.keyStates : []);
-  lastLevelAward = null;
+  lastLevelAward = progress.lastLevelAward || null;
   bonusFlashRows = new Set();
 
   document.body.dataset.gameType = gameType;
@@ -8190,12 +8230,46 @@ function restoreCompetitiveProgress(progress) {
   boardsEl.classList.toggle("level-8", mode === 8);
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
-  nextLevelButton.hidden = true;
+  nextLevelButton.hidden = !(done && competitiveCompleted > competitiveLevelIndex && competitiveLevelIndex < COMPETITIVE_LEVELS.length - 1);
+  nextLevelButton.textContent = "Даље";
   modeLabelEl.textContent = "";
-  messageEl.textContent = "Настављено такмичење.";
+  messageEl.textContent = done && !nextLevelButton.hidden
+    ? levelAwardMessage()
+    : "Настављено такмичење.";
   renderSolutionsPanel(false);
   render();
   saveCompetitiveProgress();
+  renderListing();
+  updateCompetitiveCountdown();
+}
+
+function restoreNormalProgress(progress) {
+  gameType = "normal";
+  competitiveIntro = false;
+  competitiveRunActive = false;
+  normalStartedCounted = Boolean(progress.normalStartedCounted);
+  done = false;
+  mode = 1;
+  score = 0;
+  normalGameSeed = progress.normalGameSeed || 0;
+  targets = Array.isArray(progress.targets) && progress.targets.length ? progress.targets : chooseTargets(1);
+  solvedAt = Array.isArray(progress.solvedAt) ? progress.solvedAt : Array(targets.length).fill(null);
+  guesses = Array.isArray(progress.guesses) ? progress.guesses : [];
+  current = progress.current || "";
+  keyStates = new Map(Array.isArray(progress.keyStates) ? progress.keyStates : []);
+  lastLevelAward = null;
+  bonusFlashRows = new Set();
+
+  document.body.dataset.gameType = gameType;
+  document.body.dataset.competitiveLocked = "false";
+  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
+  updateModeButtons();
+  nextLevelButton.hidden = true;
+  modeLabelEl.textContent = "Обичан";
+  messageEl.textContent = "";
+  renderSolutionsPanel(false);
+  render();
   renderListing();
   updateCompetitiveCountdown();
 }
@@ -8316,12 +8390,21 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
     mode = COMPETITIVE_LEVELS[competitiveLevelIndex];
     competitiveStarted += 1;
   } else {
+    if (!options.nextNormal) {
+      const normalProgress = loadNormalProgress();
+      if (normalProgress) {
+        restoreNormalProgress(normalProgress);
+        return;
+      }
+    } else {
+      clearNormalProgress();
+    }
     mode = 1;
     score = 0;
     competitiveRunActive = false;
+    normalStartedCounted = false;
     lastLevelAward = null;
     bonusFlashRows = new Set();
-    bumpNormalStarted();
     if (options.nextNormal) {
       normalGameSeed += 1;
     }
@@ -8340,6 +8423,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
   renderSolutionsPanel(false);
 
   document.body.dataset.gameType = gameType;
+  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
   boardsEl.classList.toggle("multi", mode > 1);
   boardsEl.classList.toggle("mega", mode === 8);
   boardsEl.classList.toggle("level-2", gameType === "competitive" && mode === 2);
@@ -8368,6 +8452,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
     : "";
   render();
   saveCompetitiveProgress();
+  saveNormalProgress();
   renderListing();
   updateCompetitiveCountdown();
 }
@@ -8480,9 +8565,11 @@ function pressKey(key) {
     submitGuess();
   } else if (/^[абвгдђежзијклљмнњопрстћуфхцчџш]$/.test(key) && current.length < WORD_LENGTH) {
     current += key;
+    markNormalStarted();
   }
   render();
   saveCompetitiveProgress();
+  saveNormalProgress();
 }
 
 function submitGuess() {
@@ -8501,6 +8588,7 @@ function submitGuess() {
   updateKeyStates(current);
   current = "";
   saveCompetitiveProgress();
+  saveNormalProgress();
 
   const solvedCount = solvedAt.filter(Boolean).length;
   const allSolved = solvedCount === targets.length;
@@ -8515,6 +8603,7 @@ function submitGuess() {
       messageEl.textContent = isFinalLevel
         ? finalMessage("finished")
         : levelAwardMessage();
+      saveCompetitiveProgress();
       if (isFinalLevel) {
         finishCompetitive("finished");
       }
@@ -8522,6 +8611,7 @@ function submitGuess() {
     } else {
       messageEl.textContent = "Погођено!";
       bumpNormalFinished();
+      clearNormalProgress();
     }
   } else if (guesses.length >= maxAttempts()) {
     done = true;
@@ -8538,6 +8628,7 @@ function submitGuess() {
       ? `${solvedCount}/${mode} решено. Скор важи само за такмичарски.`
       : "Настави.";
     saveCompetitiveProgress();
+    saveNormalProgress();
   }
 }
 
@@ -9126,9 +9217,15 @@ if (saveNameButton) {
   });
 }
 
-window.addEventListener("beforeunload", saveCompetitiveProgress);
+window.addEventListener("beforeunload", () => {
+  saveCompetitiveProgress();
+  saveNormalProgress();
+});
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") saveCompetitiveProgress();
+  if (document.visibilityState === "hidden") {
+    saveCompetitiveProgress();
+    saveNormalProgress();
+  }
 });
 setInterval(updateCompetitiveCountdown, 1000);
 
