@@ -8472,8 +8472,21 @@ function render() {
 
 function renderBoards() {
   boardsEl.innerHTML = "";
+  const boardIndexes = targets
+    .map((_, index) => index)
+    .sort((a, b) => {
+      const aCollapsed = gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[a];
+      const bCollapsed = gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[b];
+      return Number(aCollapsed) - Number(bCollapsed);
+    });
+  const collapsedCount = boardIndexes.filter((index) =>
+    gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[index]
+  ).length;
+  boardsEl.classList.toggle("has-collapsed", collapsedCount > 0);
+  boardsEl.classList.toggle("collapsed-odd", collapsedCount % 2 === 1);
 
-  targets.forEach((target, boardIndex) => {
+  boardIndexes.forEach((boardIndex) => {
+    const target = targets[boardIndex];
     const fragment = template.content.cloneNode(true);
     const card = fragment.querySelector(".board-card");
     const title = fragment.querySelector(".board-title");

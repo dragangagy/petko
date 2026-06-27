@@ -621,6 +621,7 @@ body[data-competitive-locked="true"] .next-button {
   align-content: start;
   align-self: stretch;
   width: 100%;
+  grid-auto-flow: row dense;
   gap: 12px;
   margin-top: 18px;
 }
@@ -643,7 +644,13 @@ body[data-competitive-locked="true"] .next-button {
   min-height: 44px;
   display: grid;
   place-items: center;
+  align-self: start;
   padding: 8px;
+}
+
+.boards.has-collapsed .board-card.collapsed {
+  min-height: 38px;
+  padding: 6px 8px;
 }
 
 .board-card.collapsed .board-title {
