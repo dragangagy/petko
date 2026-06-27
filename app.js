@@ -8222,9 +8222,10 @@ function restoreCompetitiveProgress(progress) {
 
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
-  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.toggle("multi", mode > 1);
   boardsEl.classList.toggle("mega", mode === 8);
+  boardsEl.classList.toggle("level-1", mode === 1);
   boardsEl.classList.toggle("level-2", mode === 2);
   boardsEl.classList.toggle("level-4", mode === 4);
   boardsEl.classList.toggle("level-8", mode === 8);
@@ -8262,7 +8263,8 @@ function restoreNormalProgress(progress) {
 
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
-  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
+  boardsEl.classList.add("level-1");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
   nextLevelButton.hidden = true;
@@ -8341,7 +8343,7 @@ function showCompetitiveIntro() {
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   boardsEl.innerHTML = "";
-  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   renderSolutionsPanel(false);
   keyboardEl.innerHTML = "";
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -8423,9 +8425,10 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
   renderSolutionsPanel(false);
 
   document.body.dataset.gameType = gameType;
-  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.toggle("multi", mode > 1);
   boardsEl.classList.toggle("mega", mode === 8);
+  boardsEl.classList.toggle("level-1", mode === 1);
   boardsEl.classList.toggle("level-2", gameType === "competitive" && mode === 2);
   boardsEl.classList.toggle("level-4", gameType === "competitive" && mode === 4);
   boardsEl.classList.toggle("level-8", gameType === "competitive" && mode === 8);
@@ -8434,11 +8437,9 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
     const buttonMode = Number(button.dataset.mode);
     const levelIndex = COMPETITIVE_LEVELS.indexOf(buttonMode);
     button.classList.toggle("active", buttonMode === mode);
-    const isLocked = gameType === "normal"
-      ? buttonMode !== 1
-      : levelIndex > competitiveCompleted;
+    const isLocked = gameType === "normal" ? buttonMode !== 1 : levelIndex > competitiveCompleted;
     button.classList.toggle("locked", isLocked);
-    button.disabled = isLocked;
+    button.disabled = gameType === "competitive" || isLocked;
   });
   nextLevelButton.hidden = true;
   nextLevelButton.textContent = "Даље";
@@ -8463,7 +8464,7 @@ function render() {
   tryCountEl.textContent = String(guesses.length);
   tryButton.textContent = gameType === "competitive"
     ? `${guesses.length}/${maxAttempts()}`
-    : `${guesses.length}/∞`;
+    : `${guesses.length}/${maxAttempts()}`;
   updateScoreDisplay();
   renderNormalStats();
   updateCompetitiveCountdown();
@@ -8625,6 +8626,8 @@ function submitGuess() {
       messageEl.textContent = "Погођено!";
       bumpNormalFinished();
       clearNormalProgress();
+      nextLevelButton.textContent = "Следећа";
+      nextLevelButton.hidden = false;
     }
   } else if (guesses.length >= maxAttempts()) {
     done = true;
@@ -8635,6 +8638,9 @@ function submitGuess() {
       finishCompetitive("failed");
     } else {
       messageEl.textContent = `Решење: ${displayWords(targets)}`;
+      clearNormalProgress();
+      nextLevelButton.textContent = "Следећа";
+      nextLevelButton.hidden = false;
     }
   } else {
     messageEl.textContent = gameType === "competitive"
@@ -8666,7 +8672,7 @@ function showLockedCompetitive(result) {
 
   document.body.dataset.gameType = gameType;
   boardsEl.innerHTML = "";
-  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   keyboardEl.innerHTML = "";
   nextLevelButton.hidden = true;
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -8684,12 +8690,10 @@ function updateModeButtons() {
   modeButtons.forEach((button) => {
     const buttonMode = Number(button.dataset.mode);
     const levelIndex = COMPETITIVE_LEVELS.indexOf(buttonMode);
-    const isLocked = gameType === "normal"
-      ? buttonMode !== 1
-      : levelIndex > competitiveCompleted;
+    const isLocked = gameType === "normal" ? buttonMode !== 1 : levelIndex > competitiveCompleted;
     button.classList.toggle("active", buttonMode === mode);
     button.classList.toggle("locked", isLocked);
-    button.disabled = isLocked;
+    button.disabled = gameType === "competitive" || isLocked;
   });
 }
 
@@ -8731,7 +8735,7 @@ function levelPoints() {
 }
 
 function maxAttempts() {
-  if (gameType !== "competitive") return Infinity;
+  if (gameType !== "competitive") return MAX_ROWS;
   return COMPETITIVE_LEVEL_ATTEMPTS[competitiveLevelIndex] || MAX_ROWS;
 }
 
@@ -8914,7 +8918,7 @@ function aggregateLeaderboard(rows) {
 function finalMessage(status) {
   const result = resultPayload(status);
   if (status === "failed") {
-    return `Више среће следећи дан. За вас се такмичење овде завршава. Скор: ${formatScore(result.finalScore)}.`;
+    return `Више среће следећи дан. Решења: ${result.words}. Скор: ${formatScore(result.finalScore)}.`;
   }
   const label = status === "finished" ? "Готово" : "Крај";
   return `${label}: ${formatScore(result.finalScore)}. Речи: ${result.words}. Поени: ${result.points}. Започето: ${result.started}.`;
@@ -8953,12 +8957,12 @@ function animateScoreAward(award) {
         void awardPopEl.offsetWidth;
         awardPopEl.classList.add("award-pop");
       }
-    }, index * 420);
+    }, index * 760);
   });
 
   window.setTimeout(() => {
     updateScoreDisplay();
-  }, steps.length * 420 + 80);
+  }, steps.length * 760 + 180);
 }
 
 function showScoreBurst(text, tone) {
@@ -8971,7 +8975,7 @@ function showScoreBurst(text, tone) {
   void scoreBurstEl.offsetWidth;
   window.setTimeout(() => {
     if (token === scoreBurstToken) scoreBurstEl.hidden = true;
-  }, tone === "red" ? 1100 : 980);
+  }, tone === "red" ? 1300 : 1450);
 }
 
 function lockedMessage(result) {
@@ -9111,16 +9115,17 @@ typeButtons.forEach((button) => {
 
 modeButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    if (gameType === "competitive") return;
     const requestedMode = Number(button.dataset.mode);
-    if (gameType === "competitive") {
-      startGame("competitive", requestedMode);
-      return;
-    }
     startGame("normal", 1);
   });
 });
 
 nextLevelButton.addEventListener("click", () => {
+  if (gameType === "normal") {
+    startGame("normal", 1, { nextNormal: true });
+    return;
+  }
   if (competitiveIntro) {
     startGame("competitive", undefined, { resetLadder: true });
     return;

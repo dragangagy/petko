@@ -328,14 +328,15 @@ body[data-game-type="normal"] .score-stack {
   color: var(--present);
   background: rgba(255, 215, 0, 0.12);
   border: 1px solid rgba(255, 215, 0, 0.42);
-  animation: burst-fly 980ms ease both;
+  animation: burst-fly 1450ms ease both;
 }
 
 .score-burst.green {
   color: var(--correct);
-  background: rgba(22, 230, 138, 0.14);
-  border: 1px solid rgba(22, 230, 138, 0.44);
-  animation: burst-fly 980ms ease both;
+  background: rgba(22, 230, 138, 0.22);
+  border: 2px solid rgba(22, 230, 138, 0.72);
+  box-shadow: 0 0 28px rgba(22, 230, 138, 0.46);
+  animation: burst-fly 1450ms ease both;
 }
 
 .score-burst.red {
@@ -440,8 +441,11 @@ body[data-game-type="normal"] .score-stack {
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.22);
 }
 
-.mode-button.locked,
 .mode-button:disabled {
+  cursor: default;
+}
+
+.mode-button.locked {
   opacity: 0.42;
 }
 
@@ -611,7 +615,7 @@ body[data-competitive-locked="true"] .next-button {
   grid-template-columns: 1fr;
   align-content: start;
   align-self: center;
-  width: min(100%, 328px);
+  width: min(100%, calc((100vw - 32px) / 2), 244px);
   gap: 5px;
   margin-top: 18px;
 }
@@ -726,12 +730,14 @@ body[data-game-type="competitive"][data-competitive-locked="true"] .listing-pane
   display: block;
 }
 
+.boards.level-1 .board-card,
 .boards.level-2 .board-card,
 .boards.level-4 .board-card,
 .boards.level-8 .board-card {
   padding: 5px;
 }
 
+.boards.level-1 .board-title,
 .boards.level-2 .board-title,
 .boards.level-4 .board-title,
 .boards.level-8 .board-title {
@@ -740,15 +746,18 @@ body[data-game-type="competitive"][data-competitive-locked="true"] .listing-pane
   font-size: 9px;
 }
 
+.boards.level-1 .grid,
 .boards.level-2 .grid,
 .boards.level-4 .grid,
 .boards.level-8 .grid,
+.boards.level-1 .row,
 .boards.level-2 .row,
 .boards.level-4 .row,
 .boards.level-8 .row {
   gap: 4px;
 }
 
+.boards.level-1 .tile,
 .boards.level-2 .tile,
 .boards.level-4 .tile,
 .boards.level-8 .tile {
@@ -756,6 +765,7 @@ body[data-game-type="competitive"][data-competitive-locked="true"] .listing-pane
   border-radius: 4px;
 }
 
+.boards.level-1 .tile,
 .boards.level-2 .tile {
   height: clamp(31px, 5.35svh, 46px);
   font-size: clamp(16px, 4.2vw, 24px);
@@ -966,6 +976,7 @@ body[data-game-type="competitive"][data-competitive-locked="true"] .listing-pane
     font-size: 12px;
   }
 
+  .boards.level-1 .tile,
   .boards.level-2 .tile {
     height: clamp(25px, 4.45svh, 34px);
   }
