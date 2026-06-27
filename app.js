@@ -7810,8 +7810,10 @@ const COMPETITIVE_FAIL_PENALTY = -2;
 const UNUSED_ATTEMPT_BONUS = 5;
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
+const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
+const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v1";
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
@@ -7837,6 +7839,7 @@ const playerStatsEl = document.querySelector("#playerStats");
 const playerNameInput = document.querySelector("#playerNameInput");
 const saveNameButton = document.querySelector("#saveNameButton");
 const solutionsPanelEl = document.querySelector("#solutionsPanel");
+const normalStatsEl = document.querySelector("#normalStats");
 const shareButton = document.querySelector("#shareButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
 const modeButtons = [...document.querySelectorAll(".mode-button")];
@@ -7971,6 +7974,66 @@ function saveResults(results) {
   localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(results.slice(0, 30)));
 }
 
+function loadNormalStats() {
+  try {
+    return { started: 0, finished: 0, ...JSON.parse(localStorage.getItem(NORMAL_STATS_KEY) || "{}") };
+  } catch {
+    return { started: 0, finished: 0 };
+  }
+}
+
+function saveNormalStats(stats) {
+  localStorage.setItem(NORMAL_STATS_KEY, JSON.stringify(stats));
+}
+
+function bumpNormalStarted() {
+  const stats = loadNormalStats();
+  stats.started += 1;
+  saveNormalStats(stats);
+  renderNormalStats();
+}
+
+function bumpNormalFinished() {
+  const stats = loadNormalStats();
+  stats.finished += 1;
+  saveNormalStats(stats);
+  renderNormalStats();
+}
+
+function renderNormalStats() {
+  if (!normalStatsEl) return;
+  const stats = loadNormalStats();
+  normalStatsEl.textContent = `Обичан скор: започето ${stats.started} · завршено ${stats.finished}`;
+}
+
+function msUntilTomorrow() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setHours(24, 0, 0, 0);
+  return Math.max(0, tomorrow - now);
+}
+
+function countdownText() {
+  const totalSeconds = Math.ceil(msUntilTomorrow() / 1000);
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function updateCompetitiveCountdown() {
+  const button = typeButtons.find((item) => item.dataset.type === "competitive");
+  if (!button) return;
+  const locked = Boolean(todayLock());
+  button.classList.toggle("daily-locked", locked);
+  button.disabled = false;
+  if (locked) {
+    button.dataset.countdown = countdownText();
+    return;
+  }
+  delete button.dataset.countdown;
+}
+
 function supabaseConfigured() {
   return Boolean(
     SUPABASE_CONFIG.url &&
@@ -8065,6 +8128,78 @@ function saveTodayLock(patch) {
   localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(lock));
 }
 
+function clearCompetitiveProgress() {
+  localStorage.removeItem(COMPETITIVE_PROGRESS_KEY);
+}
+
+function loadCompetitiveProgress() {
+  try {
+    const progress = JSON.parse(localStorage.getItem(COMPETITIVE_PROGRESS_KEY) || "null");
+    if (progress && progress.date === todayId() && progress.status === "in_progress") return progress;
+  } catch {}
+  return null;
+}
+
+function saveCompetitiveProgress() {
+  if (gameType !== "competitive" || !competitiveRunActive || done) return;
+  const progress = {
+    date: todayId(),
+    status: "in_progress",
+    mode,
+    competitiveLevelIndex,
+    competitiveStarted,
+    competitiveCompleted,
+    score,
+    targets,
+    competitiveWordsPlayed,
+    solvedAt,
+    guesses,
+    current,
+    keyStates: [...keyStates.entries()],
+    updatedAt: new Date().toISOString()
+  };
+  localStorage.setItem(COMPETITIVE_PROGRESS_KEY, JSON.stringify(progress));
+}
+
+function restoreCompetitiveProgress(progress) {
+  gameType = "competitive";
+  competitiveIntro = false;
+  competitiveRunActive = true;
+  done = false;
+  mode = progress.mode || 1;
+  competitiveLevelIndex = progress.competitiveLevelIndex || 0;
+  competitiveStarted = progress.competitiveStarted || 1;
+  competitiveCompleted = progress.competitiveCompleted || 0;
+  score = progress.score || 0;
+  targets = Array.isArray(progress.targets) ? progress.targets : [];
+  competitiveWordsPlayed = Array.isArray(progress.competitiveWordsPlayed) ? progress.competitiveWordsPlayed : [];
+  solvedAt = Array.isArray(progress.solvedAt) ? progress.solvedAt : Array(targets.length).fill(null);
+  guesses = Array.isArray(progress.guesses) ? progress.guesses : [];
+  current = progress.current || "";
+  keyStates = new Map(Array.isArray(progress.keyStates) ? progress.keyStates : []);
+  lastLevelAward = null;
+  bonusFlashRows = new Set();
+
+  document.body.dataset.gameType = gameType;
+  document.body.dataset.competitiveLocked = "false";
+  boardsEl.classList.remove("multi", "mega", "level-2", "level-4", "level-8");
+  boardsEl.classList.toggle("multi", mode > 1);
+  boardsEl.classList.toggle("mega", mode === 8);
+  boardsEl.classList.toggle("level-2", mode === 2);
+  boardsEl.classList.toggle("level-4", mode === 4);
+  boardsEl.classList.toggle("level-8", mode === 8);
+  typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
+  updateModeButtons();
+  nextLevelButton.hidden = true;
+  modeLabelEl.textContent = "";
+  messageEl.textContent = "Настављено такмичење.";
+  renderSolutionsPanel(false);
+  render();
+  saveCompetitiveProgress();
+  renderListing();
+  updateCompetitiveCountdown();
+}
+
 function isFinalResult(result) {
   return result.status === "finished" || result.status === "failed";
 }
@@ -8106,6 +8241,11 @@ function showCompetitiveIntro() {
     showLockedCompetitive(locked);
     return;
   }
+  const progress = loadCompetitiveProgress();
+  if (progress) {
+    restoreCompetitiveProgress(progress);
+    return;
+  }
 
   gameType = "competitive";
   competitiveIntro = true;
@@ -8141,6 +8281,7 @@ function showCompetitiveIntro() {
   nextLevelButton.textContent = "Старт";
   nextLevelButton.hidden = false;
   renderListing();
+  updateCompetitiveCountdown();
 }
 
 function startGame(nextType = gameType, requestedMode, options = {}) {
@@ -8154,6 +8295,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
         showLockedCompetitive(locked);
         return;
       }
+      clearCompetitiveProgress();
       competitiveLevelIndex = 0;
       competitiveStarted = 0;
       competitiveCompleted = 0;
@@ -8179,6 +8321,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
     competitiveRunActive = false;
     lastLevelAward = null;
     bonusFlashRows = new Set();
+    bumpNormalStarted();
     if (options.nextNormal) {
       normalGameSeed += 1;
     }
@@ -8224,7 +8367,9 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
     ? `Ниво ${competitiveLevelIndex + 1}: ${mode} ${mode === 1 ? "реч" : "речи"}, све решено носи ${levelPoints()} поена. Бонус +${UNUSED_ATTEMPT_BONUS} ако остане покушаја. Неуспех носи ${COMPETITIVE_FAIL_PENALTY}.`
     : "";
   render();
+  saveCompetitiveProgress();
   renderListing();
+  updateCompetitiveCountdown();
 }
 
 function render() {
@@ -8235,6 +8380,8 @@ function render() {
     ? `${guesses.length}/${maxAttempts()}`
     : `${guesses.length}/∞`;
   updateScoreDisplay();
+  renderNormalStats();
+  updateCompetitiveCountdown();
   requestAnimationFrame(positionKeyboard);
 }
 
@@ -8335,6 +8482,7 @@ function pressKey(key) {
     current += key;
   }
   render();
+  saveCompetitiveProgress();
 }
 
 function submitGuess() {
@@ -8352,6 +8500,7 @@ function submitGuess() {
   updateSolvedAndScore(current, guesses.length);
   updateKeyStates(current);
   current = "";
+  saveCompetitiveProgress();
 
   const solvedCount = solvedAt.filter(Boolean).length;
   const allSolved = solvedCount === targets.length;
@@ -8372,6 +8521,7 @@ function submitGuess() {
       updateModeButtons();
     } else {
       messageEl.textContent = "Погођено!";
+      bumpNormalFinished();
     }
   } else if (guesses.length >= maxAttempts()) {
     done = true;
@@ -8387,10 +8537,12 @@ function submitGuess() {
     messageEl.textContent = gameType === "competitive"
       ? `${solvedCount}/${mode} решено. Скор важи само за такмичарски.`
       : "Настави.";
+    saveCompetitiveProgress();
   }
 }
 
 function showLockedCompetitive(result) {
+  clearCompetitiveProgress();
   gameType = "competitive";
   document.body.dataset.competitiveLocked = "true";
   competitiveCompleted = result.completed || 0;
@@ -8421,6 +8573,7 @@ function showLockedCompetitive(result) {
   tryButton.textContent = `0/${maxAttempts()}`;
   updateScoreDisplay(result);
   renderListing();
+  updateCompetitiveCountdown();
 }
 
 function updateModeButtons() {
@@ -8725,6 +8878,7 @@ function lockedMessage(result) {
 
 function finishCompetitive(status) {
   competitiveRunActive = false;
+  clearCompetitiveProgress();
   if (awardPopEl && status === "failed") awardPopEl.hidden = true;
   bonusFlashRows = new Set();
   ensurePlayerName();
@@ -8744,6 +8898,7 @@ function finishCompetitive(status) {
   nextLevelButton.hidden = true;
   updateModeButtons();
   renderListing();
+  updateCompetitiveCountdown();
 }
 
 function updateKeyStates(guess) {
@@ -8970,5 +9125,11 @@ if (saveNameButton) {
     refreshOnlineLeaderboard();
   });
 }
+
+window.addEventListener("beforeunload", saveCompetitiveProgress);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveCompetitiveProgress();
+});
+setInterval(updateCompetitiveCountdown, 1000);
 
 startGame();

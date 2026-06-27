@@ -398,6 +398,31 @@ body[data-game-type="normal"] .score-stack {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
+.type-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.type-button.daily-locked {
+  color: rgba(255, 255, 255, 0.34);
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.28);
+}
+
+.type-button.daily-locked::after {
+  content: attr(data-countdown);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 950;
+  background: rgba(2, 8, 23, 0.72);
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.28);
+}
+
 .type-button:hover,
 .mode-button:hover,
 .next-button:hover {
@@ -430,6 +455,22 @@ body[data-game-type="normal"] .points-pill,
 body[data-game-type="normal"] .mode-row,
 body[data-game-type="normal"] .listing-panel {
   display: none;
+}
+
+body[data-game-type="competitive"] .normal-stats {
+  display: none;
+}
+
+.normal-stats {
+  min-height: 30px;
+  padding: 7px 9px;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.76);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 850;
+  text-align: center;
 }
 
 body[data-competitive-locked="true"] .mode-row,
