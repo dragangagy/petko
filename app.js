@@ -8513,8 +8513,9 @@ function renderBoards() {
       const row = document.createElement("div");
       row.className = "row";
       if (bonusFlashRows.has(rowIndex)) row.classList.add("bonus-flash");
-      const word = guesses[rowIndex] || (rowIndex === guesses.length && !done ? current : "");
-      const states = guesses[rowIndex] ? scoreGuess(guesses[rowIndex], target) : [];
+      const boardClosed = solvedTry && rowIndex >= solvedTry;
+      const word = boardClosed ? "" : guesses[rowIndex] || (rowIndex === guesses.length && !done ? current : "");
+      const states = boardClosed ? [] : guesses[rowIndex] ? scoreGuess(guesses[rowIndex], target) : [];
 
       for (let tileIndex = 0; tileIndex < WORD_LENGTH; tileIndex += 1) {
         const tile = document.createElement("div");
