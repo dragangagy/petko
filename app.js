@@ -8483,8 +8483,10 @@ function renderBoards() {
   const collapsedCount = boardIndexes.filter((index) =>
     gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[index]
   ).length;
+  const activeCount = targets.length - collapsedCount;
   boardsEl.classList.toggle("has-collapsed", collapsedCount > 0);
   boardsEl.classList.toggle("collapsed-odd", collapsedCount % 2 === 1);
+  boardsEl.classList.toggle("collapsed-side", activeCount === 1 && collapsedCount % 2 === 1);
 
   boardIndexes.forEach((boardIndex) => {
     const target = targets[boardIndex];
