@@ -31,3 +31,9 @@ const SUPABASE_CONFIG = {
 ```
 
 Without these values the app uses local results only.
+
+`scores.score` stores the daily score. The seasonal leaderboard is calculated in the app:
+
+```text
+final = average_daily_score + min(played_days, 20) * 0.5 + min(streak, 10)
+```

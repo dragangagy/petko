@@ -1,10 +1,10 @@
-const CACHE_NAME = "petko-mobile-v53";
+const CACHE_NAME = "petko-mobile-v54";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=53",
-  "./app.js?v=53",
-  "./manifest.webmanifest?v=53",
+  "./styles.css?v=54",
+  "./app.js?v=54",
+  "./manifest.webmanifest?v=54",
   "./logo-cut.png",
   "./logo-icon.png"
 ];

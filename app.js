@@ -8570,8 +8570,8 @@ async function fetchOnlineLeaderboard() {
   if (!supabaseConfigured()) return null;
   const query = [
     `select=nickname,score,attempts,wins,streak,created_at`,
-    `order=score.desc,created_at.asc`,
-    `limit=100`
+    `order=created_at.desc`,
+    `limit=1000`
   ].join("&");
   const response = await fetch(supabaseUrl(`${SUPABASE_CONFIG.table}?${query}`), {
     headers: supabaseHeaders()
@@ -8593,6 +8593,65 @@ async function fetchOnlinePlayerStats(nickname) {
   });
   if (!response.ok) throw new Error("Supabase stats failed");
   return response.json();
+}
+
+function scoreDate(row) {
+  return String(row.created_at || "").slice(0, 10) || todayId();
+}
+
+function aggregatePlayerRows(rows) {
+  const days = new Map();
+  rows.forEach((row) => {
+    const date = scoreDate(row);
+    const scoreValue = Number(row.score) || 0;
+    const old = days.get(date);
+    if (!old || scoreValue > old.score) {
+      days.set(date, {
+        score: scoreValue,
+        attempts: Number(row.attempts) || 0,
+        wins: Number(row.wins) || 0,
+        streak: Number(row.streak) || 0
+      });
+    }
+  });
+
+  const dayRows = [...days.values()];
+  const playedDays = dayRows.length;
+  const totalScore = dayRows.reduce((sum, row) => sum + row.score, 0);
+  const average = playedDays ? totalScore / playedDays : 0;
+  const activityBonus = Math.min(playedDays, 20) * 0.5;
+  const streak = Math.max(0, ...dayRows.map((row) => row.streak || 0));
+  const streakBonus = Math.min(streak, 10);
+  const finalScore = average + activityBonus + streakBonus;
+
+  return {
+    attempts: dayRows.reduce((sum, row) => sum + row.attempts, 0),
+    best: playedDays ? Math.max(...dayRows.map((row) => row.score)) : 0,
+    finalScore,
+    playedDays,
+    streak,
+    totalScore,
+    wins: dayRows.reduce((sum, row) => sum + row.wins, 0)
+  };
+}
+
+function aggregateLeaderboard(rows) {
+  const byName = new Map();
+  rows.forEach((row) => {
+    const nickname = (row.nickname || "Играч").trim() || "Играч";
+    if (!byName.has(nickname)) byName.set(nickname, []);
+    byName.get(nickname).push(row);
+  });
+
+  return [...byName.entries()]
+    .map(([nickname, playerRows]) => ({ nickname, ...aggregatePlayerRows(playerRows) }))
+    .sort((a, b) =>
+      b.finalScore - a.finalScore ||
+      b.best - a.best ||
+      b.playedDays - a.playedDays ||
+      a.nickname.localeCompare(b.nickname)
+    )
+    .slice(0, 100);
 }
 
 function finalMessage(status) {
@@ -8857,17 +8916,18 @@ function renderListing() {
 
 function renderOnlineLeaderboard(rows) {
   listingListEl.innerHTML = "";
-  listingMetaEl.textContent = "TOP 100";
-  if (!rows.length) {
+  listingMetaEl.textContent = "СЕЗОНА TOP 100";
+  const leaderboard = aggregateLeaderboard(rows);
+  if (!leaderboard.length) {
     const item = document.createElement("li");
     item.textContent = "Још нема online резултата.";
     listingListEl.append(item);
     return;
   }
 
-  rows.forEach((row, index) => {
+  leaderboard.forEach((row, index) => {
     const item = document.createElement("li");
-    item.textContent = `${index + 1}. ${row.nickname || "Играч"} · ${formatScore(row.score || 0)} · покушаји ${formatScore(row.attempts || 0)} · победе ${formatScore(row.wins || 0)} · низ ${formatScore(row.streak || 0)}`;
+    item.textContent = `${index + 1}. ${row.nickname} · ${formatScore(row.finalScore)} · просек ${formatScore(row.playedDays ? row.totalScore / row.playedDays : 0)} · дани ${row.playedDays} · низ ${row.streak}`;
     listingListEl.append(item);
   });
 }
@@ -8879,11 +8939,8 @@ function renderPlayerStats(rows) {
     return;
   }
 
-  const wins = rows.reduce((sum, row) => sum + (Number(row.wins) || 0), 0);
-  const attempts = rows.reduce((sum, row) => sum + (Number(row.attempts) || 0), 0);
-  const best = Math.max(...rows.map((row) => Number(row.score) || 0));
-  const streak = Number(rows[0]?.streak) || 0;
-  playerStatsEl.textContent = `Победе ${formatScore(wins)} · Покушаји ${formatScore(attempts)} · Најбољи ${formatScore(best)} · Streak ${formatScore(streak)}`;
+  const stats = aggregatePlayerRows(rows);
+  playerStatsEl.textContent = `Final ${formatScore(stats.finalScore)} · Победе ${formatScore(stats.wins)} · Покушаји ${formatScore(stats.attempts)} · Најбољи ${formatScore(stats.best)} · Streak ${formatScore(stats.streak)}`;
 }
 
 function refreshOnlineLeaderboard() {
