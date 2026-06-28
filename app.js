@@ -8563,9 +8563,9 @@ function renderBoards() {
   const boardIndexes = targets
     .map((_, index) => index)
     .sort((a, b) => {
-      const aCollapsed = gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[a];
-      const bCollapsed = gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[b];
-      return Number(aCollapsed) - Number(bCollapsed);
+      const aSolved = gameType === "competitive" && mode > 1 && solvedAt[a];
+      const bSolved = gameType === "competitive" && mode > 1 && solvedAt[b];
+      return Number(Boolean(aSolved)) - Number(Boolean(bSolved)) || a - b;
     });
   const collapsedCount = boardIndexes.filter((index) =>
     gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[index]
