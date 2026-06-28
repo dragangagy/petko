@@ -7840,6 +7840,9 @@ const playerStatsEl = document.querySelector("#playerStats");
 const playerNameInput = document.querySelector("#playerNameInput");
 const saveNameButton = document.querySelector("#saveNameButton");
 const solutionsPanelEl = document.querySelector("#solutionsPanel");
+const helpButton = document.querySelector("#helpButton");
+const helpModal = document.querySelector("#helpModal");
+const helpCloseButton = document.querySelector("#helpCloseButton");
 const normalStatsEl = document.querySelector("#normalStats");
 const shareButton = document.querySelector("#shareButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
@@ -8756,16 +8759,45 @@ function scoreDifferenceValue(total = score, started = competitiveStarted) {
   return total - started;
 }
 
+function annualScoreSummary(currentPatch = null) {
+  const year = todayId().slice(0, 4);
+  const byDate = new Map();
+  loadResults()
+    .filter((result) => String(result.date || "").startsWith(year) && isFinalResult(result))
+    .forEach((result) => byDate.set(result.date, result));
+
+  if (currentPatch) {
+    byDate.set(todayId(), { date: todayId(), ...currentPatch });
+  } else if (gameType === "competitive" && competitiveRunActive) {
+    byDate.set(todayId(), {
+      score,
+      started: competitiveStarted
+    });
+  }
+
+  const rows = [...byDate.values()];
+  return rows.reduce(
+    (summary, result) => {
+      const total = Number(result.score) || 0;
+      const started = Number(result.started) || 0;
+      const daily = scoreDifferenceValue(total, started);
+      summary.total += total;
+      summary.started += started;
+      summary.bestDaily = Math.max(summary.bestDaily, daily);
+      return summary;
+    },
+    { total: 0, started: 0, bestDaily: 0 }
+  );
+}
+
 function updateScoreDisplay(result) {
-  const total = Number(result?.score ?? score) || 0;
-  const started = Number(result?.started ?? competitiveStarted) || 0;
-  const difference = scoreDifferenceValue(total, started);
+  const summary = annualScoreSummary(result);
   if (scoreTotalLineEl && scoreDifferenceLineEl) {
-    scoreTotalLineEl.textContent = `${formatScore(started)}/${formatScore(total)}`;
-    scoreDifferenceLineEl.textContent = formatScore(difference);
+    scoreTotalLineEl.textContent = `${formatScore(summary.started)}/${formatScore(summary.total)}`;
+    scoreDifferenceLineEl.textContent = formatScore(summary.bestDaily);
     return;
   }
-  if (scoreCountEl) scoreCountEl.textContent = formatScore(difference);
+  if (scoreCountEl) scoreCountEl.textContent = formatScore(summary.bestDaily);
 }
 
 function formatScore(value) {
@@ -9237,6 +9269,29 @@ if (saveNameButton) {
     refreshOnlineLeaderboard();
   });
 }
+
+function setHelpOpen(open) {
+  if (!helpModal) return;
+  helpModal.hidden = !open;
+}
+
+if (helpButton) {
+  helpButton.addEventListener("click", () => setHelpOpen(true));
+}
+
+if (helpCloseButton) {
+  helpCloseButton.addEventListener("click", () => setHelpOpen(false));
+}
+
+if (helpModal) {
+  helpModal.addEventListener("click", (event) => {
+    if (event.target === helpModal) setHelpOpen(false);
+  });
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setHelpOpen(false);
+});
 
 window.addEventListener("beforeunload", () => {
   saveCompetitiveProgress();
