@@ -7,10 +7,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Петко">
     <title>Петко</title>
-    <link rel="manifest" href="manifest.webmanifest?v=69">
+    <link rel="manifest" href="manifest.webmanifest?v=70">
     <link rel="icon" href="app-icon.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon.png">
-    <link rel="stylesheet" href="styles.css?v=69">
+    <link rel="stylesheet" href="styles.css?v=70">
   </head>
   <body>
     <main class="app-shell">
@@ -61,9 +61,20 @@
       <section class="game-type-row" aria-label="Тип игре">
         <button class="type-button active" type="button" data-type="normal">Обичан</button>
         <button class="type-button" type="button" data-type="competitive">Такмичарски</button>
+        <button class="type-button" type="button" data-type="challenge">Изазов</button>
       </section>
 
       <section class="normal-stats" id="normalStats" aria-live="polite"></section>
+
+      <section class="challenge-panel" id="challengePanel" hidden aria-live="polite">
+        <div class="challenge-copy" id="challengeStatus">6 табли, 11 покушаја. Један изазов дневно можеш послати, примање је неограничено.</div>
+        <div class="challenge-actions">
+          <button id="createChallengeButton" type="button">Пошаљи</button>
+          <input id="challengeCodeInput" maxlength="8" placeholder="Код">
+          <button id="acceptChallengeButton" type="button">Прихвати</button>
+          <button id="checkChallengeButton" type="button" hidden>Провери</button>
+        </div>
+      </section>
 
       <button class="next-button" id="nextLevelButton" type="button" hidden>Даље</button>
 
@@ -147,9 +158,18 @@
             <li>Ако обичну партију не решиш, петак бројач се враћа на 0/5.</li>
           </ul>
         </details>
+        <details class="help-section">
+          <summary>Изазов</summary>
+          <ul>
+            <li>Изазов има 6 табли и укупно 11 покушаја.</li>
+            <li>Један изазов дневно можеш послати са једног уређаја.</li>
+            <li>Примање изазова је неограничено.</li>
+            <li>Изазов се игра тек кад противник прихвати код или линк.</li>
+          </ul>
+        </details>
       </article>
     </div>
 
-    <script src="app.js?v=69"></script>
+    <script src="app.js?v=70"></script>
   </body>
 </html>

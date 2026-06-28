@@ -7808,6 +7808,10 @@ const COMPETITIVE_LEVEL_POINTS = [4, 8, 16, 32];
 const COMPETITIVE_LEVEL_ATTEMPTS = [6, 7, 9, 13];
 const COMPETITIVE_FAIL_PENALTY = -2;
 const UNUSED_ATTEMPT_BONUS = 5;
+const CHALLENGE_WORDS = 6;
+const CHALLENGE_ATTEMPTS = 11;
+const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
+const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
@@ -7820,7 +7824,8 @@ const USED_WORDS_KEY = "petko-used-words-v1";
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
   anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
-  table: "scores"
+  table: "scores",
+  challengeTable: "challenges"
 };
 
 const boardsEl = document.querySelector("#boards");
@@ -7846,6 +7851,12 @@ const helpButton = document.querySelector("#helpButton");
 const helpModal = document.querySelector("#helpModal");
 const helpCloseButton = document.querySelector("#helpCloseButton");
 const normalStatsEl = document.querySelector("#normalStats");
+const challengePanelEl = document.querySelector("#challengePanel");
+const challengeStatusEl = document.querySelector("#challengeStatus");
+const createChallengeButton = document.querySelector("#createChallengeButton");
+const challengeCodeInput = document.querySelector("#challengeCodeInput");
+const acceptChallengeButton = document.querySelector("#acceptChallengeButton");
+const checkChallengeButton = document.querySelector("#checkChallengeButton");
 const shareButton = document.querySelector("#shareButton");
 const exitButton = document.querySelector("#exitButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
@@ -7872,6 +7883,7 @@ let lastLevelAward = null;
 let competitiveIntro = false;
 let bonusFlashRows = new Set();
 let scoreBurstToken = 0;
+let activeChallenge = null;
 
 function normalize(text) {
   const latin = {
@@ -8143,6 +8155,244 @@ function supabaseHeaders(extra = {}) {
     "Content-Type": "application/json",
     ...extra
   };
+}
+
+function challengeTable() {
+  return SUPABASE_CONFIG.challengeTable || "challenges";
+}
+
+function challengeCode() {
+  return Math.random().toString(36).replace(/[^a-z0-9]/gi, "").slice(2, 8).toUpperCase();
+}
+
+function challengeUrl(code) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("challenge", code);
+  return url.toString();
+}
+
+function loadPendingChallengeCode() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_PENDING_KEY) || "null");
+    return data && data.date === todayId() ? data.code : "";
+  } catch {
+    return "";
+  }
+}
+
+function savePendingChallengeCode(code) {
+  localStorage.setItem(CHALLENGE_PENDING_KEY, JSON.stringify({ date: todayId(), code }));
+}
+
+function clearPendingChallengeCode() {
+  localStorage.removeItem(CHALLENGE_PENDING_KEY);
+}
+
+function sentChallengeToday() {
+  return localStorage.getItem(CHALLENGE_SENT_KEY) === todayId();
+}
+
+function markChallengeSentToday() {
+  localStorage.setItem(CHALLENGE_SENT_KEY, todayId());
+}
+
+function challengeScoreValue(status) {
+  const solvedCount = solvedAt.filter(Boolean).length;
+  return solvedCount * 100 + (status === "finished" ? unusedAttempts() : 0);
+}
+
+function renderChallengePanel(text) {
+  if (!challengePanelEl) return;
+  challengePanelEl.hidden = gameType !== "challenge";
+  const pendingCode = loadPendingChallengeCode();
+  if (challengeStatusEl) {
+    challengeStatusEl.textContent = text || (pendingCode
+      ? `Послат изазов ${pendingCode}. Игра креће кад га противник прихвати.`
+      : "6 табли, 11 покушаја. Један изазов дневно можеш послати, примање је неограничено.");
+  }
+  if (checkChallengeButton) checkChallengeButton.hidden = !pendingCode;
+  if (challengeCodeInput && pendingCode && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
+}
+
+async function fetchChallenge(code) {
+  if (!supabaseConfigured() || !code) return null;
+  const query = [
+    "select=*",
+    `code=eq.${encodeURIComponent(code.toUpperCase())}`,
+    "limit=1"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) throw new Error("Challenge fetch failed");
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+async function updateChallenge(code, patch) {
+  const response = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(code)}`), {
+    method: "PATCH",
+    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify(patch)
+  });
+  if (!response.ok) throw new Error("Challenge update failed");
+}
+
+async function shareChallenge(code) {
+  const text = `Петко изазов: ${code}\n${challengeUrl(code)}`;
+  if (navigator.share) {
+    await navigator.share({ text, url: challengeUrl(code) });
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+}
+
+async function createChallenge() {
+  if (!supabaseConfigured()) {
+    renderChallengePanel("За изазове мора бити активан Supabase.");
+    return;
+  }
+  if (sentChallengeToday()) {
+    renderChallengePanel("Данас је већ послат један изазов са овог уређаја.");
+    return;
+  }
+  const nickname = ensurePlayerName();
+  const code = challengeCode();
+  const words = chooseTargets(CHALLENGE_WORDS);
+  const response = await fetch(supabaseUrl(challengeTable()), {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({
+      code,
+      day: todayId(),
+      creator: nickname,
+      creator_device: deviceId(),
+      status: "pending",
+      words
+    })
+  });
+  if (!response.ok) throw new Error("Challenge create failed");
+  markChallengeSentToday();
+  savePendingChallengeCode(code);
+  if (challengeCodeInput) challengeCodeInput.value = code;
+  renderChallengePanel(`Изазов ${code} је спреман. Пошаљи код или линк; игра креће кад буде прихваћен.`);
+  shareChallenge(code).catch(() => {});
+}
+
+function showChallengeIntro() {
+  gameType = "challenge";
+  activeChallenge = null;
+  competitiveIntro = false;
+  competitiveRunActive = false;
+  done = true;
+  mode = CHALLENGE_WORDS;
+  targets = [];
+  solvedAt = [];
+  guesses = [];
+  current = "";
+  keyStates = new Map();
+  document.body.dataset.gameType = gameType;
+  document.body.dataset.competitiveLocked = "false";
+  boardsEl.innerHTML = "";
+  keyboardEl.innerHTML = "";
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
+  typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
+  updateModeButtons();
+  renderSolutionsPanel(false);
+  nextLevelButton.hidden = true;
+  modeLabelEl.textContent = "Изазов";
+  messageEl.textContent = "";
+  tryCountEl.textContent = "0";
+  tryButton.textContent = `0/${CHALLENGE_ATTEMPTS}`;
+  updateScoreDisplay();
+  renderChallengePanel();
+}
+
+function startChallengeGame(row, role) {
+  if (!row || !Array.isArray(row.words) || row.words.length !== CHALLENGE_WORDS) {
+    renderChallengePanel("Изазов није исправан.");
+    return;
+  }
+  gameType = "challenge";
+  activeChallenge = { code: row.code, role };
+  competitiveIntro = false;
+  competitiveRunActive = false;
+  mode = CHALLENGE_WORDS;
+  score = 0;
+  targets = row.words;
+  solvedAt = Array(targets.length).fill(null);
+  guesses = [];
+  current = "";
+  done = false;
+  keyStates = new Map();
+  bonusFlashRows = new Set();
+  document.body.dataset.gameType = gameType;
+  document.body.dataset.competitiveLocked = "false";
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
+  boardsEl.classList.add("multi", "mega", "level-8");
+  typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
+  updateModeButtons();
+  nextLevelButton.hidden = true;
+  modeLabelEl.textContent = "Изазов";
+  messageEl.textContent = "Изазов прихваћен: 6 табли, 11 покушаја.";
+  renderChallengePanel(`Играш изазов ${row.code}: 6 табли, 11 покушаја.`);
+  renderSolutionsPanel(false);
+  render();
+}
+
+async function acceptChallenge(codeInput = "") {
+  const code = String(codeInput || challengeCodeInput?.value || "").trim().toUpperCase();
+  if (!code) {
+    renderChallengePanel("Унеси код изазова.");
+    return;
+  }
+  const row = await fetchChallenge(code);
+  if (!row) {
+    renderChallengePanel("Изазов није пронађен.");
+    return;
+  }
+  if (row.creator_device === deviceId()) {
+    if (row.status !== "accepted" && row.status !== "played") {
+      renderChallengePanel("Изазов је послат. Чека се прихватање противника.");
+      return;
+    }
+    clearPendingChallengeCode();
+    startChallengeGame(row, "creator");
+    return;
+  }
+  if (row.status === "pending") {
+    await updateChallenge(code, {
+      status: "accepted",
+      opponent: ensurePlayerName(),
+      opponent_device: deviceId(),
+      accepted_at: new Date().toISOString()
+    });
+  }
+  const accepted = await fetchChallenge(code);
+  startChallengeGame(accepted || row, "opponent");
+}
+
+async function finishChallenge(status) {
+  done = true;
+  renderSolutionsPanel(true);
+  const resultScore = challengeScoreValue(status);
+  const solvedCount = solvedAt.filter(Boolean).length;
+  messageEl.textContent = status === "finished"
+    ? `Изазов решен: ${solvedCount}/6. Скор ${resultScore}.`
+    : `Изазов завршен: ${solvedCount}/6. Решења: ${displayWords(targets)}. Скор ${resultScore}.`;
+  if (!activeChallenge?.code || !supabaseConfigured()) return;
+  const prefix = activeChallenge.role === "creator" ? "creator" : "opponent";
+  try {
+    await updateChallenge(activeChallenge.code, {
+      status: "played",
+      [`${prefix}_score`]: resultScore,
+      [`${prefix}_attempts`]: guesses.length,
+      [`${prefix}_solved`]: solvedCount,
+      [`${prefix}_played_at`]: new Date().toISOString()
+    });
+  } catch {
+    renderChallengePanel("Резултат је локалан; online упис није прошао.");
+  }
 }
 
 function loadPlayerName() {
@@ -8444,6 +8694,10 @@ function showCompetitiveIntro() {
 
 function startGame(nextType = gameType, requestedMode, options = {}) {
   updateFridayTheme();
+  if (nextType === "challenge") {
+    showChallengeIntro();
+    return;
+  }
   gameType = nextType;
   competitiveIntro = false;
   document.body.dataset.competitiveLocked = "false";
@@ -8712,6 +8966,8 @@ function submitGuess() {
         finishCompetitive("finished");
       }
       updateModeButtons();
+    } else if (gameType === "challenge") {
+      finishChallenge("finished");
     } else {
       bumpNormalFinished();
       const fridayText = recordFridayNormalWin();
@@ -8727,6 +8983,8 @@ function submitGuess() {
       renderSolutionsPanel(true);
       messageEl.textContent = finalMessage("failed");
       finishCompetitive("failed");
+    } else if (gameType === "challenge") {
+      finishChallenge("failed");
     } else {
       messageEl.textContent = `Решење: ${displayWords(targets)}`;
       resetFridayNormalStreak();
@@ -8827,11 +9085,13 @@ function levelPoints() {
 }
 
 function maxAttempts() {
+  if (gameType === "challenge") return CHALLENGE_ATTEMPTS;
   if (gameType !== "competitive") return MAX_ROWS;
   return COMPETITIVE_LEVEL_ATTEMPTS[competitiveLevelIndex] || MAX_ROWS;
 }
 
 function visibleRows() {
+  if (gameType === "challenge") return CHALLENGE_ATTEMPTS;
   if (gameType === "competitive") return maxAttempts();
   return Math.max(MAX_ROWS, guesses.length + (done ? 0 : 1));
 }
@@ -9279,6 +9539,24 @@ if (shareButton) {
   });
 }
 
+if (createChallengeButton) {
+  createChallengeButton.addEventListener("click", () => {
+    createChallenge().catch(() => renderChallengePanel("Слање изазова није успело."));
+  });
+}
+
+if (acceptChallengeButton) {
+  acceptChallengeButton.addEventListener("click", () => {
+    acceptChallenge().catch(() => renderChallengePanel("Прихватање изазова није успело."));
+  });
+}
+
+if (checkChallengeButton) {
+  checkChallengeButton.addEventListener("click", () => {
+    acceptChallenge(loadPendingChallengeCode()).catch(() => renderChallengePanel("Провера изазова није успела."));
+  });
+}
+
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
@@ -9419,4 +9697,11 @@ document.addEventListener("visibilitychange", () => {
 });
 setInterval(updateCompetitiveCountdown, 1000);
 
-startGame();
+const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
+if (incomingChallengeCode) {
+  startGame("challenge");
+  if (challengeCodeInput) challengeCodeInput.value = incomingChallengeCode.toUpperCase();
+  renderChallengePanel(`Примљен изазов ${incomingChallengeCode.toUpperCase()}. Притисни Прихвати да почнеш.`);
+} else {
+  startGame();
+}
