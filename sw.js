@@ -1,12 +1,14 @@
-const CACHE_NAME = "petko-mobile-v64";
+const CACHE_NAME = "petko-mobile-v68";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=64",
-  "./app.js?v=64",
-  "./manifest.webmanifest?v=64",
+  "./styles.css?v=68",
+  "./app.js?v=68",
+  "./manifest.webmanifest?v=68",
   "./logo-cut.png",
-  "./logo-icon.png"
+  "./logo-icon.png",
+  "./app-icon.png",
+  "./petko-logo.png"
 ];
 
 self.addEventListener("install", (event) => {

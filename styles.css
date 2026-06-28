@@ -52,6 +52,32 @@ body::before {
     radial-gradient(circle at 86% 78%, rgba(255, 255, 255, 0.1) 0 1px, transparent 2px);
 }
 
+body[data-friday="true"] {
+  --cyan: #ffd700;
+  --blue: #f59e0b;
+  --line: rgba(255, 215, 0, 0.28);
+  --shadow: 0 0 30px rgba(255, 215, 0, 0.16), 0 0 60px rgba(245, 158, 11, 0.1);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 215, 0, 0.2), transparent 32%),
+    radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.16), transparent 30%),
+    linear-gradient(180deg, #111827 0%, #101820 52%, #080b12 100%);
+}
+
+body[data-friday="true"] .status-panel,
+body[data-friday="true"] .keyboard,
+body[data-friday="true"] .board-card,
+body[data-friday="true"] .type-button,
+body[data-friday="true"] .mode-button,
+body[data-friday="true"] .next-button,
+body[data-friday="true"] .icon-button,
+body[data-friday="true"] .help-top-button,
+body[data-friday="true"] .exit-button,
+body[data-friday="true"] .annual-top-score,
+body[data-friday="true"] .try-button {
+  border-color: rgba(255, 215, 0, 0.36);
+  box-shadow: inset 0 0 14px rgba(255, 215, 0, 0.06), 0 0 16px rgba(255, 215, 0, 0.14);
+}
+
 button {
   font: inherit;
   -webkit-tap-highlight-color: transparent;
@@ -71,14 +97,24 @@ button {
 
 .topbar {
   display: grid;
-  grid-template-columns: 42px 1fr 88px;
+  grid-template-columns: 122px 1fr 122px;
   align-items: center;
   gap: 6px;
 }
 
 .brand {
+  display: grid;
+  place-items: center;
   text-align: center;
   min-width: 0;
+}
+
+.brand-logo {
+  display: block;
+  width: min(100%, 152px);
+  max-height: 42px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.22)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.12));
 }
 
 .brand h1 {
@@ -102,6 +138,9 @@ button {
 }
 
 .icon-button,
+.help-top-button,
+.exit-button,
+.annual-top-score,
 .try-button {
   width: 42px;
   height: 36px;
@@ -115,17 +154,56 @@ button {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 
+.help-top-button,
+.annual-top-score {
+  width: 74px;
+}
+
+.exit-button {
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.share-top-button {
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.annual-top-score {
+  display: grid;
+  place-items: center;
+  color: var(--present);
+  font-size: 17px;
+  font-weight: 950;
+}
+
 .icon-button:hover,
+.help-top-button:hover,
+.exit-button:hover,
 .try-button:hover {
   border-color: #38bdf8;
   color: #38bdf8;
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.35), 0 8px 22px rgba(0, 0, 0, 0.25);
 }
 
+.share-top-button:hover {
+  color: #ffffff;
+}
+
+.left-actions,
 .top-actions {
   display: grid;
-  grid-template-columns: repeat(2, 42px);
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
+}
+
+.left-actions {
+  grid-template-columns: 74px 42px;
+}
+
+.top-actions {
+  grid-template-columns: 42px 74px;
 }
 
 .try-button {
@@ -333,6 +411,49 @@ body[data-game-type="normal"] .score-stack {
 .help-card ul {
   margin: 10px 0;
   padding-left: 20px;
+}
+
+.help-section {
+  margin-top: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.72);
+  overflow: hidden;
+}
+
+.help-section summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  color: var(--cyan);
+  font-size: 15px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.help-section[open] summary {
+  color: var(--gold);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.16);
+}
+
+.help-section.bonus-help {
+  border-color: rgba(255, 215, 0, 0.42);
+  background: rgba(255, 215, 0, 0.08);
+  box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.06);
+}
+
+.help-section.bonus-help summary {
+  color: var(--gold);
+}
+
+.help-section.bonus-help[open] summary {
+  border-bottom-color: rgba(255, 215, 0, 0.22);
+}
+
+.help-section ul {
+  margin: 0;
+  padding: 10px 18px 12px 28px;
 }
 
 .help-close {
@@ -989,6 +1110,11 @@ body[data-game-type="competitive"][data-competitive-locked="true"] .listing-pane
 @media (max-height: 640px) {
   .brand h1 {
     font-size: 24px;
+  }
+
+  .brand-logo {
+    width: min(100%, 138px);
+    max-height: 38px;
   }
 
   .neon-line {

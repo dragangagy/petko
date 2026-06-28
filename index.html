@@ -7,23 +7,27 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Петко">
     <title>Петко</title>
-    <link rel="manifest" href="manifest.webmanifest?v=64">
-    <link rel="icon" href="logo-icon.png" type="image/png">
-    <link rel="stylesheet" href="styles.css?v=64">
+    <link rel="manifest" href="manifest.webmanifest?v=68">
+    <link rel="icon" href="app-icon.png" type="image/png">
+    <link rel="apple-touch-icon" href="app-icon.png">
+    <link rel="stylesheet" href="styles.css?v=68">
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <button class="try-button" id="tryButton" type="button" aria-label="Број покушаја">0/6</button>
+        <div class="left-actions">
+          <button class="help-top-button" id="helpButton" type="button" aria-label="Помоћ">Помоћ</button>
+          <button class="icon-button share-top-button" id="shareButton" type="button" aria-label="Подели резултат">⤴</button>
+        </div>
         <div class="brand">
-          <span class="neon-line"></span>
-          <h1>Петко</h1>
+          <img class="brand-logo" src="petko-logo.png" alt="Петко">
         </div>
         <div class="top-actions">
-          <button class="icon-button" id="helpButton" type="button" aria-label="Правила игре">?</button>
-          <button class="icon-button" id="shareButton" type="button" aria-label="Подели резултат">↗</button>
+          <button class="exit-button" id="exitButton" type="button" aria-label="Излаз">Exit</button>
+          <div class="annual-top-score" id="annualTopScore" aria-label="Коначни годишњи скор">0</div>
         </div>
       </header>
+      <span id="tryButton" hidden></span>
 
       <section class="status-panel" aria-live="polite">
         <div class="status-brand">
@@ -102,21 +106,50 @@
     <div class="help-modal" id="helpModal" hidden>
       <article class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
         <button class="help-close" id="helpCloseButton" type="button" aria-label="Затвори">×</button>
-        <h2 id="helpTitle">Правила и бодовање</h2>
-        <p>Обичан режим је вежба. Игра се једна реч, има 6 покушаја и не носи бодове.</p>
-        <p>Такмичарски режим игра се једном дневно. Нивои су 1, 2, 4 и 8 поља. Следећи ниво се отвара само ако су сва поља на тренутном нивоу решена.</p>
-        <ul>
-          <li>Ниво 1 носи +4 поена.</li>
-          <li>Ниво 2 носи +8 поена.</li>
-          <li>Ниво 4 носи +16 поена.</li>
-          <li>Ниво 8 носи +32 поена.</li>
-          <li>Сваки неискоришћен покушај носи +5 бонус поена.</li>
-          <li>Ако ниво није решен, добија се -2 и такмичење за тај дан се завршава.</li>
-        </ul>
-        <p>Горњи број у скору је број започетих такмичарских партија / годишњи збир поена. Велики број испод је најбољи дневни скор у години.</p>
+        <h2 id="helpTitle">Помоћ</h2>
+        <details class="help-section" open>
+          <summary>Правила игре</summary>
+          <ul>
+            <li>Циљ је погодити реч од 5 слова.</li>
+            <li>После сваког покушаја боје показују стање слова.</li>
+            <li>Зелено значи да је слово тачно и на правом месту.</li>
+            <li>Жуто значи да слово постоји у речи, али није на том месту.</li>
+            <li>Тамно значи да слово није у речи.</li>
+            <li>Обичан режим је вежба: једна реч, 6 покушаја, без бодова.</li>
+            <li>Такмичарски режим игра се једном дневно.</li>
+            <li>Нивои иду редом: 1, 2, 4, 8.</li>
+            <li>Следећи ниво се отвара само ако су сва поља решена.</li>
+            <li>Ако се ниво не реши, такмичење за тај дан се завршава.</li>
+            <li>Решена поља се затамњују или склапају и више не примају нова слова.</li>
+            <li>Ако изађеш из апликације, недовршена партија се памти.</li>
+          </ul>
+        </details>
+        <details class="help-section">
+          <summary>Бодовање</summary>
+          <ul>
+            <li>Ниво 1 носи +4 поена.</li>
+            <li>Ниво 2 носи +8 поена.</li>
+            <li>Ниво 4 носи +16 поена.</li>
+            <li>Ниво 8 носи +32 поена.</li>
+            <li>Сваки неискоришћен покушај носи +5 бонус поена.</li>
+            <li>Ако ниво није решен, добија се -2.</li>
+            <li>Горњи број у скору је број започетих такмичарских партија / годишњи збир поена.</li>
+            <li>Велики број испод је најбољи дневни скор у години.</li>
+          </ul>
+        </details>
+        <details class="help-section bonus-help">
+          <summary>Бонус игра</summary>
+          <ul>
+            <li>Петком се укључује специјал “Петак за Петка”.</li>
+            <li>Такмичарски поени се петком дуплирају као бонус на главни годишњи скор.</li>
+            <li>Дневни скор се петком не дуплира; он остаје чист резултат тог дана.</li>
+            <li>Обичан режим петком учествује у бонусу: реши 5 обичних партија заредом за +5 на главни скор.</li>
+            <li>Ако обичну партију не решиш, петак бројач се враћа на 0/5.</li>
+          </ul>
+        </details>
       </article>
     </div>
 
-    <script src="app.js?v=64"></script>
+    <script src="app.js?v=68"></script>
   </body>
 </html>

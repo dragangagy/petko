@@ -7815,6 +7815,7 @@ const NORMAL_PROGRESS_KEY = "petko-normal-progress-v1";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
+const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
 const USED_WORDS_KEY = "petko-used-words-v1";
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
@@ -7832,6 +7833,7 @@ const tryButton = document.querySelector("#tryButton");
 const scoreCountEl = document.querySelector("#scoreCount");
 const scoreTotalLineEl = document.querySelector("#scoreTotalLine");
 const scoreDifferenceLineEl = document.querySelector("#scoreDifferenceLine");
+const annualTopScoreEl = document.querySelector("#annualTopScore");
 const awardPopEl = document.querySelector("#awardPop");
 const scoreBurstEl = document.querySelector("#scoreBurst");
 const listingListEl = document.querySelector("#listingList");
@@ -7845,6 +7847,7 @@ const helpModal = document.querySelector("#helpModal");
 const helpCloseButton = document.querySelector("#helpCloseButton");
 const normalStatsEl = document.querySelector("#normalStats");
 const shareButton = document.querySelector("#shareButton");
+const exitButton = document.querySelector("#exitButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
 const modeButtons = [...document.querySelectorAll(".mode-button")];
 const typeButtons = [...document.querySelectorAll(".type-button")];
@@ -7967,6 +7970,14 @@ function todayId() {
   return `${year}-${month}-${day}`;
 }
 
+function isPetkoFriday() {
+  return new Date().getDay() === 5;
+}
+
+function currentYearId() {
+  return todayId().slice(0, 4);
+}
+
 function loadResults() {
   try {
     return JSON.parse(localStorage.getItem(RESULT_STORAGE_KEY) || "[]");
@@ -7977,6 +7988,70 @@ function loadResults() {
 
 function saveResults(results) {
   localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(results.slice(0, 30)));
+}
+
+function emptyFridayBonus() {
+  return { year: currentYearId(), normalStreak: 0, normalBonus: 0, competitive: {} };
+}
+
+function loadFridayBonus() {
+  try {
+    const data = { ...emptyFridayBonus(), ...JSON.parse(localStorage.getItem(FRIDAY_BONUS_KEY) || "{}") };
+    if (data.year !== currentYearId()) return emptyFridayBonus();
+    data.competitive = data.competitive && typeof data.competitive === "object" ? data.competitive : {};
+    return data;
+  } catch {
+    return emptyFridayBonus();
+  }
+}
+
+function saveFridayBonus(data) {
+  localStorage.setItem(FRIDAY_BONUS_KEY, JSON.stringify({ ...data, year: currentYearId() }));
+}
+
+function fridayBonusTotal(data = loadFridayBonus()) {
+  const competitiveBonus = Object.values(data.competitive || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  return (Number(data.normalBonus) || 0) + competitiveBonus;
+}
+
+function updateFridayTheme() {
+  document.body.dataset.friday = isPetkoFriday() ? "true" : "false";
+}
+
+function fridayLabel() {
+  return isPetkoFriday() ? "Петак за Петка. " : "";
+}
+
+function recordFridayNormalWin() {
+  if (!isPetkoFriday()) return "";
+  const data = loadFridayBonus();
+  data.normalStreak += 1;
+  let text = `Петак за Петка: обичан низ ${data.normalStreak}/5.`;
+  if (data.normalStreak >= 5) {
+    data.normalBonus += 5;
+    data.normalStreak = 0;
+    text = `Петак за Петка: 5/5, +5 на главни скор.`;
+  }
+  saveFridayBonus(data);
+  renderNormalStats();
+  updateScoreDisplay();
+  return text;
+}
+
+function resetFridayNormalStreak() {
+  if (!isPetkoFriday()) return;
+  const data = loadFridayBonus();
+  if (!data.normalStreak) return;
+  data.normalStreak = 0;
+  saveFridayBonus(data);
+  renderNormalStats();
+}
+
+function recordFridayCompetitiveBonus(result) {
+  if (!isPetkoFriday()) return;
+  const data = loadFridayBonus();
+  data.competitive[todayId()] = Math.max(0, Number(result.score) || 0);
+  saveFridayBonus(data);
 }
 
 function loadNormalStats() {
@@ -8014,7 +8089,11 @@ function markNormalStarted() {
 function renderNormalStats() {
   if (!normalStatsEl) return;
   const stats = loadNormalStats();
-  normalStatsEl.textContent = `Обичан скор: започето ${stats.started} · завршено ${stats.finished}`;
+  const friday = loadFridayBonus();
+  const fridayText = isPetkoFriday()
+    ? ` · Петак ${friday.normalStreak}/5 · бонус +${formatScore(friday.normalBonus)}`
+    : "";
+  normalStatsEl.textContent = `Обичан скор: започето ${stats.started} · завршено ${stats.finished}${fridayText}`;
 }
 
 function msUntilTomorrow() {
@@ -8364,6 +8443,7 @@ function showCompetitiveIntro() {
 }
 
 function startGame(nextType = gameType, requestedMode, options = {}) {
+  updateFridayTheme();
   gameType = nextType;
   competitiveIntro = false;
   document.body.dataset.competitiveLocked = "false";
@@ -8450,10 +8530,14 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
 
   modeLabelEl.textContent = gameType === "competitive"
     ? ""
-    : "Обичан";
+    : isPetkoFriday()
+      ? "Петак за Петка"
+      : "Обичан";
   messageEl.textContent = gameType === "competitive"
-    ? `Ниво ${competitiveLevelIndex + 1}: ${mode} ${mode === 1 ? "реч" : "речи"}, све решено носи ${levelPoints()} поена. Бонус +${UNUSED_ATTEMPT_BONUS} ако остане покушаја. Неуспех носи ${COMPETITIVE_FAIL_PENALTY}.`
-    : "";
+    ? `${fridayLabel()}Ниво ${competitiveLevelIndex + 1}: ${mode} ${mode === 1 ? "реч" : "речи"}, све решено носи ${levelPoints()} поена. Бонус +${UNUSED_ATTEMPT_BONUS} ако остане покушаја. Неуспех носи ${COMPETITIVE_FAIL_PENALTY}.`
+    : isPetkoFriday()
+      ? "Петак за Петка: реши 5 обичних заредом за +5 на главни скор."
+      : "";
   render();
   saveCompetitiveProgress();
   saveNormalProgress();
@@ -8629,8 +8713,9 @@ function submitGuess() {
       }
       updateModeButtons();
     } else {
-      messageEl.textContent = "Погођено!";
       bumpNormalFinished();
+      const fridayText = recordFridayNormalWin();
+      messageEl.textContent = fridayText || "Погођено!";
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
@@ -8644,6 +8729,7 @@ function submitGuess() {
       finishCompetitive("failed");
     } else {
       messageEl.textContent = `Решење: ${displayWords(targets)}`;
+      resetFridayNormalStreak();
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
@@ -8760,7 +8846,7 @@ function scoreDifferenceValue(total = score, started = competitiveStarted) {
 }
 
 function annualScoreSummary(currentPatch = null) {
-  const year = todayId().slice(0, 4);
+  const year = currentYearId();
   const byDate = new Map();
   loadResults()
     .filter((result) => String(result.date || "").startsWith(year) && isFinalResult(result))
@@ -8776,7 +8862,7 @@ function annualScoreSummary(currentPatch = null) {
   }
 
   const rows = [...byDate.values()];
-  return rows.reduce(
+  const summary = rows.reduce(
     (summary, result) => {
       const total = Number(result.score) || 0;
       const started = Number(result.started) || 0;
@@ -8788,10 +8874,23 @@ function annualScoreSummary(currentPatch = null) {
     },
     { total: 0, started: 0, bestDaily: 0 }
   );
+  const friday = loadFridayBonus();
+  let fridayBonus = fridayBonusTotal(friday);
+  const todayBonusStored = Boolean(friday.competitive?.[todayId()]);
+  if (isPetkoFriday() && !todayBonusStored) {
+    if (currentPatch) {
+      fridayBonus += Math.max(0, Number(currentPatch.score) || 0);
+    } else if (gameType === "competitive" && competitiveRunActive) {
+      fridayBonus += Math.max(0, score);
+    }
+  }
+  summary.total += fridayBonus;
+  return summary;
 }
 
 function updateScoreDisplay(result) {
   const summary = annualScoreSummary(result);
+  if (annualTopScoreEl) annualTopScoreEl.textContent = formatScore(summary.total);
   if (scoreTotalLineEl && scoreDifferenceLineEl) {
     scoreTotalLineEl.textContent = `${formatScore(summary.started)}/${formatScore(summary.total)}`;
     scoreDifferenceLineEl.textContent = formatScore(summary.bestDaily);
@@ -9026,6 +9125,7 @@ function finishCompetitive(status) {
   bonusFlashRows = new Set();
   ensurePlayerName();
   const result = resultPayload(status);
+  recordFridayCompetitiveBonus(result);
   saveTodayLock(result);
   upsertTodayResult(result);
   submitOnlineResult(result)
@@ -9171,11 +9271,13 @@ nextLevelButton.addEventListener("click", () => {
   bonusFlashRows = new Set();
   startGame("competitive");
 });
-shareButton.addEventListener("click", () => {
-  shareResult().catch(() => {
-    messageEl.textContent = "Дељење тренутно није доступно.";
+if (shareButton) {
+  shareButton.addEventListener("click", () => {
+    shareResult().catch(() => {
+      messageEl.textContent = "Дељење тренутно није доступно.";
+    });
   });
-});
+}
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -9286,6 +9388,18 @@ if (helpCloseButton) {
 if (helpModal) {
   helpModal.addEventListener("click", (event) => {
     if (event.target === helpModal) setHelpOpen(false);
+  });
+}
+
+if (exitButton) {
+  exitButton.addEventListener("click", () => {
+    saveCompetitiveProgress();
+    saveNormalProgress();
+    if (history.length > 1) {
+      history.back();
+      return;
+    }
+    window.close();
   });
 }
 
