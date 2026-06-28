@@ -659,12 +659,11 @@ body[data-competitive-locked="true"] .next-button {
 
 .boards.collapsed-side .board-card:not(.collapsed) {
   grid-column: 1;
-  grid-row: 1 / span 6;
 }
 
 .boards.collapsed-side .board-card.collapsed {
   grid-column: 2;
-  min-height: clamp(62px, 10svh, 86px);
+  min-height: clamp(72px, 11svh, 96px);
   border-radius: 18px;
 }
 
@@ -672,7 +671,7 @@ body[data-competitive-locked="true"] .next-button {
   margin: 0;
   min-height: 0;
   color: #16e68a;
-  font-size: clamp(16px, 4.2vw, 24px);
+  font-size: clamp(20px, 5vw, 30px);
   font-weight: 950;
   text-shadow: 0 0 14px rgba(22, 230, 138, 0.32);
 }

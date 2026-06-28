@@ -8486,7 +8486,7 @@ function renderBoards() {
   const activeCount = targets.length - collapsedCount;
   boardsEl.classList.toggle("has-collapsed", collapsedCount > 0);
   boardsEl.classList.toggle("collapsed-odd", collapsedCount % 2 === 1);
-  boardsEl.classList.toggle("collapsed-side", activeCount === 1 && collapsedCount % 2 === 1);
+  boardsEl.classList.toggle("collapsed-side", activeCount > 0 && collapsedCount > 0);
 
   boardIndexes.forEach((boardIndex) => {
     const target = targets[boardIndex];
