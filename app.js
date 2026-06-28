@@ -9152,7 +9152,7 @@ function submitGuess() {
     } else if (gameType === "challenge") {
       finishChallenge("failed");
     } else {
-      messageEl.textContent = `Решење: ${displayWords(targets)}`;
+      messageEl.textContent = `Реч је била: ${displayWords(targets)}`;
       resetFridayNormalStreak();
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
