@@ -7,10 +7,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Петко">
     <title>Петко</title>
-    <link rel="manifest" href="manifest.webmanifest?v=70">
+    <link rel="manifest" href="manifest.webmanifest?v=77">
     <link rel="icon" href="app-icon.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon.png">
-    <link rel="stylesheet" href="styles.css?v=70">
+    <link rel="stylesheet" href="styles.css?v=77">
   </head>
   <body>
     <main class="app-shell">
@@ -62,18 +62,29 @@
         <button class="type-button active" type="button" data-type="normal">Обичан</button>
         <button class="type-button" type="button" data-type="competitive">Такмичарски</button>
         <button class="type-button" type="button" data-type="challenge">Изазов</button>
+        <button class="type-button" type="button" data-type="hall">Слава</button>
       </section>
 
       <section class="normal-stats" id="normalStats" aria-live="polite"></section>
 
       <section class="challenge-panel" id="challengePanel" hidden aria-live="polite">
-        <div class="challenge-copy" id="challengeStatus">6 табли, 11 покушаја. Један изазов дневно можеш послати, примање је неограничено.</div>
+        <div class="challenge-copy" id="challengeStatus"></div>
         <div class="challenge-actions">
           <button id="createChallengeButton" type="button">Пошаљи</button>
           <input id="challengeCodeInput" maxlength="8" placeholder="Код">
           <button id="acceptChallengeButton" type="button">Прихвати</button>
           <button id="checkChallengeButton" type="button" hidden>Провери</button>
         </div>
+        <div class="challenge-history" id="challengeHistory"></div>
+      </section>
+
+      <section class="hall-panel" id="hallPanel" hidden aria-live="polite">
+        <div class="hall-head">
+          <span>Дворана славних</span>
+          <button id="refreshHallButton" type="button">Освежи</button>
+        </div>
+        <div class="hall-carousel" id="hallCarousel"></div>
+        <div class="hall-grid" id="hallGrid"></div>
       </section>
 
       <button class="next-button" id="nextLevelButton" type="button" hidden>Даље</button>
@@ -170,6 +181,6 @@
       </article>
     </div>
 
-    <script src="app.js?v=70"></script>
+    <script src="app.js?v=77"></script>
   </body>
 </html>

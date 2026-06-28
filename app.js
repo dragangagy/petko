@@ -7857,6 +7857,11 @@ const createChallengeButton = document.querySelector("#createChallengeButton");
 const challengeCodeInput = document.querySelector("#challengeCodeInput");
 const acceptChallengeButton = document.querySelector("#acceptChallengeButton");
 const checkChallengeButton = document.querySelector("#checkChallengeButton");
+const challengeHistoryEl = document.querySelector("#challengeHistory");
+const hallPanelEl = document.querySelector("#hallPanel");
+const hallCarouselEl = document.querySelector("#hallCarousel");
+const hallGridEl = document.querySelector("#hallGrid");
+const refreshHallButton = document.querySelector("#refreshHallButton");
 const shareButton = document.querySelector("#shareButton");
 const exitButton = document.querySelector("#exitButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
@@ -7884,6 +7889,9 @@ let competitiveIntro = false;
 let bonusFlashRows = new Set();
 let scoreBurstToken = 0;
 let activeChallenge = null;
+let hallMedals = [];
+let hallMedalIndex = 0;
+let hallTouchStartX = 0;
 
 function normalize(text) {
   const latin = {
@@ -8198,7 +8206,8 @@ function markChallengeSentToday() {
 
 function challengeScoreValue(status) {
   const solvedCount = solvedAt.filter(Boolean).length;
-  return solvedCount * 100 + (status === "finished" ? unusedAttempts() : 0);
+  const unusedRows = status === "finished" ? unusedAttempts() : 0;
+  return solvedCount * 5 + unusedRows * 10;
 }
 
 function renderChallengePanel(text) {
@@ -8208,7 +8217,7 @@ function renderChallengePanel(text) {
   if (challengeStatusEl) {
     challengeStatusEl.textContent = text || (pendingCode
       ? `Послат изазов ${pendingCode}. Игра креће кад га противник прихвати.`
-      : "6 табли, 11 покушаја. Један изазов дневно можеш послати, примање је неограничено.");
+      : "Пошаљи или прихвати изазов.");
   }
   if (checkChallengeButton) checkChallengeButton.hidden = !pendingCode;
   if (challengeCodeInput && pendingCode && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
@@ -8224,7 +8233,7 @@ async function fetchChallenge(code) {
   const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
     headers: supabaseHeaders()
   });
-  if (!response.ok) throw new Error("Challenge fetch failed");
+  if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није доступан."));
   const rows = await response.json();
   return Array.isArray(rows) ? rows[0] : null;
 }
@@ -8235,7 +8244,146 @@ async function updateChallenge(code, patch) {
     headers: supabaseHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify(patch)
   });
-  if (!response.ok) throw new Error("Challenge update failed");
+  if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
+}
+
+async function fetchChallengeHistory() {
+  if (!supabaseConfigured()) return [];
+  const query = [
+    "select=code,creator,opponent,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,created_at",
+    "order=created_at.desc",
+    "limit=1000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+function playedChallenge(row) {
+  return Number.isFinite(Number(row?.creator_score)) && Number.isFinite(Number(row?.opponent_score));
+}
+
+function challengeWinner(row) {
+  if (!playedChallenge(row)) return null;
+  const creatorScore = Number(row.creator_score);
+  const opponentScore = Number(row.opponent_score);
+  if (creatorScore === opponentScore) return "tie";
+  return creatorScore > opponentScore ? "creator" : "opponent";
+}
+
+function challengePairScore(rows, creator, opponent) {
+  const score = { creator: 0, opponent: 0, tie: 0 };
+  rows.forEach((row) => {
+    const sameOrder = row.creator === creator && row.opponent === opponent;
+    const reverseOrder = row.creator === opponent && row.opponent === creator;
+    if (!playedChallenge(row) || (!sameOrder && !reverseOrder)) return;
+    const winner = challengeWinner(row);
+    if (winner === "tie") {
+      score.tie += 1;
+    } else if ((sameOrder && winner === "creator") || (reverseOrder && winner === "opponent")) {
+      score.creator += 1;
+    } else {
+      score.opponent += 1;
+    }
+  });
+  return score;
+}
+
+function challengeRowLabel(row, role) {
+  const score = Number(row?.[`${role}_score`]);
+  const solved = Number(row?.[`${role}_solved`]);
+  const attempts = Number(row?.[`${role}_attempts`]);
+  const parts = [];
+  parts.push(Number.isFinite(score) ? `${formatScore(score)} поена` : "-");
+  if (Number.isFinite(solved)) parts.push(`${formatScore(solved)}/6 табли`);
+  if (Number.isFinite(attempts)) parts.push(`${formatScore(attempts)}/11 редова`);
+  return parts.join(" · ");
+}
+
+function challengeDifference(row) {
+  if (!playedChallenge(row)) return 0;
+  return Math.abs((Number(row.creator_score) || 0) - (Number(row.opponent_score) || 0));
+}
+
+function challengeWinnerName(row) {
+  const winner = challengeWinner(row);
+  if (winner === "creator") return row.creator || "Играч 1";
+  if (winner === "opponent") return row.opponent || "Играч 2";
+  if (winner === "tie") return "Нерешено";
+  return "Чека се";
+}
+
+function challengeCard(row) {
+  const card = document.createElement("article");
+  card.className = `challenge-card ${playedChallenge(row) ? "played" : "pending"}`;
+  const creator = row.creator || "Играч 1";
+  const opponent = row.opponent || "Чека се";
+  const title = document.createElement("div");
+  title.className = "challenge-card-title";
+  title.textContent = `${creator} → ${opponent}`;
+  const winner = document.createElement("div");
+  winner.className = "challenge-card-winner";
+  winner.textContent = playedChallenge(row)
+    ? `Победник: ${challengeWinnerName(row)} · добија ${formatScore(challengeDifference(row))}`
+    : "Изазов није завршен";
+  const scores = document.createElement("div");
+  scores.className = "challenge-card-scores";
+  scores.textContent = `${creator}: ${challengeRowLabel(row, "creator")} | ${opponent}: ${challengeRowLabel(row, "opponent")}`;
+  card.append(title, winner, scores);
+  return card;
+}
+
+function renderChallengeHistoryCards(rows = []) {
+  if (!challengeHistoryEl) return;
+  challengeHistoryEl.innerHTML = "";
+  const playedRows = rows.filter((row) => row.creator || row.opponent).slice(0, 8);
+  if (!playedRows.length) return;
+  playedRows.forEach((row) => challengeHistoryEl.append(challengeCard(row)));
+}
+
+async function refreshChallengeHistoryCards() {
+  if (!challengeHistoryEl || !supabaseConfigured()) return;
+  const rows = await fetchChallengeHistory();
+  renderChallengeHistoryCards(rows);
+}
+
+async function renderChallengeResult(row, localScore) {
+  if (!row) {
+    renderChallengePanel(`Твој скор: ${localScore}. Чека се противник.`);
+    return;
+  }
+  const creator = row.creator || "Играч 1";
+  const opponent = row.opponent || "Играч 2";
+  const creatorScore = Number(row.creator_score);
+  const opponentScore = Number(row.opponent_score);
+  if (!playedChallenge(row)) {
+    const waitingFor = Number.isFinite(creatorScore) ? opponent : creator;
+    renderChallengePanel(`Твој скор: ${localScore}. Чека се ${waitingFor}.`);
+    return;
+  }
+
+  const winner = challengeWinner(row);
+  const winnerText = winner === "tie"
+    ? "Нерешено."
+    : `Победник: ${winner === "creator" ? creator : opponent}.`;
+  const history = await fetchChallengeHistory();
+  const pair = challengePairScore(history, creator, opponent);
+  const tieText = pair.tie ? ` · нерешено ${pair.tie}` : "";
+  const diff = challengeDifference(row);
+  renderChallengePanel(`${winnerText} Овај изазов: ${creator} ${creatorScore} : ${opponentScore} ${opponent}. Победник добија ${formatScore(diff)}. Укупно: ${creator} ${pair.creator} : ${pair.opponent} ${opponent}${tieText}.`);
+  renderChallengeHistoryCards([row, ...history.filter((item) => item.code !== row.code)]);
+}
+
+async function showChallengeScoreboard(code) {
+  const row = await fetchChallenge(code);
+  if (!row) {
+    renderChallengePanel("Изазов није пронађен.");
+    return;
+  }
+  await renderChallengeResult(row, 0);
 }
 
 async function shareChallenge(code) {
@@ -8271,12 +8419,24 @@ async function createChallenge() {
       words
     })
   });
-  if (!response.ok) throw new Error("Challenge create failed");
+  if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није направљен."));
   markChallengeSentToday();
   savePendingChallengeCode(code);
   if (challengeCodeInput) challengeCodeInput.value = code;
   renderChallengePanel(`Изазов ${code} је спреман. Пошаљи код или линк; игра креће кад буде прихваћен.`);
   shareChallenge(code).catch(() => {});
+}
+
+async function supabaseErrorMessage(response, fallback) {
+  try {
+    const data = await response.json();
+    if (data?.code === "PGRST205" || /Could not find the table/i.test(data?.message || "")) {
+      return "У Supabase-у није направљена табела challenges. Покрени SQL из supabase-schema.sql.";
+    }
+    return data?.message || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function showChallengeIntro() {
@@ -8306,6 +8466,7 @@ function showChallengeIntro() {
   tryButton.textContent = `0/${CHALLENGE_ATTEMPTS}`;
   updateScoreDisplay();
   renderChallengePanel();
+  refreshChallengeHistoryCards().catch(() => {});
 }
 
 function startChallengeGame(row, role) {
@@ -8390,6 +8551,7 @@ async function finishChallenge(status) {
       [`${prefix}_solved`]: solvedCount,
       [`${prefix}_played_at`]: new Date().toISOString()
     });
+    await renderChallengeResult(await fetchChallenge(activeChallenge.code), resultScore);
   } catch {
     renderChallengePanel("Резултат је локалан; online упис није прошао.");
   }
@@ -8694,6 +8856,10 @@ function showCompetitiveIntro() {
 
 function startGame(nextType = gameType, requestedMode, options = {}) {
   updateFridayTheme();
+  if (nextType === "hall") {
+    showHallOfFame();
+    return;
+  }
   if (nextType === "challenge") {
     showChallengeIntro();
     return;
@@ -9254,6 +9420,14 @@ function scoreDate(row) {
   return String(row.created_at || "").slice(0, 10) || todayId();
 }
 
+function formatHallDate(value) {
+  const raw = String(value || "").slice(0, 10);
+  if (!raw) return "датум није уписан";
+  const [year, month, day] = raw.split("-");
+  if (!year || !month || !day) return raw;
+  return `${day}.${month}.${year}.`;
+}
+
 function aggregatePlayerRows(rows) {
   const days = new Map();
   rows.forEach((row) => {
@@ -9262,6 +9436,8 @@ function aggregatePlayerRows(rows) {
     const old = days.get(date);
     if (!old || scoreValue > old.score) {
       days.set(date, {
+        date,
+        createdAt: row.created_at || date,
         score: scoreValue,
         attempts: Number(row.attempts) || 0,
         wins: Number(row.wins) || 0,
@@ -9278,15 +9454,23 @@ function aggregatePlayerRows(rows) {
   const streak = Math.max(0, ...dayRows.map((row) => row.streak || 0));
   const streakBonus = Math.min(streak, 10);
   const finalScore = average + activityBonus + streakBonus;
+  const bestDay = dayRows.reduce((best, row) => (!best || row.score > best.score ? row : best), null);
+  const lastDay = dayRows.reduce((last, row) => (!last || row.date > last.date ? row : last), null);
 
   return {
-    attempts: dayRows.reduce((sum, row) => sum + row.attempts, 0),
+    attempts: playedDays,
+    attemptsAt: lastDay?.createdAt || "",
     best: playedDays ? Math.max(...dayRows.map((row) => row.score)) : 0,
+    bestAt: bestDay?.createdAt || "",
     finalScore,
+    finalScoreAt: lastDay?.createdAt || "",
     playedDays,
+    playedDaysAt: lastDay?.createdAt || "",
     streak,
+    streakAt: lastDay?.createdAt || "",
     totalScore,
-    wins: dayRows.reduce((sum, row) => sum + row.wins, 0)
+    wins: dayRows.reduce((sum, row) => sum + row.wins, 0),
+    winsAt: lastDay?.createdAt || ""
   };
 }
 
@@ -9307,6 +9491,211 @@ function aggregateLeaderboard(rows) {
       a.nickname.localeCompare(b.nickname)
     )
     .slice(0, 100);
+}
+
+function bestBy(items, valueFn) {
+  let best = null;
+  let bestValue = -Infinity;
+  items.forEach((item) => {
+    const value = Number(valueFn(item)) || 0;
+    if (value > bestValue) {
+      best = item;
+      bestValue = value;
+    }
+  });
+  return best && bestValue > 0 ? { item: best, value: bestValue } : null;
+}
+
+function challengeStats(rows) {
+  const byName = new Map();
+  rows.filter(playedChallenge).forEach((row) => {
+    const creator = (row.creator || "Играч").trim() || "Играч";
+    const opponent = (row.opponent || "Играч").trim() || "Играч";
+    const creatorScore = Number(row.creator_score) || 0;
+    const opponentScore = Number(row.opponent_score) || 0;
+    [creator, opponent].forEach((name) => {
+      if (!byName.has(name)) byName.set(name, { nickname: name, wins: 0, winsAt: "", played: 0, best: 0, bestAt: "" });
+    });
+    const creatorRow = byName.get(creator);
+    const opponentRow = byName.get(opponent);
+    creatorRow.played += 1;
+    opponentRow.played += 1;
+    const diff = Math.abs(creatorScore - opponentScore);
+    if (creatorScore > opponentScore) {
+      creatorRow.wins += 1;
+      if (!creatorRow.winsAt) creatorRow.winsAt = row.created_at || "";
+      if (diff > creatorRow.best) {
+        creatorRow.best = diff;
+        creatorRow.bestAt = row.created_at || "";
+      }
+    }
+    if (opponentScore > creatorScore) {
+      opponentRow.wins += 1;
+      if (!opponentRow.winsAt) opponentRow.winsAt = row.created_at || "";
+      if (diff > opponentRow.best) {
+        opponentRow.best = diff;
+        opponentRow.bestAt = row.created_at || "";
+      }
+    }
+  });
+  return [...byName.values()];
+}
+
+function medalCard(title, winner, value, suffix = "", image = "") {
+  const card = document.createElement("article");
+  card.className = "medal-card";
+  const holder = winner || "Још нема";
+  const shownValue = value ? `${formatScore(value)}${suffix}` : "-";
+  const icon = document.createElement("div");
+  icon.className = "medal-icon";
+  if (image) {
+    const img = document.createElement("img");
+    img.src = image;
+    img.alt = "";
+    icon.append(img);
+  } else {
+    icon.textContent = "★";
+  }
+  const copy = document.createElement("div");
+  const titleEl = document.createElement("div");
+  titleEl.className = "medal-title";
+  titleEl.textContent = title;
+  const holderEl = document.createElement("div");
+  holderEl.className = "medal-holder";
+  holderEl.textContent = holder;
+  const valueEl = document.createElement("div");
+  valueEl.className = "medal-value";
+  valueEl.textContent = shownValue;
+  copy.append(titleEl, holderEl);
+  card.append(icon, copy, valueEl);
+  return card;
+}
+
+function renderHallLoading(text = "Учитавање дворане славних...") {
+  if (!hallGridEl) return;
+  if (hallCarouselEl) hallCarouselEl.innerHTML = "";
+  hallGridEl.innerHTML = "";
+  hallGridEl.append(medalCard(text, "", 0));
+}
+
+function hallMedalDate(result, dateKey) {
+  if (!result?.item) return "датум није уписан";
+  return formatHallDate(result.item[dateKey] || result.item.created_at || result.item.createdAt);
+}
+
+function renderHallCarousel(direction = 0) {
+  if (!hallCarouselEl) return;
+  hallCarouselEl.innerHTML = "";
+  if (!hallMedals.length) return;
+  const [title, result, suffix, image, dateKey] = hallMedals[hallMedalIndex];
+  const holder = result?.item?.nickname || "Још нема";
+  const achievedAt = result?.value ? hallMedalDate(result, dateKey) : "датум није уписан";
+  const prevButton = document.createElement("button");
+  prevButton.className = "hall-arrow prev";
+  prevButton.type = "button";
+  prevButton.textContent = "‹";
+  prevButton.addEventListener("click", () => moveHallMedal(-1));
+  const nextButton = document.createElement("button");
+  nextButton.className = "hall-arrow next";
+  nextButton.type = "button";
+  nextButton.textContent = "›";
+  nextButton.addEventListener("click", () => moveHallMedal(1));
+  const slide = document.createElement("article");
+  slide.className = `hall-slide ${direction < 0 ? "from-left" : direction > 0 ? "from-right" : ""}`;
+  const medal = document.createElement("div");
+  medal.className = "hall-medal-large";
+  if (image) {
+    const img = document.createElement("img");
+    img.src = image;
+    img.alt = "";
+    medal.append(img);
+  } else {
+    medal.textContent = String(hallMedalIndex + 1);
+  }
+  const titleEl = document.createElement("div");
+  titleEl.className = "hall-slide-title";
+  titleEl.textContent = title;
+  const holderEl = document.createElement("div");
+  holderEl.className = "hall-slide-holder";
+  holderEl.textContent = holder;
+  const dateEl = document.createElement("div");
+  dateEl.className = "hall-slide-date";
+  dateEl.textContent = achievedAt;
+  slide.append(medal, titleEl, holderEl, dateEl);
+  hallCarouselEl.append(prevButton, slide, nextButton);
+}
+
+function moveHallMedal(direction) {
+  if (!hallMedals.length) return;
+  hallMedalIndex = (hallMedalIndex + direction + hallMedals.length) % hallMedals.length;
+  renderHallCarousel(direction);
+}
+
+async function renderHallOfFame() {
+  if (!hallPanelEl || !hallGridEl) return;
+  hallPanelEl.hidden = gameType !== "hall";
+  renderHallLoading();
+  try {
+    const [scoreRows, challengeRows] = await Promise.all([
+      fetchOnlineLeaderboard(),
+      fetchChallengeHistory()
+    ]);
+    const rows = Array.isArray(scoreRows) ? scoreRows : [];
+    const leaderboard = aggregateLeaderboard(rows);
+    const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
+    const challengeLeaders = challengeStats(challengeRowsSafe);
+    const playerRows = leaderboard.map((row) => row);
+    const rawScores = rows.map((row) => ({
+      nickname: (row.nickname || "Играч").trim() || "Играч",
+      score: Number(row.score) || 0,
+      attempts: Number(row.attempts) || 0,
+      wins: Number(row.wins) || 0,
+      streak: Number(row.streak) || 0,
+      created_at: row.created_at || ""
+    }));
+
+    const medals = [
+      ["Највише решених дневних партија", bestBy(playerRows, (row) => row.wins), " победа", "medal-daily-wins.png", "winsAt"],
+      ["Највише добијених изазова", bestBy(challengeLeaders, (row) => row.wins), " победа", "medal-challenge-wins.png", "winsAt"],
+      ["Највећи дневни скор", bestBy(rawScores, (row) => row.score), " поена", "medal-best-daily.png", "created_at"],
+      ["Највећи укупан резултат", bestBy(playerRows, (row) => row.finalScore), " финал", "medal-total-score.png", "finalScoreAt"],
+      ["Највише започетих турнира", bestBy(playerRows, (row) => row.attempts), " турнир", "medal-started.png", "attemptsAt"],
+      ["Најдужи низ", bestBy(playerRows, (row) => row.streak), " дана", "medal-streak.png", "streakAt"],
+      ["Највише активних дана", bestBy(playerRows, (row) => row.playedDays), " дана", "medal-active-days.png", "playedDaysAt"],
+      ["Најјачи изазов скор", bestBy(challengeLeaders, (row) => row.best), " поена", "medal-challenge-score.png", "bestAt"]
+    ];
+
+    hallGridEl.innerHTML = "";
+    hallMedals = medals;
+    hallMedalIndex = 0;
+    renderHallCarousel();
+    medals.forEach(([title, result, suffix, image]) => {
+      hallGridEl.append(medalCard(title, result?.item?.nickname, result?.value, suffix, image));
+    });
+  } catch {
+    if (hallCarouselEl) hallCarouselEl.innerHTML = "";
+    renderHallLoading("Дворана славних тренутно није доступна.");
+  }
+}
+
+function showHallOfFame() {
+  gameType = "hall";
+  done = true;
+  activeChallenge = null;
+  competitiveIntro = false;
+  competitiveRunActive = false;
+  document.body.dataset.gameType = gameType;
+  document.body.dataset.competitiveLocked = "false";
+  boardsEl.innerHTML = "";
+  keyboardEl.innerHTML = "";
+  renderSolutionsPanel(false);
+  nextLevelButton.hidden = true;
+  modeLabelEl.textContent = "Слава";
+  messageEl.textContent = "";
+  tryCountEl.textContent = "0";
+  typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
+  updateModeButtons();
+  renderHallOfFame();
 }
 
 function finalMessage(status) {
@@ -9553,8 +9942,28 @@ if (acceptChallengeButton) {
 
 if (checkChallengeButton) {
   checkChallengeButton.addEventListener("click", () => {
-    acceptChallenge(loadPendingChallengeCode()).catch(() => renderChallengePanel("Провера изазова није успела."));
+    const code = loadPendingChallengeCode() || challengeCodeInput?.value || "";
+    showChallengeScoreboard(code).catch(() => {
+      acceptChallenge(code).catch(() => renderChallengePanel("Провера изазова није успела."));
+    });
   });
+}
+
+if (refreshHallButton) {
+  refreshHallButton.addEventListener("click", () => {
+    renderHallOfFame();
+  });
+}
+
+if (hallCarouselEl) {
+  hallCarouselEl.addEventListener("touchstart", (event) => {
+    hallTouchStartX = event.touches[0]?.clientX || 0;
+  }, { passive: true });
+  hallCarouselEl.addEventListener("touchend", (event) => {
+    const endX = event.changedTouches[0]?.clientX || hallTouchStartX;
+    const delta = endX - hallTouchStartX;
+    if (Math.abs(delta) > 34) moveHallMedal(delta < 0 ? 1 : -1);
+  }, { passive: true });
 }
 
 if ("serviceWorker" in navigator) {

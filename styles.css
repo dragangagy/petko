@@ -564,7 +564,7 @@ body[data-game-type="normal"] .score-stack {
 }
 
 .game-type-row {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .mode-row {
@@ -646,16 +646,24 @@ body[data-game-type="normal"] .mode-row,
 body[data-game-type="normal"] .listing-panel,
 body[data-game-type="challenge"] .points-pill,
 body[data-game-type="challenge"] .mode-row,
-body[data-game-type="challenge"] .listing-panel {
+body[data-game-type="challenge"] .listing-panel,
+body[data-game-type="hall"] .points-pill,
+body[data-game-type="hall"] .mode-row,
+body[data-game-type="hall"] .listing-panel {
   display: none;
 }
 
 body[data-game-type="competitive"] .normal-stats,
-body[data-game-type="challenge"] .normal-stats {
+body[data-game-type="challenge"] .normal-stats,
+body[data-game-type="hall"] .normal-stats {
   display: none;
 }
 
 body:not([data-game-type="challenge"]) .challenge-panel {
+  display: none;
+}
+
+body:not([data-game-type="hall"]) .hall-panel {
   display: none;
 }
 
@@ -705,6 +713,267 @@ body:not([data-game-type="challenge"]) .challenge-panel {
 }
 
 .challenge-actions button[hidden] {
+  display: none;
+}
+
+.challenge-history {
+  display: grid;
+  gap: 7px;
+}
+
+.challenge-card {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.74);
+  box-shadow: inset 0 0 14px rgba(56, 189, 248, 0.04);
+}
+
+.challenge-card.played {
+  border-color: rgba(34, 197, 94, 0.32);
+}
+
+.challenge-card-title {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.challenge-card-winner {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.challenge-card-scores {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.hall-panel {
+  padding: 9px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 215, 0, 0.24);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.82);
+  box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.05), 0 0 16px rgba(56, 189, 248, 0.08);
+}
+
+.hall-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.hall-head button {
+  height: 30px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  background: #1e293b;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.hall-grid {
+  display: grid;
+  gap: 7px;
+}
+
+.hall-carousel {
+  min-height: 244px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 0 -9px;
+  padding: 8px 54px 12px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 215, 0, 0.18), transparent 22%),
+    radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.14), transparent 18%),
+    linear-gradient(180deg, rgba(2, 8, 23, 0.22), rgba(2, 8, 23, 0.58));
+  overflow: hidden;
+}
+
+.hall-slide {
+  min-height: 224px;
+  display: grid;
+  grid-template-rows: 1fr auto auto auto;
+  place-items: center;
+  text-align: center;
+  will-change: transform, opacity;
+  animation: hall-medal-in 240ms ease both;
+}
+
+.hall-slide.from-left {
+  animation-name: hall-medal-from-left;
+}
+
+.hall-slide.from-right {
+  animation-name: hall-medal-from-right;
+}
+
+.hall-medal-large {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  display: grid;
+  place-items: center;
+  color: #171202;
+  font-size: 44px;
+  font-weight: 950;
+  background: transparent;
+  filter: drop-shadow(0 16px 22px rgba(0, 0, 0, 0.44)) drop-shadow(0 0 22px rgba(255, 215, 0, 0.22));
+}
+
+.hall-medal-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.hall-medal-large::after {
+  content: "";
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: -22px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.52);
+  filter: blur(5px);
+}
+
+.hall-slide-title {
+  margin-top: 12px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.hall-slide-holder {
+  margin-top: 4px;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.hall-slide-date {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hall-arrow {
+  position: absolute;
+  top: 92px;
+  z-index: 2;
+  width: 36px;
+  height: 44px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 950;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.14);
+}
+
+.hall-arrow.prev {
+  left: 10px;
+}
+
+.hall-arrow.next {
+  right: 10px;
+}
+
+@keyframes hall-medal-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes hall-medal-from-left {
+  from { opacity: 0; transform: translateX(-58px) scale(0.94); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes hall-medal-from-right {
+  from { opacity: 0; transform: translateX(58px) scale(0.94); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.medal-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.medal-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #1b1300;
+  font-size: 22px;
+  font-weight: 950;
+  background: rgba(2, 8, 23, 0.36);
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.16);
+  overflow: hidden;
+}
+
+.medal-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.medal-title {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.medal-holder {
+  margin-top: 2px;
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.game-type-row .type-button {
+  font-size: 12px;
+}
+
+.medal-value {
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+body[data-game-type="hall"] .boards,
+body[data-game-type="hall"] .keyboard,
+body[data-game-type="hall"] .next-button,
+body[data-game-type="hall"] .solutions-panel {
   display: none;
 }
 
