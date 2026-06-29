@@ -7,10 +7,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Петко">
     <title>Петко</title>
-    <link rel="manifest" href="manifest.webmanifest?v=78">
+    <link rel="manifest" href="manifest.webmanifest?v=84">
     <link rel="icon" href="app-icon.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon.png">
-    <link rel="stylesheet" href="styles.css?v=78">
+    <link rel="stylesheet" href="styles.css?v=84">
   </head>
   <body>
     <main class="app-shell">
@@ -113,6 +113,11 @@
 
       <section class="boards" id="boards" aria-label="Табла игре"></section>
 
+      <section class="word-reveal" id="wordReveal" hidden aria-live="polite">
+        <div class="word-reveal-word" id="wordRevealText"></div>
+        <button class="word-info-button" id="wordInfoButton" type="button" aria-label="Објашњење речи">?</button>
+      </section>
+
       <section class="keyboard" id="keyboard" aria-label="Тастатура"></section>
 
       <div class="score-burst" id="scoreBurst" hidden></div>
@@ -181,6 +186,15 @@
       </article>
     </div>
 
-    <script src="app.js?v=78"></script>
+    <div class="word-modal" id="wordModal" hidden>
+      <article class="word-card" role="dialog" aria-modal="true" aria-labelledby="wordModalTitle">
+        <h2 id="wordModalTitle">Реч</h2>
+        <div class="word-modal-word" id="wordModalWord"></div>
+        <p id="wordModalText"></p>
+        <div class="word-modal-actions" id="wordModalActions"></div>
+      </article>
+    </div>
+
+    <script src="app.js?v=84"></script>
   </body>
 </html>

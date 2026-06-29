@@ -7812,6 +7812,7 @@ const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
+const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
@@ -7825,8 +7826,11 @@ const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
   anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
   table: "scores",
-  challengeTable: "challenges"
+  challengeTable: "challenges",
+  wordReportsTable: "word_reports"
 };
+
+const WORD_INFO = {};
 
 const boardsEl = document.querySelector("#boards");
 const keyboardEl = document.querySelector("#keyboard");
@@ -7851,6 +7855,14 @@ const helpButton = document.querySelector("#helpButton");
 const helpModal = document.querySelector("#helpModal");
 const helpCloseButton = document.querySelector("#helpCloseButton");
 const normalStatsEl = document.querySelector("#normalStats");
+const wordRevealEl = document.querySelector("#wordReveal");
+const wordRevealTextEl = document.querySelector("#wordRevealText");
+const wordInfoButton = document.querySelector("#wordInfoButton");
+const wordModal = document.querySelector("#wordModal");
+const wordModalTitle = document.querySelector("#wordModalTitle");
+const wordModalWord = document.querySelector("#wordModalWord");
+const wordModalText = document.querySelector("#wordModalText");
+const wordModalActions = document.querySelector("#wordModalActions");
 const challengePanelEl = document.querySelector("#challengePanel");
 const challengeStatusEl = document.querySelector("#challengeStatus");
 const createChallengeButton = document.querySelector("#createChallengeButton");
@@ -8169,6 +8181,26 @@ function challengeTable() {
   return SUPABASE_CONFIG.challengeTable || "challenges";
 }
 
+function wordReportsTable() {
+  return SUPABASE_CONFIG.wordReportsTable || "word_reports";
+}
+
+async function submitWordReport(word, action, source) {
+  if (!supabaseConfigured() || !word) return false;
+  const response = await fetch(supabaseUrl(wordReportsTable()), {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({
+      word,
+      action,
+      source,
+      nickname: loadPlayerName() || "Играч",
+      device_id: deviceId()
+    })
+  });
+  return response.ok;
+}
+
 function challengeCode() {
   return Math.random().toString(36).replace(/[^a-z0-9]/gi, "").slice(2, 8).toUpperCase();
 }
@@ -8196,6 +8228,30 @@ function clearPendingChallengeCode() {
   localStorage.removeItem(CHALLENGE_PENDING_KEY);
 }
 
+function loadActiveChallenge() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_ACTIVE_KEY) || "null");
+    return data && data.code ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveChallenge(data) {
+  if (!data?.code) return;
+  localStorage.setItem(CHALLENGE_ACTIVE_KEY, JSON.stringify({
+    code: data.code,
+    role: data.role || "",
+    creator: data.creator || "",
+    opponent: data.opponent || "",
+    savedAt: new Date().toISOString()
+  }));
+}
+
+function clearActiveChallenge() {
+  localStorage.removeItem(CHALLENGE_ACTIVE_KEY);
+}
+
 function sentChallengeToday() {
   return localStorage.getItem(CHALLENGE_SENT_KEY) === todayId();
 }
@@ -8214,13 +8270,16 @@ function renderChallengePanel(text) {
   if (!challengePanelEl) return;
   challengePanelEl.hidden = gameType !== "challenge";
   const pendingCode = loadPendingChallengeCode();
+  const active = loadActiveChallenge();
   if (challengeStatusEl) {
-    challengeStatusEl.textContent = text || (pendingCode
+    challengeStatusEl.textContent = text || (active
+      ? `Активан изазов: ${active.creator || "Играч 1"} против ${active.opponent || "Играч 2"}.`
+      : pendingCode
       ? `Послат изазов ${pendingCode}. Игра креће кад га противник прихвати.`
       : "Пошаљи или прихвати изазов.");
   }
-  if (checkChallengeButton) checkChallengeButton.hidden = !pendingCode;
-  if (challengeCodeInput && pendingCode && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
+  if (checkChallengeButton) checkChallengeButton.hidden = !(pendingCode || active?.code);
+  if (challengeCodeInput && pendingCode && !active && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
 }
 
 async function fetchChallenge(code) {
@@ -8292,6 +8351,11 @@ function challengePairScore(rows, creator, opponent) {
   return score;
 }
 
+function challengePairText(pair, creator, opponent) {
+  const tieText = pair.tie ? ` · нерешено ${pair.tie}` : "";
+  return `${creator} ${pair.creator} : ${pair.opponent} ${opponent}${tieText}`;
+}
+
 function challengeRowLabel(row, role) {
   const score = Number(row?.[`${role}_score`]);
   const solved = Number(row?.[`${role}_solved`]);
@@ -8316,11 +8380,12 @@ function challengeWinnerName(row) {
   return "Чека се";
 }
 
-function challengeCard(row) {
+function challengeCard(row, rows = []) {
   const card = document.createElement("article");
   card.className = `challenge-card ${playedChallenge(row) ? "played" : "pending"}`;
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Чека се";
+  const pair = opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
   const title = document.createElement("div");
   title.className = "challenge-card-title";
   title.textContent = `${creator} → ${opponent}`;
@@ -8332,7 +8397,14 @@ function challengeCard(row) {
   const scores = document.createElement("div");
   scores.className = "challenge-card-scores";
   scores.textContent = `${creator}: ${challengeRowLabel(row, "creator")} | ${opponent}: ${challengeRowLabel(row, "opponent")}`;
-  card.append(title, winner, scores);
+  card.append(title, winner);
+  if (pair) {
+    const pairEl = document.createElement("div");
+    pairEl.className = "challenge-card-pair";
+    pairEl.textContent = `Међусобно: ${challengePairText(pair, creator, opponent)}`;
+    card.append(pairEl);
+  }
+  card.append(scores);
   return card;
 }
 
@@ -8341,7 +8413,7 @@ function renderChallengeHistoryCards(rows = []) {
   challengeHistoryEl.innerHTML = "";
   const playedRows = rows.filter((row) => row.creator || row.opponent).slice(0, 8);
   if (!playedRows.length) return;
-  playedRows.forEach((row) => challengeHistoryEl.append(challengeCard(row)));
+  playedRows.forEach((row) => challengeHistoryEl.append(challengeCard(row, rows)));
 }
 
 async function refreshChallengeHistoryCards() {
@@ -8359,9 +8431,18 @@ async function renderChallengeResult(row, localScore) {
   const opponent = row.opponent || "Играч 2";
   const creatorScore = Number(row.creator_score);
   const opponentScore = Number(row.opponent_score);
+  const history = await fetchChallengeHistory();
+  const pair = challengePairScore(history, creator, opponent);
   if (!playedChallenge(row)) {
     const waitingFor = Number.isFinite(creatorScore) ? opponent : creator;
-    renderChallengePanel(`Твој скор: ${localScore}. Чека се ${waitingFor}.`);
+    saveActiveChallenge({
+      code: row.code,
+      role: activeChallenge?.role || loadActiveChallenge()?.role || "",
+      creator,
+      opponent
+    });
+    renderChallengePanel(`Твој скор: ${localScore}. Чека се ${waitingFor}. Међусобно: ${challengePairText(pair, creator, opponent)}.`);
+    renderChallengeHistoryCards([row, ...history.filter((item) => item.code !== row.code)]);
     return;
   }
 
@@ -8369,11 +8450,9 @@ async function renderChallengeResult(row, localScore) {
   const winnerText = winner === "tie"
     ? "Нерешено."
     : `Победник: ${winner === "creator" ? creator : opponent}.`;
-  const history = await fetchChallengeHistory();
-  const pair = challengePairScore(history, creator, opponent);
-  const tieText = pair.tie ? ` · нерешено ${pair.tie}` : "";
   const diff = challengeDifference(row);
-  renderChallengePanel(`${winnerText} Овај изазов: ${creator} ${creatorScore} : ${opponentScore} ${opponent}. Победник добија ${formatScore(diff)}. Укупно: ${creator} ${pair.creator} : ${pair.opponent} ${opponent}${tieText}.`);
+  clearActiveChallenge();
+  renderChallengePanel(`${winnerText} Овај изазов: ${creator} ${creatorScore} : ${opponentScore} ${opponent}. Победник добија ${formatScore(diff)}. Међусобно: ${challengePairText(pair, creator, opponent)}.`);
   renderChallengeHistoryCards([row, ...history.filter((item) => item.code !== row.code)]);
 }
 
@@ -8441,7 +8520,7 @@ async function supabaseErrorMessage(response, fallback) {
 
 function showChallengeIntro() {
   gameType = "challenge";
-  activeChallenge = null;
+  activeChallenge = loadActiveChallenge();
   competitiveIntro = false;
   competitiveRunActive = false;
   done = true;
@@ -8455,6 +8534,7 @@ function showChallengeIntro() {
   document.body.dataset.competitiveLocked = "false";
   boardsEl.innerHTML = "";
   keyboardEl.innerHTML = "";
+  hideWordReveal();
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
@@ -8466,6 +8546,18 @@ function showChallengeIntro() {
   tryButton.textContent = `0/${CHALLENGE_ATTEMPTS}`;
   updateScoreDisplay();
   renderChallengePanel();
+  if (challengeCodeInput && activeChallenge) challengeCodeInput.value = "";
+  if (activeChallenge?.code) {
+    fetchChallenge(activeChallenge.code)
+      .then((row) => {
+        if (row) return renderChallengeResult(row, 0);
+        clearActiveChallenge();
+        activeChallenge = null;
+        renderChallengePanel("Пошаљи или прихвати изазов.");
+        return null;
+      })
+      .catch(() => {});
+  }
   refreshChallengeHistoryCards().catch(() => {});
 }
 
@@ -8475,7 +8567,12 @@ function startChallengeGame(row, role) {
     return;
   }
   gameType = "challenge";
-  activeChallenge = { code: row.code, role };
+  const creator = row.creator || "Играч 1";
+  const opponent = row.opponent || loadPlayerName() || "Играч 2";
+  activeChallenge = { code: row.code, role, creator, opponent };
+  saveActiveChallenge(activeChallenge);
+  clearPendingChallengeCode();
+  if (challengeCodeInput) challengeCodeInput.value = "";
   competitiveIntro = false;
   competitiveRunActive = false;
   mode = CHALLENGE_WORDS;
@@ -8496,7 +8593,13 @@ function startChallengeGame(row, role) {
   nextLevelButton.hidden = true;
   modeLabelEl.textContent = "Изазов";
   messageEl.textContent = "Изазов прихваћен: 6 табли, 11 покушаја.";
-  renderChallengePanel(`Играш изазов ${row.code}: 6 табли, 11 покушаја.`);
+  renderChallengePanel(`Играш: ${creator} против ${opponent}.`);
+  fetchChallengeHistory()
+    .then((rows) => {
+      const pair = challengePairScore(rows, creator, opponent);
+      renderChallengePanel(`Играш: ${creator} против ${opponent}. Међусобно: ${challengePairText(pair, creator, opponent)}.`);
+    })
+    .catch(() => {});
   renderSolutionsPanel(false);
   render();
 }
@@ -8839,6 +8942,7 @@ function showCompetitiveIntro() {
   boardsEl.innerHTML = "";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   renderSolutionsPanel(false);
+  hideWordReveal();
   keyboardEl.innerHTML = "";
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
@@ -8967,6 +9071,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
 
 function render() {
   renderBoards();
+  renderWordReveal();
   renderKeyboard();
   tryCountEl.textContent = String(guesses.length);
   tryButton.textContent = gameType === "competitive"
@@ -8980,20 +9085,21 @@ function render() {
 
 function renderBoards() {
   boardsEl.innerHTML = "";
+  const collapsibleGame = gameType === "competitive" || gameType === "challenge";
   const boardIndexes = targets
     .map((_, index) => index)
     .sort((a, b) => {
-      const aSolved = gameType === "competitive" && mode > 1 && solvedAt[a];
-      const bSolved = gameType === "competitive" && mode > 1 && solvedAt[b];
+      const aSolved = collapsibleGame && solvedAt[a];
+      const bSolved = collapsibleGame && solvedAt[b];
       return Number(Boolean(aSolved)) - Number(Boolean(bSolved)) || a - b;
     });
   const collapsedCount = boardIndexes.filter((index) =>
-    gameType === "competitive" && (mode === 4 || mode === 8) && solvedAt[index]
+    collapsibleGame && solvedAt[index]
   ).length;
   const activeCount = targets.length - collapsedCount;
   boardsEl.classList.toggle("has-collapsed", collapsedCount > 0);
   boardsEl.classList.toggle("collapsed-odd", collapsedCount % 2 === 1);
-  boardsEl.classList.toggle("collapsed-side", activeCount > 0 && collapsedCount > 0);
+  boardsEl.classList.toggle("collapsed-side", activeCount > 0 && activeCount % 2 === 1 && collapsedCount > 0);
 
   boardIndexes.forEach((boardIndex) => {
     const target = targets[boardIndex];
@@ -9002,7 +9108,7 @@ function renderBoards() {
     const title = fragment.querySelector(".board-title");
     const grid = fragment.querySelector(".grid");
     const solvedTry = solvedAt[boardIndex];
-    const collapseSolved = gameType === "competitive" && (mode === 4 || mode === 8) && solvedTry;
+    const collapseSolved = collapsibleGame && solvedTry;
 
     title.textContent = collapseSolved
       ? displayWord(target)
@@ -9014,6 +9120,22 @@ function renderBoards() {
 
     if (collapseSolved) {
       card.classList.add("solved", "collapsed");
+      title.innerHTML = "";
+      const word = document.createElement("div");
+      word.className = "mini-word";
+      [...displayWord(target)].forEach((letter) => {
+        const tile = document.createElement("span");
+        tile.className = "mini-word-tile";
+        tile.textContent = letter;
+        word.append(tile);
+      });
+      const info = document.createElement("button");
+      info.className = "mini-word-info";
+      info.type = "button";
+      info.textContent = "?";
+      info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+      info.addEventListener("click", () => showExistingWordReview(target));
+      title.append(word, info);
       boardsEl.append(fragment);
       return;
     }
@@ -9054,6 +9176,116 @@ function renderSolutionsPanel(show) {
     chip.textContent = displayWord(target);
     solutionsPanelEl.append(chip);
   });
+}
+
+function closeWordModal() {
+  if (wordModal) wordModal.hidden = true;
+}
+
+function setWordModalButtons(buttons) {
+  if (!wordModalActions) return;
+  wordModalActions.innerHTML = "";
+  buttons.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = item.tone;
+    button.textContent = item.label;
+    button.addEventListener("click", item.onClick);
+    wordModalActions.append(button);
+  });
+}
+
+function showWordModal({ title, word, text, buttons }) {
+  if (!wordModal || !wordModalTitle || !wordModalWord || !wordModalText) return;
+  wordModalTitle.textContent = title;
+  wordModalWord.textContent = displayWord(word);
+  wordModalText.textContent = text;
+  setWordModalButtons(buttons);
+  wordModal.hidden = false;
+}
+
+function wordMeaningText(word) {
+  return WORD_INFO[word] || "Значење ове речи још није уписано. Овде ће стајати кратко објашњење када га додамо у базу.";
+}
+
+function showExistingWordReview(word) {
+  showWordModal({
+    title: "Објашњење речи",
+    word,
+    text: `${wordMeaningText(word)} Да ли је ова реч сувишна, непримерена или неисправна и треба да се уклони?`,
+    buttons: [
+      {
+        label: "Да",
+        tone: "danger",
+        onClick: () => {
+          submitWordReport(word, "remove", "normal_answer").catch(() => {});
+          closeWordModal();
+          messageEl.textContent = "Пријава је послата.";
+        }
+      },
+      {
+        label: "Не",
+        tone: "success",
+        onClick: () => {
+          submitWordReport(word, "keep", "normal_answer").catch(() => {});
+          closeWordModal();
+        }
+      }
+    ]
+  });
+}
+
+function showMissingWordReview(word) {
+  showWordModal({
+    title: "Реч није у бази",
+    word,
+    text: "Ова реч не постоји у бази. Да ли мислите да треба да се нађе у бази речи?",
+    buttons: [
+      {
+        label: "Да",
+        tone: "success",
+        onClick: () => {
+          submitWordReport(word, "add", "missing_guess").catch(() => {});
+          closeWordModal();
+          messageEl.textContent = "Предлог је послат.";
+        }
+      },
+      {
+        label: "Не",
+        tone: "danger",
+        onClick: () => {
+          submitWordReport(word, "reject", "missing_guess").catch(() => {});
+          closeWordModal();
+          messageEl.textContent = "Настави.";
+        }
+      }
+    ]
+  });
+}
+
+function renderWordReveal() {
+  if (!wordRevealEl || !wordRevealTextEl) return;
+  const show = gameType === "normal" && done && targets.length === 1;
+  wordRevealEl.hidden = !show;
+  if (!show) {
+    wordRevealTextEl.innerHTML = "";
+    wordRevealEl.classList.remove("solved", "failed");
+    return;
+  }
+  wordRevealEl.classList.toggle("solved", Boolean(solvedAt[0]));
+  wordRevealEl.classList.toggle("failed", !solvedAt[0]);
+  wordRevealTextEl.innerHTML = "";
+  [...displayWord(targets[0])].forEach((letter) => {
+    const tile = document.createElement("span");
+    tile.className = "word-reveal-tile";
+    tile.textContent = letter;
+    wordRevealTextEl.append(tile);
+  });
+}
+
+function hideWordReveal() {
+  if (wordRevealEl) wordRevealEl.hidden = true;
+  if (wordRevealTextEl) wordRevealTextEl.innerHTML = "";
 }
 
 function renderKeyboard() {
@@ -9103,7 +9335,12 @@ function submitGuess() {
   }
 
   if (!WORD_SET.has(current)) {
+    const missingWord = current;
+    current = "";
     messageEl.textContent = "Нема те речи.";
+    showMissingWordReview(missingWord);
+    render();
+    saveNormalProgress();
     return;
   }
 
@@ -9141,6 +9378,7 @@ function submitGuess() {
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
+      renderWordReveal();
     }
   } else if (guesses.length >= maxAttempts()) {
     done = true;
@@ -9157,6 +9395,7 @@ function submitGuess() {
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
+      renderWordReveal();
     }
   } else {
     messageEl.textContent = gameType === "competitive"
@@ -9689,6 +9928,7 @@ function showHallOfFame() {
   boardsEl.innerHTML = "";
   keyboardEl.innerHTML = "";
   renderSolutionsPanel(false);
+  hideWordReveal();
   nextLevelButton.hidden = true;
   modeLabelEl.textContent = "Слава";
   messageEl.textContent = "";
@@ -9942,7 +10182,7 @@ if (acceptChallengeButton) {
 
 if (checkChallengeButton) {
   checkChallengeButton.addEventListener("click", () => {
-    const code = loadPendingChallengeCode() || challengeCodeInput?.value || "";
+    const code = loadActiveChallenge()?.code || loadPendingChallengeCode() || challengeCodeInput?.value || "";
     showChallengeScoreboard(code).catch(() => {
       acceptChallenge(code).catch(() => renderChallengePanel("Провера изазова није успела."));
     });
@@ -9964,6 +10204,18 @@ if (hallCarouselEl) {
     const delta = endX - hallTouchStartX;
     if (Math.abs(delta) > 34) moveHallMedal(delta < 0 ? 1 : -1);
   }, { passive: true });
+}
+
+if (wordInfoButton) {
+  wordInfoButton.addEventListener("click", () => {
+    if (targets[0]) showExistingWordReview(targets[0]);
+  });
+}
+
+if (wordModal) {
+  wordModal.addEventListener("click", (event) => {
+    if (event.target === wordModal) closeWordModal();
+  });
 }
 
 if ("serviceWorker" in navigator) {
