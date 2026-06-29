@@ -69,6 +69,10 @@
 
       <section class="challenge-panel" id="challengePanel" hidden aria-live="polite">
         <div class="challenge-copy" id="challengeStatus"></div>
+        <select class="challenge-player-select" id="challengePlayerSelect" aria-label="Учесник">
+          <option value="">Учесник</option>
+          <option value="__new__">Нови корисник</option>
+        </select>
         <div class="challenge-actions">
           <button id="createChallengeButton" type="button">Пошаљи</button>
           <input id="challengeCodeInput" maxlength="8" placeholder="Код">
@@ -134,7 +138,7 @@
       <article class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
         <button class="help-close" id="helpCloseButton" type="button" aria-label="Затвори">×</button>
         <h2 id="helpTitle">Помоћ</h2>
-        <details class="help-section" open>
+        <details class="help-section">
           <summary>Правила игре</summary>
           <ul>
             <li>Циљ је погодити реч од 5 слова.</li>

@@ -45,7 +45,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Uvek prvo pokušaj mrežu, pa tek onda keš
+// Uvek prvo pokusaj mrezu, pa tek onda kes
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 

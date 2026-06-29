@@ -23,8 +23,7 @@ const WORDS = [
   "зидар",
   "дрчан",
   "дукат",
- 
-  
+
   "добро",
   "нисам",
   "зашто",
@@ -7854,6 +7853,7 @@ const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
   table: "scores",
   challengeTable: "challenges",
+  normalStatsTable: "normal_stats",
   wordReportsTable: "word_reports"
 };
 
@@ -7892,6 +7892,7 @@ const wordModalText = document.querySelector("#wordModalText");
 const wordModalActions = document.querySelector("#wordModalActions");
 const challengePanelEl = document.querySelector("#challengePanel");
 const challengeStatusEl = document.querySelector("#challengeStatus");
+const challengePlayerSelect = document.querySelector("#challengePlayerSelect");
 const createChallengeButton = document.querySelector("#createChallengeButton");
 const challengeCodeInput = document.querySelector("#challengeCodeInput");
 const acceptChallengeButton = document.querySelector("#acceptChallengeButton");
@@ -8125,11 +8126,28 @@ function saveNormalStats(stats) {
   localStorage.setItem(NORMAL_STATS_KEY, JSON.stringify(stats));
 }
 
+async function submitNormalStats(stats = loadNormalStats()) {
+  if (!supabaseConfigured()) return false;
+  const response = await fetch(supabaseUrl(`${normalStatsTable()}?on_conflict=device_id`), {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    body: JSON.stringify({
+      nickname: loadPlayerName() || "Играч",
+      device_id: deviceId(),
+      started: Number(stats.started) || 0,
+      finished: Number(stats.finished) || 0,
+      updated_at: new Date().toISOString()
+    })
+  });
+  return response.ok;
+}
+
 function bumpNormalStarted() {
   const stats = loadNormalStats();
   stats.started += 1;
   saveNormalStats(stats);
   renderNormalStats();
+  submitNormalStats(stats).catch(() => {});
 }
 
 function bumpNormalFinished() {
@@ -8137,6 +8155,7 @@ function bumpNormalFinished() {
   stats.finished += 1;
   saveNormalStats(stats);
   renderNormalStats();
+  submitNormalStats(stats).catch(() => {});
 }
 
 function markNormalStarted() {
@@ -8208,6 +8227,10 @@ function challengeTable() {
   return SUPABASE_CONFIG.challengeTable || "challenges";
 }
 
+function normalStatsTable() {
+  return SUPABASE_CONFIG.normalStatsTable || "normal_stats";
+}
+
 function wordReportsTable() {
   return SUPABASE_CONFIG.wordReportsTable || "word_reports";
 }
@@ -8236,6 +8259,17 @@ function challengeUrl(code) {
   const url = new URL(window.location.href);
   url.searchParams.set("challenge", code);
   return url.toString();
+}
+
+function challengeIsActive(row) {
+  const accepted = Date.parse(row?.accepted_at || "");
+  return row?.status === "accepted" && Number.isFinite(accepted) && Date.now() - accepted < 86400000;
+}
+
+function challengeCardState(row) {
+  if (playedChallenge(row)) return "played";
+  if (challengeIsActive(row)) return "accepted";
+  return "pending";
 }
 
 function loadPendingChallengeCode() {
@@ -8320,6 +8354,69 @@ async function fetchSentChallengesToday() {
   return Array.isArray(rows) ? rows : local;
 }
 
+async function fetchChallengePlayers() {
+  if (!supabaseConfigured()) return [];
+  const [normalRows, scoreRows, challengeRows] = await Promise.all([
+    fetchNormalStatsRows().catch(() => []),
+    fetchOnlineLeaderboard().catch(() => []),
+    fetchChallengeHistory().catch(() => [])
+  ]);
+  const names = new Set();
+  const currentName = loadPlayerName();
+  [...(normalRows || []), ...(scoreRows || [])].forEach((row) => {
+    const name = cleanChallengeName(row.nickname);
+    if (name && !sameChallengeName(name, currentName)) names.add(name);
+  });
+  (challengeRows || []).forEach((row) => {
+    [row.creator, row.opponent].forEach((value) => {
+      const name = cleanChallengeName(value);
+      if (name && name !== "Чека се" && !sameChallengeName(name, currentName)) names.add(name);
+    });
+  });
+  return [...names].sort((a, b) => a.localeCompare(b, "sr"));
+}
+
+function renderChallengePlayers(names = []) {
+  if (!challengePlayerSelect) return;
+  const current = challengePlayerSelect.value;
+  challengePlayerSelect.innerHTML = "";
+  [
+    ["", "Учесник"],
+    ...names.map((name) => [name, name]),
+    ["__new__", "Нови корисник"]
+  ].forEach(([value, label]) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    challengePlayerSelect.append(option);
+  });
+  if ([...challengePlayerSelect.options].some((option) => option.value === current)) {
+    challengePlayerSelect.value = current;
+  }
+}
+
+function challengeNotificationRows(rows = []) {
+  const me = loadPlayerName();
+  if (!me) return [];
+  return rows.filter((row) => {
+    if (playedChallenge(row)) return false;
+    const sentToMe = sameChallengeName(row.opponent, me) && row.creator_device !== deviceId();
+    const acceptedMine = row.creator_device === deviceId() && challengeIsActive(row);
+    return sentToMe || acceptedMine;
+  });
+}
+
+function updateChallengeBadge(rows = []) {
+  const button = typeButtons.find((item) => item.dataset.type === "challenge");
+  if (!button) return;
+  const count = challengeNotificationRows(rows).length;
+  if (count) {
+    button.dataset.count = String(count);
+  } else {
+    delete button.dataset.count;
+  }
+}
+
 function challengeScoreValue(status) {
   const solvedCount = solvedAt.filter(Boolean).length;
   const unusedRows = status === "finished" ? unusedAttempts() : 0;
@@ -8369,7 +8466,7 @@ async function updateChallenge(code, patch) {
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=code,creator,opponent,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,created_at",
+    "select=code,day,status,accepted_at,creator,creator_device,opponent,opponent_device,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,created_at",
     "order=created_at.desc",
     "limit=1000"
   ].join("&");
@@ -8442,7 +8539,7 @@ function challengeWinnerName(row) {
 
 function challengeCard(row, rows = []) {
   const card = document.createElement("article");
-  card.className = `challenge-card ${playedChallenge(row) ? "played" : "pending"}`;
+  card.className = `challenge-card ${challengeCardState(row)}`;
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Чека се";
   const pair = opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
@@ -8453,7 +8550,9 @@ function challengeCard(row, rows = []) {
   winner.className = "challenge-card-winner";
   winner.textContent = playedChallenge(row)
     ? `Победник: ${challengeWinnerName(row)} · добија ${formatScore(challengeDifference(row))}`
-    : "Изазов није завршен";
+    : challengeIsActive(row)
+      ? "Прихваћено · активно 24h"
+      : "Позвани сте на изазов";
   const scores = document.createElement("div");
   scores.className = "challenge-card-scores";
   scores.textContent = `${creator}: ${challengeRowLabel(row, "creator")} | ${opponent}: ${challengeRowLabel(row, "opponent")}`;
@@ -8465,13 +8564,42 @@ function challengeCard(row, rows = []) {
     card.append(pairEl);
   }
   card.append(scores);
+  if (!playedChallenge(row)) {
+    const actions = document.createElement("div");
+    actions.className = "challenge-card-actions";
+    const me = loadPlayerName();
+    const canAccept = row.status === "pending" && row.creator_device !== deviceId() && !row.opponent_device;
+    const canPlay = challengeIsActive(row) && (row.creator_device === deviceId() || sameChallengeName(row.opponent, me));
+    if (canAccept) {
+      const accept = document.createElement("button");
+      accept.type = "button";
+      accept.textContent = "Прихвати";
+      accept.addEventListener("click", () => acceptChallenge(row.code, { play: false }).catch(() => renderChallengePanel("Прихватање изазова није успело.")));
+      actions.append(accept);
+    }
+    if (canPlay) {
+      const play = document.createElement("button");
+      play.type = "button";
+      play.textContent = "Играј";
+      play.addEventListener("click", () => acceptChallenge(row.code, { play: true }).catch(() => renderChallengePanel("Покретање изазова није успело.")));
+      actions.append(play);
+    }
+    if (actions.children.length) card.append(actions);
+  }
   return card;
 }
 
 function renderChallengeHistoryCards(rows = []) {
   if (!challengeHistoryEl) return;
   challengeHistoryEl.innerHTML = "";
-  const playedRows = rows.filter((row) => row.creator || row.opponent).slice(0, 8);
+  updateChallengeBadge(rows);
+  const me = loadPlayerName();
+  const currentRows = rows.filter((row) =>
+    row.creator_device === deviceId() ||
+    sameChallengeName(row.opponent, me) ||
+    sameChallengeName(row.creator, me)
+  );
+  const playedRows = currentRows.filter((row) => row.creator || row.opponent).slice(0, 12);
   if (!playedRows.length) return;
   playedRows.forEach((row) => challengeHistoryEl.append(challengeCard(row, rows)));
 }
@@ -8479,6 +8607,15 @@ function renderChallengeHistoryCards(rows = []) {
 async function refreshChallengeHistoryCards() {
   if (!challengeHistoryEl || !supabaseConfigured()) return;
   const rows = await fetchChallengeHistory();
+  renderChallengeHistoryCards(rows);
+}
+
+async function refreshChallengeLobby() {
+  const [players, rows] = await Promise.all([
+    fetchChallengePlayers().catch(() => []),
+    fetchChallengeHistory().catch(() => [])
+  ]);
+  renderChallengePlayers(players);
   renderChallengeHistoryCards(rows);
 }
 
@@ -8540,9 +8677,12 @@ async function createChallenge() {
     return;
   }
   const nickname = ensurePlayerName();
-  const opponent = cleanChallengeName(window.prompt("Кога изазиваш? Унеси надимак:", "") || "");
+  let opponent = cleanChallengeName(challengePlayerSelect?.value || "");
+  if (opponent === "__new__") {
+    opponent = cleanChallengeName(window.prompt("Кога изазиваш? Унеси надимак:", "") || "");
+  }
   if (!opponent) {
-    renderChallengePanel("Унеси надимак особе коју изазиваш.");
+    renderChallengePanel("Изабери учесника или унеси новог корисника.");
     return;
   }
   if (sameChallengeName(nickname, opponent)) {
@@ -8577,7 +8717,8 @@ async function createChallenge() {
   markChallengeSentToday(opponent);
   savePendingChallengeCode(code);
   if (challengeCodeInput) challengeCodeInput.value = code;
-  renderChallengePanel(`Изазов ${code} за ${opponent} је спреман. Пошаљи код или линк; игра креће кад буде прихваћен.`);
+  renderChallengePanel(`Изазов ${code} за ${opponent} је послат. Картица је жута док не прихвати.`);
+  await refreshChallengeLobby().catch(() => {});
   shareChallenge(code).catch(() => {});
 }
 
@@ -8633,7 +8774,7 @@ function showChallengeIntro() {
       })
       .catch(() => {});
   }
-  refreshChallengeHistoryCards().catch(() => {});
+  refreshChallengeLobby().catch(() => {});
 }
 
 function startChallengeGame(row, role) {
@@ -8679,7 +8820,8 @@ function startChallengeGame(row, role) {
   render();
 }
 
-async function acceptChallenge(codeInput = "") {
+async function acceptChallenge(codeInput = "", options = {}) {
+  const playNow = options.play !== false;
   const code = String(codeInput || challengeCodeInput?.value || "").trim().toUpperCase();
   if (!code) {
     renderChallengePanel("Унеси код изазова.");
@@ -8696,18 +8838,27 @@ async function acceptChallenge(codeInput = "") {
       return;
     }
     clearPendingChallengeCode();
+    if (!playNow) {
+      await renderChallengeResult(row, 0);
+      return;
+    }
     startChallengeGame(row, "creator");
     return;
   }
   if (row.status === "pending") {
     await updateChallenge(code, {
       status: "accepted",
-      opponent: ensurePlayerName(),
+      opponent: row.opponent || ensurePlayerName(),
       opponent_device: deviceId(),
       accepted_at: new Date().toISOString()
     });
   }
   const accepted = await fetchChallenge(code);
+  if (!playNow) {
+    renderChallengePanel("Изазов је прихваћен. Картица је зелена и активна 24h.");
+    await refreshChallengeLobby().catch(() => {});
+    return;
+  }
   startChallengeGame(accepted || row, "opponent");
 }
 
@@ -9329,7 +9480,6 @@ function showMissingWordReview(word) {
         label: "Не",
         tone: "danger",
         onClick: () => {
-          submitWordReport(word, "reject", "missing_guess").catch(() => {});
           closeWordModal();
           messageEl.textContent = "Настави.";
         }
@@ -9715,6 +9865,21 @@ async function fetchOnlineLeaderboard() {
   return response.json();
 }
 
+async function fetchNormalStatsRows() {
+  if (!supabaseConfigured()) return [];
+  const query = [
+    "select=nickname,started,finished,updated_at",
+    "order=updated_at.desc",
+    "limit=1000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${normalStatsTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function fetchOnlinePlayerStats(nickname) {
   if (!supabaseConfigured() || !nickname) return null;
   const query = [
@@ -9770,7 +9935,6 @@ function aggregatePlayerRows(rows) {
   const finalScore = average + activityBonus + streakBonus;
   const bestDay = dayRows.reduce((best, row) => (!best || row.score > best.score ? row : best), null);
   const lastDay = dayRows.reduce((last, row) => (!last || row.date > last.date ? row : last), null);
-  const startedGames = dayRows.reduce((sum, row) => sum + row.attempts, 0);
   const wonGames = dayRows.reduce((sum, row) => sum + row.wins, 0);
 
   return {
@@ -9784,12 +9948,26 @@ function aggregatePlayerRows(rows) {
     playedDaysAt: lastDay?.createdAt || "",
     streak,
     streakAt: lastDay?.createdAt || "",
-    successRate: startedGames ? (wonGames / startedGames) * 100 : 0,
-    successRateAt: lastDay?.createdAt || "",
     totalScore,
     wins: wonGames,
     winsAt: lastDay?.createdAt || ""
   };
+}
+
+function normalSuccessRows(rows) {
+  return rows
+    .map((row) => {
+      const started = Number(row.started) || 0;
+      const finished = Number(row.finished) || 0;
+      return {
+        nickname: (row.nickname || "Играч").trim() || "Играч",
+        started,
+        finished,
+        successRate: started ? (finished / started) * 100 : 0,
+        successRateAt: row.updated_at || ""
+      };
+    })
+    .filter((row) => row.started > 0);
 }
 
 function aggregateLeaderboard(rows) {
@@ -9954,14 +10132,16 @@ async function renderHallOfFame() {
   hallPanelEl.hidden = gameType !== "hall";
   renderHallLoading();
   try {
-    const [scoreRows, challengeRows] = await Promise.all([
+    const [scoreRows, challengeRows, normalRows] = await Promise.all([
       fetchOnlineLeaderboard(),
-      fetchChallengeHistory()
+      fetchChallengeHistory(),
+      fetchNormalStatsRows()
     ]);
     const rows = Array.isArray(scoreRows) ? scoreRows : [];
     const leaderboard = aggregateLeaderboard(rows);
     const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
     const challengeLeaders = challengeStats(challengeRowsSafe);
+    const normalLeaders = normalSuccessRows(Array.isArray(normalRows) ? normalRows : []);
     const playerRows = leaderboard.map((row) => row);
     const rawScores = rows.map((row) => ({
       nickname: (row.nickname || "Играч").trim() || "Играч",
@@ -9978,7 +10158,7 @@ async function renderHallOfFame() {
       ["Највећи дневни скор", bestBy(rawScores, (row) => row.score), " поена", "medal-best-daily.png", "created_at"],
       ["Највећи укупан резултат", bestBy(playerRows, (row) => row.finalScore), " финал", "medal-total-score.png", "finalScoreAt"],
       ["Највише започетих турнира", bestBy(playerRows, (row) => row.attempts), " турнир", "medal-started.png", "attemptsAt"],
-      ["Најбоља успешност дневних партија", bestBy(playerRows, (row) => row.successRate), "%", "medal-success-rate.png", "successRateAt"],
+      ["Најбоља успешност обичне игре", bestBy(normalLeaders, (row) => row.successRate), "%", "medal-success-rate.png", "successRateAt"],
       ["Најдужи низ", bestBy(playerRows, (row) => row.streak), " дана", "medal-streak.png", "streakAt"],
       ["Највише активних дана", bestBy(playerRows, (row) => row.playedDays), " дана", "medal-active-days.png", "playedDaysAt"],
       ["Најјачи изазов скор", bestBy(challengeLeaders, (row) => row.best), " поена", "medal-challenge-score.png", "bestAt"]
@@ -10256,7 +10436,7 @@ if (createChallengeButton) {
 
 if (acceptChallengeButton) {
   acceptChallengeButton.addEventListener("click", () => {
-    acceptChallenge().catch(() => renderChallengePanel("Прихватање изазова није успело."));
+    acceptChallenge("", { play: false }).catch(() => renderChallengePanel("Прихватање изазова није успело."));
   });
 }
 
@@ -10387,12 +10567,18 @@ if (playerNameInput) {
 if (saveNameButton) {
   saveNameButton.addEventListener("click", () => {
     savePlayerName(playerNameInput ? playerNameInput.value : "");
+    submitNormalStats().catch(() => {});
     refreshOnlineLeaderboard();
   });
 }
 
 function setHelpOpen(open) {
   if (!helpModal) return;
+  if (open) {
+    helpModal.querySelectorAll("details").forEach((section) => {
+      section.open = false;
+    });
+  }
   helpModal.hidden = !open;
 }
 
@@ -10442,7 +10628,20 @@ const incomingChallengeCode = new URLSearchParams(window.location.search).get("c
 if (incomingChallengeCode) {
   startGame("challenge");
   if (challengeCodeInput) challengeCodeInput.value = incomingChallengeCode.toUpperCase();
-  renderChallengePanel(`Примљен изазов ${incomingChallengeCode.toUpperCase()}. Притисни Прихвати да почнеш.`);
+  renderChallengePanel(`Примљен изазов ${incomingChallengeCode.toUpperCase()}. Прихвати га, па играј када желиш.`);
+  fetchChallenge(incomingChallengeCode)
+    .then((row) => {
+      if (row) renderChallengeHistoryCards([row]);
+    })
+    .catch(() => {});
 } else {
   startGame();
 }
+
+const initialNormalStats = loadNormalStats();
+if (initialNormalStats.started || initialNormalStats.finished) {
+  submitNormalStats(initialNormalStats).catch(() => {});
+}
+fetchChallengeHistory()
+  .then(updateChallengeBadge)
+  .catch(() => {});
