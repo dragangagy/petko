@@ -8263,9 +8263,8 @@ function challengeUrl(code) {
 }
 
 function challengeIsActive(row) {
-  const accepted = Date.parse(row?.accepted_at || "");
   const activeStatus = row?.status === "accepted" || row?.status === "played";
-  return activeStatus && !playedChallenge(row) && Number.isFinite(accepted) && Date.now() - accepted < CHALLENGE_ACTIVE_MS;
+  return activeStatus && !playedChallenge(row) && Date.now() < challengeActiveUntil(row);
 }
 
 function challengeCardState(row) {
@@ -8276,8 +8275,10 @@ function challengeCardState(row) {
 
 function challengeActiveUntil(row) {
   const accepted = Date.parse(row?.accepted_at || "");
-  if (!Number.isFinite(accepted)) return 0;
-  return accepted + CHALLENGE_ACTIVE_MS;
+  const created = Date.parse(row?.created_at || "");
+  const base = Number.isFinite(accepted) ? accepted : created;
+  if (!Number.isFinite(base)) return 0;
+  return base + CHALLENGE_ACTIVE_MS;
 }
 
 function challengeCountdownText(row) {
@@ -8298,6 +8299,21 @@ function challengeRole(row) {
 function challengeAlreadyPlayed(row, role) {
   if (!role) return false;
   return Number.isFinite(Number(row?.[`${role}_score`]));
+}
+
+function challengePlayedToday(row) {
+  if (!playedChallenge(row)) return false;
+  const playedTimes = [row?.creator_played_at, row?.opponent_played_at]
+    .map((value) => Date.parse(value || ""))
+    .filter(Number.isFinite);
+  const lastPlayed = playedTimes.length ? new Date(Math.max(...playedTimes)).toISOString() : row?.created_at || "";
+  const playedDay = String(lastPlayed).slice(0, 10);
+  return (playedDay || row?.day) === todayId();
+}
+
+function challengeCardVisible(row) {
+  if (playedChallenge(row)) return challengePlayedToday(row);
+  return Date.now() < challengeActiveUntil(row);
 }
 
 function loadPendingChallengeCode() {
@@ -8493,7 +8509,7 @@ async function updateChallenge(code, patch) {
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=code,day,status,accepted_at,creator,creator_device,opponent,opponent_device,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,created_at",
+    "select=code,day,status,accepted_at,creator,creator_device,opponent,opponent_device,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,creator_played_at,opponent_played_at,created_at",
     "order=created_at.desc",
     "limit=1000"
   ].join("&");
@@ -8646,7 +8662,7 @@ function renderChallengeHistoryCards(rows = []) {
     sameChallengeName(row.creator, me)
   );
   const playedRows = currentRows
-    .filter((row) => row.creator || row.opponent)
+    .filter((row) => (row.creator || row.opponent) && challengeCardVisible(row))
     .sort((a, b) => {
       const stateOrder = { accepted: 0, pending: 1, played: 2 };
       const stateDiff = stateOrder[challengeCardState(a)] - stateOrder[challengeCardState(b)];

@@ -73,7 +73,11 @@ body[data-friday="true"] .icon-button,
 body[data-friday="true"] .help-top-button,
 body[data-friday="true"] .exit-button,
 body[data-friday="true"] .annual-top-score,
-body[data-friday="true"] .try-button {
+body[data-friday="true"] .try-button,
+body[data-friday="true"] .challenge-panel,
+body[data-friday="true"] .challenge-card,
+body[data-friday="true"] .challenge-player-select,
+body[data-friday="true"] .challenge-actions button {
   border-color: rgba(255, 215, 0, 0.36);
   box-shadow: inset 0 0 14px rgba(255, 215, 0, 0.06), 0 0 16px rgba(255, 215, 0, 0.14);
 }
@@ -661,6 +665,11 @@ body[data-game-type="normal"] .score-stack {
 .type-button {
   position: relative;
   overflow: hidden;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  line-height: 1.05;
+  white-space: nowrap;
 }
 
 .type-button.daily-locked {
@@ -776,31 +785,36 @@ body:not([data-game-type="hall"]) .hall-panel {
 
 .challenge-player-select {
   width: 100%;
-  height: 36px;
+  min-width: 0;
+  height: 31px;
   border: 1px solid rgba(56, 189, 248, 0.22);
-  border-radius: 8px;
+  border-radius: 7px;
   background: #111c2f;
   color: #ffffff;
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 900;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .challenge-actions {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) 82px 76px;
+  grid-template-columns: minmax(0, 1fr) 74px;
   gap: 5px;
+}
+
+.challenge-code-tools[hidden] {
+  display: none;
 }
 
 .challenge-actions input,
 .challenge-actions button {
   min-width: 0;
-  height: 34px;
+  height: 31px;
   border: 1px solid rgba(56, 189, 248, 0.22);
-  border-radius: 8px;
+  border-radius: 7px;
   background: #1e293b;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
 }
 
@@ -811,6 +825,8 @@ body:not([data-game-type="hall"]) .hall-panel {
 }
 
 .challenge-actions button {
+  display: grid;
+  place-items: center;
   color: var(--cyan);
 }
 

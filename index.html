@@ -62,19 +62,21 @@
         <button class="type-button active" type="button" data-type="normal">Обичан</button>
         <button class="type-button" type="button" data-type="competitive">Такмичарски</button>
         <button class="type-button" type="button" data-type="challenge">Изазов</button>
-        <button class="type-button" type="button" data-type="hall">Слава</button>
+        <button class="type-button" type="button" data-type="hall">Медаље</button>
       </section>
 
       <section class="normal-stats" id="normalStats" aria-live="polite"></section>
 
       <section class="challenge-panel" id="challengePanel" hidden aria-live="polite">
         <div class="challenge-copy" id="challengeStatus"></div>
-        <select class="challenge-player-select" id="challengePlayerSelect" aria-label="Учесник">
-          <option value="">Учесник</option>
-          <option value="__new__">Нови корисник</option>
-        </select>
         <div class="challenge-actions">
+          <select class="challenge-player-select" id="challengePlayerSelect" aria-label="Учесник">
+            <option value="">Учесник</option>
+            <option value="__new__">Нови корисник</option>
+          </select>
           <button id="createChallengeButton" type="button">Пошаљи</button>
+        </div>
+        <div class="challenge-code-tools" hidden>
           <input id="challengeCodeInput" maxlength="8" placeholder="Код">
           <button id="acceptChallengeButton" type="button">Прихвати</button>
           <button id="checkChallengeButton" type="button" hidden>Провери</button>
@@ -185,6 +187,9 @@
             <li>Дневно можеш послати највише 3 изазова.</li>
             <li>Исту особу можеш изазвати само једном дневно.</li>
             <li>Примање изазова је неограничено.</li>
+            <li>После поноћи добијаш 3 нова слања, а неискоришћена слања се не преносе.</li>
+            <li>Позивнице и прихваћени изазови остају на картици до 24h од слања или прихватања.</li>
+            <li>Одиграни скор на картици је дневни приказ и нестаје после поноћи.</li>
             <li>Изазов се игра тек кад противник прихвати код или линк.</li>
           </ul>
         </details>
