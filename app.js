@@ -7836,6 +7836,7 @@ const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
 const CHALLENGE_DAILY_LIMIT = 3;
+const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -8263,13 +8264,40 @@ function challengeUrl(code) {
 
 function challengeIsActive(row) {
   const accepted = Date.parse(row?.accepted_at || "");
-  return row?.status === "accepted" && Number.isFinite(accepted) && Date.now() - accepted < 86400000;
+  const activeStatus = row?.status === "accepted" || row?.status === "played";
+  return activeStatus && !playedChallenge(row) && Number.isFinite(accepted) && Date.now() - accepted < CHALLENGE_ACTIVE_MS;
 }
 
 function challengeCardState(row) {
   if (playedChallenge(row)) return "played";
   if (challengeIsActive(row)) return "accepted";
   return "pending";
+}
+
+function challengeActiveUntil(row) {
+  const accepted = Date.parse(row?.accepted_at || "");
+  if (!Number.isFinite(accepted)) return 0;
+  return accepted + CHALLENGE_ACTIVE_MS;
+}
+
+function challengeCountdownText(row) {
+  const remaining = Math.max(0, challengeActiveUntil(row) - Date.now());
+  if (!remaining) return "истекло";
+  const hours = Math.floor(remaining / 3600000);
+  const minutes = Math.floor((remaining % 3600000) / 60000);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function challengeRole(row) {
+  const me = loadPlayerName();
+  if (row?.creator_device === deviceId() || sameChallengeName(row?.creator, me)) return "creator";
+  if (row?.opponent_device === deviceId() || sameChallengeName(row?.opponent, me)) return "opponent";
+  return "";
+}
+
+function challengeAlreadyPlayed(row, role) {
+  if (!role) return false;
+  return Number.isFinite(Number(row?.[`${role}_score`]));
 }
 
 function loadPendingChallengeCode() {
@@ -8397,12 +8425,11 @@ function renderChallengePlayers(names = []) {
 
 function challengeNotificationRows(rows = []) {
   const me = loadPlayerName();
-  if (!me) return [];
   return rows.filter((row) => {
     if (playedChallenge(row)) return false;
-    const sentToMe = sameChallengeName(row.opponent, me) && row.creator_device !== deviceId();
-    const acceptedMine = row.creator_device === deviceId() && challengeIsActive(row);
-    return sentToMe || acceptedMine;
+    const mineByDevice = row.creator_device === deviceId() || row.opponent_device === deviceId();
+    const mineByName = me && (sameChallengeName(row.opponent, me) || sameChallengeName(row.creator, me));
+    return mineByDevice || mineByName;
   });
 }
 
@@ -8542,47 +8569,65 @@ function challengeCard(row, rows = []) {
   card.className = `challenge-card ${challengeCardState(row)}`;
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Чека се";
+  const role = challengeRole(row);
+  const otherPlayer = role === "creator" ? opponent : creator;
   const pair = opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
-  const title = document.createElement("div");
-  title.className = "challenge-card-title";
-  title.textContent = `${creator} → ${opponent}`;
-  const winner = document.createElement("div");
-  winner.className = "challenge-card-winner";
-  winner.textContent = playedChallenge(row)
-    ? `Победник: ${challengeWinnerName(row)} · добија ${formatScore(challengeDifference(row))}`
-    : challengeIsActive(row)
-      ? "Прихваћено · активно 24h"
-      : "Позвани сте на изазов";
-  const scores = document.createElement("div");
-  scores.className = "challenge-card-scores";
-  scores.textContent = `${creator}: ${challengeRowLabel(row, "creator")} | ${opponent}: ${challengeRowLabel(row, "opponent")}`;
-  card.append(title, winner);
   if (pair) {
     const pairEl = document.createElement("div");
     pairEl.className = "challenge-card-pair";
     pairEl.textContent = `Међусобно: ${challengePairText(pair, creator, opponent)}`;
     card.append(pairEl);
   }
+  const title = document.createElement("div");
+  title.className = "challenge-card-title";
+  if (playedChallenge(row)) {
+    title.textContent = `${creator} → ${opponent}`;
+  } else if (challengeIsActive(row)) {
+    title.textContent = `Изазов је прихваћен: ${creator} → ${opponent}`;
+  } else if (role === "creator") {
+    title.textContent = `Упутили сте изазов: ${opponent}`;
+  } else {
+    title.textContent = `${creator} вам је послао изазов`;
+  }
+  const winner = document.createElement("div");
+  winner.className = "challenge-card-winner";
+  winner.textContent = playedChallenge(row)
+    ? `Победник: ${challengeWinnerName(row)} · добија ${formatScore(challengeDifference(row))}`
+    : challengeIsActive(row)
+      ? `Зелена карта важи још ${challengeCountdownText(row)}`
+      : role === "creator"
+        ? `Чека се да ${otherPlayer} прихвати`
+        : "Прихватите изазов да се отвори игра";
+  const scores = document.createElement("div");
+  scores.className = "challenge-card-scores";
+  scores.textContent = playedChallenge(row)
+    ? `${creator}: ${challengeRowLabel(row, "creator")} | ${opponent}: ${challengeRowLabel(row, "opponent")}`
+    : `Код: ${row.code || "-"} · 6 табли · 11 покушаја`;
+  card.append(title, winner);
   card.append(scores);
   if (!playedChallenge(row)) {
     const actions = document.createElement("div");
     actions.className = "challenge-card-actions";
-    const me = loadPlayerName();
-    const canAccept = row.status === "pending" && row.creator_device !== deviceId() && !row.opponent_device;
-    const canPlay = challengeIsActive(row) && (row.creator_device === deviceId() || sameChallengeName(row.opponent, me));
+    const canAccept = row.status === "pending" && role !== "creator" && !row.opponent_device;
+    const canPlay = challengeIsActive(row) && role && !challengeAlreadyPlayed(row, role);
     if (canAccept) {
       const accept = document.createElement("button");
       accept.type = "button";
-      accept.textContent = "Прихвати";
+      accept.textContent = "Прихвати изазов";
       accept.addEventListener("click", () => acceptChallenge(row.code, { play: false }).catch(() => renderChallengePanel("Прихватање изазова није успело.")));
       actions.append(accept);
     }
     if (canPlay) {
       const play = document.createElement("button");
       play.type = "button";
-      play.textContent = "Играј";
+      play.textContent = "Одиграј изазов";
       play.addEventListener("click", () => acceptChallenge(row.code, { play: true }).catch(() => renderChallengePanel("Покретање изазова није успело.")));
       actions.append(play);
+    } else if (challengeIsActive(row) && role && challengeAlreadyPlayed(row, role)) {
+      const waiting = document.createElement("div");
+      waiting.className = "challenge-card-waiting";
+      waiting.textContent = "Одиграли сте. Чека се противник.";
+      actions.append(waiting);
     }
     if (actions.children.length) card.append(actions);
   }
@@ -8596,10 +8641,19 @@ function renderChallengeHistoryCards(rows = []) {
   const me = loadPlayerName();
   const currentRows = rows.filter((row) =>
     row.creator_device === deviceId() ||
+    row.opponent_device === deviceId() ||
     sameChallengeName(row.opponent, me) ||
     sameChallengeName(row.creator, me)
   );
-  const playedRows = currentRows.filter((row) => row.creator || row.opponent).slice(0, 12);
+  const playedRows = currentRows
+    .filter((row) => row.creator || row.opponent)
+    .sort((a, b) => {
+      const stateOrder = { accepted: 0, pending: 1, played: 2 };
+      const stateDiff = stateOrder[challengeCardState(a)] - stateOrder[challengeCardState(b)];
+      if (stateDiff) return stateDiff;
+      return Date.parse(b.created_at || "") - Date.parse(a.created_at || "");
+    })
+    .slice(0, 12);
   if (!playedRows.length) return;
   playedRows.forEach((row) => challengeHistoryEl.append(challengeCard(row, rows)));
 }
@@ -10623,6 +10677,11 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 setInterval(updateCompetitiveCountdown, 1000);
+setInterval(() => {
+  if (gameType === "challenge" && supabaseConfigured()) {
+    refreshChallengeLobby().catch(() => {});
+  }
+}, 30000);
 
 const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
 if (incomingChallengeCode) {
