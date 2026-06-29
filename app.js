@@ -9744,6 +9744,8 @@ function aggregatePlayerRows(rows) {
   const finalScore = average + activityBonus + streakBonus;
   const bestDay = dayRows.reduce((best, row) => (!best || row.score > best.score ? row : best), null);
   const lastDay = dayRows.reduce((last, row) => (!last || row.date > last.date ? row : last), null);
+  const startedGames = dayRows.reduce((sum, row) => sum + row.attempts, 0);
+  const wonGames = dayRows.reduce((sum, row) => sum + row.wins, 0);
 
   return {
     attempts: playedDays,
@@ -9756,8 +9758,10 @@ function aggregatePlayerRows(rows) {
     playedDaysAt: lastDay?.createdAt || "",
     streak,
     streakAt: lastDay?.createdAt || "",
+    successRate: startedGames ? (wonGames / startedGames) * 100 : 0,
+    successRateAt: lastDay?.createdAt || "",
     totalScore,
-    wins: dayRows.reduce((sum, row) => sum + row.wins, 0),
+    wins: wonGames,
     winsAt: lastDay?.createdAt || ""
   };
 }
@@ -9948,6 +9952,7 @@ async function renderHallOfFame() {
       ["Највећи дневни скор", bestBy(rawScores, (row) => row.score), " поена", "medal-best-daily.png", "created_at"],
       ["Највећи укупан резултат", bestBy(playerRows, (row) => row.finalScore), " финал", "medal-total-score.png", "finalScoreAt"],
       ["Највише започетих турнира", bestBy(playerRows, (row) => row.attempts), " турнир", "medal-started.png", "attemptsAt"],
+      ["Најбоља успешност дневних партија", bestBy(playerRows, (row) => row.successRate), "%", "medal-success-rate.png", "successRateAt"],
       ["Најдужи низ", bestBy(playerRows, (row) => row.streak), " дана", "medal-streak.png", "streakAt"],
       ["Највише активних дана", bestBy(playerRows, (row) => row.playedDays), " дана", "medal-active-days.png", "playedDaysAt"],
       ["Најјачи изазов скор", bestBy(challengeLeaders, (row) => row.best), " поена", "medal-challenge-score.png", "bestAt"]
