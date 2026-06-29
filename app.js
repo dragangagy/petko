@@ -7810,6 +7810,7 @@ const COMPETITIVE_FAIL_PENALTY = -2;
 const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
+const CHALLENGE_DAILY_LIMIT = 3;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -8252,12 +8253,45 @@ function clearActiveChallenge() {
   localStorage.removeItem(CHALLENGE_ACTIVE_KEY);
 }
 
-function sentChallengeToday() {
-  return localStorage.getItem(CHALLENGE_SENT_KEY) === todayId();
+function loadSentChallengesToday() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_SENT_KEY) || "null");
+    if (data?.date === todayId() && Array.isArray(data.opponents)) return data.opponents;
+  } catch {
+    if (localStorage.getItem(CHALLENGE_SENT_KEY) === todayId()) return ["legacy"];
+  }
+  return [];
 }
 
-function markChallengeSentToday() {
-  localStorage.setItem(CHALLENGE_SENT_KEY, todayId());
+function markChallengeSentToday(opponent) {
+  const opponents = loadSentChallengesToday();
+  opponents.push(opponent || "");
+  localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({ date: todayId(), opponents }));
+}
+
+function cleanChallengeName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function sameChallengeName(left, right) {
+  return cleanChallengeName(left).toLocaleLowerCase("sr") === cleanChallengeName(right).toLocaleLowerCase("sr");
+}
+
+async function fetchSentChallengesToday() {
+  const local = loadSentChallengesToday().map((opponent) => ({ opponent }));
+  if (!supabaseConfigured()) return local;
+  const query = [
+    "select=code,opponent",
+    `creator_device=eq.${encodeURIComponent(deviceId())}`,
+    `day=eq.${encodeURIComponent(todayId())}`,
+    "limit=10"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return local;
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : local;
 }
 
 function challengeScoreValue(status) {
@@ -8479,11 +8513,25 @@ async function createChallenge() {
     renderChallengePanel("За изазове мора бити активан Supabase.");
     return;
   }
-  if (sentChallengeToday()) {
-    renderChallengePanel("Данас је већ послат један изазов са овог уређаја.");
+  const nickname = ensurePlayerName();
+  const opponent = cleanChallengeName(window.prompt("Кога изазиваш? Унеси надимак:", "") || "");
+  if (!opponent) {
+    renderChallengePanel("Унеси надимак особе коју изазиваш.");
     return;
   }
-  const nickname = ensurePlayerName();
+  if (sameChallengeName(nickname, opponent)) {
+    renderChallengePanel("Не можеш изазвати самог себе.");
+    return;
+  }
+  const sentToday = await fetchSentChallengesToday();
+  if (sentToday.length >= CHALLENGE_DAILY_LIMIT) {
+    renderChallengePanel("Данас сте већ послали 3 изазова.");
+    return;
+  }
+  if (sentToday.some((row) => sameChallengeName(row.opponent, opponent))) {
+    renderChallengePanel("Ову особу сте већ изазвали данас.");
+    return;
+  }
   const code = challengeCode();
   const words = chooseTargets(CHALLENGE_WORDS);
   const response = await fetch(supabaseUrl(challengeTable()), {
@@ -8494,15 +8542,16 @@ async function createChallenge() {
       day: todayId(),
       creator: nickname,
       creator_device: deviceId(),
+      opponent,
       status: "pending",
       words
     })
   });
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није направљен."));
-  markChallengeSentToday();
+  markChallengeSentToday(opponent);
   savePendingChallengeCode(code);
   if (challengeCodeInput) challengeCodeInput.value = code;
-  renderChallengePanel(`Изазов ${code} је спреман. Пошаљи код или линк; игра креће кад буде прихваћен.`);
+  renderChallengePanel(`Изазов ${code} за ${opponent} је спреман. Пошаљи код или линк; игра креће кад буде прихваћен.`);
   shareChallenge(code).catch(() => {});
 }
 
