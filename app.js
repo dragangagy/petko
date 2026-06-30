@@ -8922,11 +8922,6 @@ async function supabaseErrorMessage(response, fallback) {
 }
 
 function showChallengeIntro() {
-  const progress = loadChallengeProgress();
-  if (progress) {
-    restoreChallengeProgress(progress);
-    return;
-  }
   gameType = "challenge";
   activeChallenge = loadActiveChallenge();
   competitiveIntro = false;
@@ -9021,6 +9016,11 @@ async function acceptChallenge(codeInput = "", options = {}) {
   const code = String(codeInput || challengeCodeInput?.value || "").trim().toUpperCase();
   if (!code) {
     renderChallengePanel("Унеси код изазова.");
+    return;
+  }
+  const progress = loadChallengeProgress();
+  if (playNow && progress?.active?.code && progress.active.code.toUpperCase() === code) {
+    restoreChallengeProgress(progress);
     return;
   }
   const row = await fetchChallenge(code);
