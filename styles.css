@@ -767,9 +767,9 @@ body:not([data-game-type="hall"]) .hall-panel {
 }
 
 .challenge-panel {
-  padding: 8px;
+  padding: 6px;
   display: grid;
-  gap: 7px;
+  gap: 5px;
   border: 1px solid rgba(56, 189, 248, 0.18);
   border-radius: 8px;
   background: rgba(30, 41, 59, 0.78);
@@ -777,7 +777,7 @@ body:not([data-game-type="hall"]) .hall-panel {
 }
 
 .challenge-copy {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 850;
   line-height: 1.28;
   text-align: center;
@@ -786,20 +786,20 @@ body:not([data-game-type="hall"]) .hall-panel {
 .challenge-player-select {
   width: 100%;
   min-width: 0;
-  height: 31px;
+  height: 26px;
   border: 1px solid rgba(56, 189, 248, 0.22);
   border-radius: 7px;
   background: #111c2f;
   color: #ffffff;
-  padding: 0 7px;
-  font-size: 11px;
-  font-weight: 800;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 750;
 }
 
 .challenge-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 74px;
-  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 4px;
 }
 
 .challenge-code-tools[hidden] {
@@ -809,12 +809,12 @@ body:not([data-game-type="hall"]) .hall-panel {
 .challenge-actions input,
 .challenge-actions button {
   min-width: 0;
-  height: 31px;
+  height: 26px;
   border: 1px solid rgba(56, 189, 248, 0.22);
   border-radius: 7px;
   background: #1e293b;
   color: #ffffff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
 }
 

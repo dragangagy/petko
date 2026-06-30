@@ -8313,7 +8313,8 @@ function challengePlayedToday(row) {
 
 function challengeCardVisible(row) {
   if (playedChallenge(row)) return challengePlayedToday(row);
-  return Date.now() < challengeActiveUntil(row);
+  const until = challengeActiveUntil(row);
+  return !until || Date.now() < until;
 }
 
 function loadPendingChallengeCode() {
@@ -8748,6 +8749,7 @@ async function createChallenge() {
   }
   const nickname = ensurePlayerName();
   let opponent = cleanChallengeName(challengePlayerSelect?.value || "");
+  const shareAfterCreate = opponent === "__new__";
   if (opponent === "__new__") {
     opponent = cleanChallengeName(window.prompt("Кога изазиваш? Унеси надимак:", "") || "");
   }
@@ -8788,8 +8790,17 @@ async function createChallenge() {
   savePendingChallengeCode(code);
   if (challengeCodeInput) challengeCodeInput.value = code;
   renderChallengePanel(`Изазов ${code} за ${opponent} је послат. Картица је жута док не прихвати.`);
+  renderChallengeHistoryCards([{
+    code,
+    day: todayId(),
+    status: "pending",
+    creator: nickname,
+    creator_device: deviceId(),
+    opponent,
+    created_at: new Date().toISOString()
+  }]);
   await refreshChallengeLobby().catch(() => {});
-  shareChallenge(code).catch(() => {});
+  if (shareAfterCreate) shareChallenge(code).catch(() => {});
 }
 
 async function supabaseErrorMessage(response, fallback) {
