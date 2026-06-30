@@ -8324,11 +8324,11 @@ function challengeRole(row) {
 
 function challengeAlreadyPlayed(row, role) {
   if (!role) return false;
-  return challengeScoreWritten(row?.[`${role}_score`]);
+  return challengePlayedAt(row, role);
 }
 
-function challengeScoreWritten(value) {
-  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+function challengePlayedAt(row, role) {
+  return Number.isFinite(Date.parse(row?.[`${role}_played_at`] || ""));
 }
 
 function challengePlayedToday(row) {
@@ -8576,7 +8576,7 @@ async function fetchChallengeHistory() {
 }
 
 function playedChallenge(row) {
-  return challengeScoreWritten(row?.creator_score) && challengeScoreWritten(row?.opponent_score);
+  return challengePlayedAt(row, "creator") && challengePlayedAt(row, "opponent");
 }
 
 function challengeWinner(row) {
@@ -8611,6 +8611,7 @@ function challengePairText(pair, creator, opponent) {
 }
 
 function challengeRowLabel(row, role) {
+  if (!challengePlayedAt(row, role)) return "није одиграно";
   const rawScore = row?.[`${role}_score`];
   const rawSolved = row?.[`${role}_solved`];
   const rawAttempts = row?.[`${role}_attempts`];
@@ -8618,9 +8619,9 @@ function challengeRowLabel(row, role) {
   const solved = Number(rawSolved);
   const attempts = Number(rawAttempts);
   const parts = [];
-  parts.push(challengeScoreWritten(rawScore) ? `${formatScore(score)} поена` : "-");
-  if (challengeScoreWritten(rawSolved)) parts.push(`${formatScore(solved)}/6 табли`);
-  if (challengeScoreWritten(rawAttempts)) parts.push(`${formatScore(attempts)}/11 редова`);
+  parts.push(Number.isFinite(score) ? `${formatScore(score)} поена` : "-");
+  if (Number.isFinite(solved)) parts.push(`${formatScore(solved)}/6 табли`);
+  if (Number.isFinite(attempts)) parts.push(`${formatScore(attempts)}/11 редова`);
   return parts.join(" · ");
 }
 
@@ -8766,7 +8767,7 @@ async function renderChallengeResult(row, localScore) {
   const history = await fetchChallengeHistory();
   const pair = challengePairScore(history, creator, opponent);
   if (!playedChallenge(row)) {
-    const waitingFor = Number.isFinite(creatorScore) ? opponent : creator;
+    const waitingFor = challengePlayedAt(row, "creator") ? opponent : creator;
     saveActiveChallenge({
       code: row.code,
       role: activeChallenge?.role || loadActiveChallenge()?.role || "",
