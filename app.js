@@ -8771,7 +8771,8 @@ async function createChallenge() {
     renderChallengePanel("За изазове мора бити активан Supabase.");
     return;
   }
-  const nickname = ensurePlayerName();
+  const nickname = await savePlayerNameUnique(loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || window.prompt("Унеси надимак за изазов:", "") || "");
+  if (!nickname) return;
   let opponent = cleanChallengeName(challengePlayerSelect?.value || "");
   const shareAfterCreate = opponent === "__new__";
   if (opponent === "__new__") {
@@ -8951,9 +8952,11 @@ async function acceptChallenge(codeInput = "", options = {}) {
     return;
   }
   if (row.status === "pending") {
+    const acceptedName = await savePlayerNameUnique(loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || window.prompt("Унеси надимак за изазов:", "") || "");
+    if (!acceptedName) return;
     await updateChallenge(code, {
       status: "accepted",
-      opponent: row.opponent || ensurePlayerName(),
+      opponent: row.opponent || acceptedName,
       opponent_device: deviceId(),
       accepted_at: new Date().toISOString()
     });
@@ -8995,11 +8998,42 @@ function loadPlayerName() {
   return (localStorage.getItem(PLAYER_NAME_KEY) || "").trim();
 }
 
+function normalizePlayerName(value) {
+  return (String(value || "").trim().replace(/\s+/g, " ").slice(0, 18) || "Играч");
+}
+
 function savePlayerName(value) {
-  const clean = value.trim().slice(0, 18) || "Играч";
+  const clean = normalizePlayerName(value);
   localStorage.setItem(PLAYER_NAME_KEY, clean);
   if (playerNameInput) playerNameInput.value = clean;
   return clean;
+}
+
+async function playerNameTaken(name) {
+  const clean = normalizePlayerName(name);
+  const current = loadPlayerName();
+  if (!supabaseConfigured() || sameChallengeName(clean, current)) return false;
+  const [normalRows, scoreRows, challengeRows] = await Promise.all([
+    fetchNormalStatsRows().catch(() => []),
+    fetchOnlineLeaderboard().catch(() => []),
+    fetchChallengeHistory().catch(() => [])
+  ]);
+  return [
+    ...(normalRows || []).map((row) => row.nickname),
+    ...(scoreRows || []).map((row) => row.nickname),
+    ...(challengeRows || []).flatMap((row) => [row.creator, row.opponent])
+  ].some((value) => sameChallengeName(value, clean));
+}
+
+async function savePlayerNameUnique(value) {
+  const clean = normalizePlayerName(value);
+  const previous = loadPlayerName();
+  if (await playerNameTaken(clean)) {
+    if (playerNameInput) playerNameInput.value = previous;
+    messageEl.textContent = `Надимак "${clean}" већ постоји. Изабери други.`;
+    return "";
+  }
+  return savePlayerName(clean);
 }
 
 function ensurePlayerName() {
@@ -10679,14 +10713,30 @@ function refreshOnlineLeaderboard() {
 
 if (playerNameInput) {
   playerNameInput.value = loadPlayerName();
-  playerNameInput.addEventListener("change", () => savePlayerName(playerNameInput.value));
+  playerNameInput.addEventListener("change", () => {
+    savePlayerNameUnique(playerNameInput.value)
+      .then((name) => {
+        if (name) submitNormalStats().catch(() => {});
+      })
+      .catch(() => {
+        playerNameInput.value = loadPlayerName();
+        messageEl.textContent = "Провера надимка тренутно није успела.";
+      });
+  });
 }
 
 if (saveNameButton) {
   saveNameButton.addEventListener("click", () => {
-    savePlayerName(playerNameInput ? playerNameInput.value : "");
-    submitNormalStats().catch(() => {});
-    refreshOnlineLeaderboard();
+    savePlayerNameUnique(playerNameInput ? playerNameInput.value : "")
+      .then((name) => {
+        if (!name) return;
+        submitNormalStats().catch(() => {});
+        refreshOnlineLeaderboard();
+      })
+      .catch(() => {
+        if (playerNameInput) playerNameInput.value = loadPlayerName();
+        messageEl.textContent = "Провера надимка тренутно није успела.";
+      });
   });
 }
 
