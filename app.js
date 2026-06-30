@@ -8940,6 +8940,7 @@ function showChallengeIntro() {
   keyStates = new Map();
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "false";
   boardsEl.innerHTML = "";
   keyboardEl.innerHTML = "";
   hideWordReveal();
@@ -8994,6 +8995,7 @@ function startChallengeGame(row, role) {
   bonusFlashRows = new Set();
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "true";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.add("multi", "mega", "level-8");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -9061,6 +9063,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
 async function finishChallenge(status) {
   done = true;
   clearChallengeProgress();
+  document.body.dataset.challengePlaying = "false";
   renderSolutionsPanel(true);
   const resultScore = challengeScoreValue(status);
   const solvedCount = solvedAt.filter(Boolean).length;
@@ -9302,6 +9305,7 @@ function restoreCompetitiveProgress(progress) {
 
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "false";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.toggle("multi", mode > 1);
   boardsEl.classList.toggle("mega", mode === 8);
@@ -9343,6 +9347,7 @@ function restoreNormalProgress(progress) {
 
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "false";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.add("level-1");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -9375,6 +9380,7 @@ function restoreChallengeProgress(progress) {
 
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "true";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.add("multi", "mega", "level-8");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -9453,6 +9459,7 @@ function showCompetitiveIntro() {
 
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "false";
   boardsEl.innerHTML = "";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   renderSolutionsPanel(false);
@@ -9485,6 +9492,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
   gameType = nextType;
   competitiveIntro = false;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "false";
   if (gameType === "competitive") {
     if (options.resetLadder) {
       const locked = todayLock();
@@ -10487,6 +10495,7 @@ function showHallOfFame() {
   competitiveRunActive = false;
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
+  document.body.dataset.challengePlaying = "false";
   boardsEl.innerHTML = "";
   keyboardEl.innerHTML = "";
   renderSolutionsPanel(false);

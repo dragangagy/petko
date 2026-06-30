@@ -777,6 +777,13 @@ body:not([data-game-type="hall"]) .hall-panel {
   display: none;
 }
 
+body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .boards,
+body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .keyboard,
+body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .solutions-panel,
+body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .word-reveal {
+  display: none;
+}
+
 .challenge-panel {
   padding: 6px;
   display: grid;
