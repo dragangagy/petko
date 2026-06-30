@@ -7894,6 +7894,8 @@ const wordModalActions = document.querySelector("#wordModalActions");
 const challengePanelEl = document.querySelector("#challengePanel");
 const challengeStatusEl = document.querySelector("#challengeStatus");
 const challengePlayerSelect = document.querySelector("#challengePlayerSelect");
+const challengePlayerButton = document.querySelector("#challengePlayerButton");
+const challengePlayerMenu = document.querySelector("#challengePlayerMenu");
 const createChallengeButton = document.querySelector("#createChallengeButton");
 const challengeCodeInput = document.querySelector("#challengeCodeInput");
 const acceptChallengeButton = document.querySelector("#acceptChallengeButton");
@@ -8424,19 +8426,41 @@ async function fetchChallengePlayers() {
 function renderChallengePlayers(names = []) {
   if (!challengePlayerSelect) return;
   const current = challengePlayerSelect.value;
-  challengePlayerSelect.innerHTML = "";
-  [
+  const items = [
     ["", "Учесник"],
     ...names.map((name) => [name, name]),
     ["__new__", "Нови корисник"]
-  ].forEach(([value, label]) => {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    challengePlayerSelect.append(option);
+  ];
+  const hasCurrent = items.some(([value]) => value === current);
+  challengePlayerSelect.value = hasCurrent ? current : "";
+  if (challengePlayerButton) {
+    const selected = items.find(([value]) => value === challengePlayerSelect.value);
+    challengePlayerButton.textContent = selected?.[1] || "Учесник";
+  }
+  if (!challengePlayerMenu) return;
+  challengePlayerMenu.innerHTML = "";
+  items.forEach(([value, label]) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "challenge-player-option";
+    item.textContent = label;
+    item.dataset.value = value;
+    item.setAttribute("aria-pressed", value === challengePlayerSelect.value ? "true" : "false");
+    item.addEventListener("click", () => {
+      challengePlayerSelect.value = value;
+      if (challengePlayerButton) {
+        challengePlayerButton.textContent = label;
+        challengePlayerButton.setAttribute("aria-expanded", "false");
+      }
+      challengePlayerMenu.hidden = true;
+      [...challengePlayerMenu.querySelectorAll(".challenge-player-option")].forEach((button) => {
+        button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
+      });
+    });
+    challengePlayerMenu.append(item);
   });
-  if ([...challengePlayerSelect.options].some((option) => option.value === current)) {
-    challengePlayerSelect.value = current;
+  if (!challengePlayerMenu.hidden && !challengePlayerMenu.children.length) {
+    challengePlayerMenu.hidden = true;
   }
 }
 
@@ -10512,6 +10536,19 @@ if (shareButton) {
 if (createChallengeButton) {
   createChallengeButton.addEventListener("click", () => {
     createChallenge().catch(() => renderChallengePanel("Слање изазова није успело."));
+  });
+}
+
+if (challengePlayerButton && challengePlayerMenu) {
+  challengePlayerButton.addEventListener("click", () => {
+    const open = challengePlayerMenu.hidden;
+    challengePlayerMenu.hidden = !open;
+    challengePlayerButton.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", (event) => {
+    if (event.target === challengePlayerButton || challengePlayerMenu.contains(event.target)) return;
+    challengePlayerMenu.hidden = true;
+    challengePlayerButton.setAttribute("aria-expanded", "false");
   });
 }
 

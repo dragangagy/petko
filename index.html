@@ -70,10 +70,11 @@
       <section class="challenge-panel" id="challengePanel" hidden aria-live="polite">
         <div class="challenge-copy" id="challengeStatus"></div>
         <div class="challenge-actions">
-          <select class="challenge-player-select" id="challengePlayerSelect" aria-label="Учесник">
-            <option value="">Учесник</option>
-            <option value="__new__">Нови корисник</option>
-          </select>
+          <div class="challenge-player-picker" id="challengePlayerPicker">
+            <button class="challenge-player-select" id="challengePlayerButton" type="button" aria-expanded="false">Учесник</button>
+            <div class="challenge-player-menu" id="challengePlayerMenu" hidden></div>
+            <input id="challengePlayerSelect" type="hidden" value="">
+          </div>
           <button id="createChallengeButton" type="button">Пошаљи</button>
         </div>
         <div class="challenge-code-tools" hidden>
