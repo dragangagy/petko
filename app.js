@@ -8324,7 +8324,11 @@ function challengeRole(row) {
 
 function challengeAlreadyPlayed(row, role) {
   if (!role) return false;
-  return Number.isFinite(Number(row?.[`${role}_score`]));
+  return challengeScoreWritten(row?.[`${role}_score`]);
+}
+
+function challengeScoreWritten(value) {
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
 }
 
 function challengePlayedToday(row) {
@@ -8572,7 +8576,7 @@ async function fetchChallengeHistory() {
 }
 
 function playedChallenge(row) {
-  return Number.isFinite(Number(row?.creator_score)) && Number.isFinite(Number(row?.opponent_score));
+  return challengeScoreWritten(row?.creator_score) && challengeScoreWritten(row?.opponent_score);
 }
 
 function challengeWinner(row) {
@@ -8607,13 +8611,16 @@ function challengePairText(pair, creator, opponent) {
 }
 
 function challengeRowLabel(row, role) {
-  const score = Number(row?.[`${role}_score`]);
-  const solved = Number(row?.[`${role}_solved`]);
-  const attempts = Number(row?.[`${role}_attempts`]);
+  const rawScore = row?.[`${role}_score`];
+  const rawSolved = row?.[`${role}_solved`];
+  const rawAttempts = row?.[`${role}_attempts`];
+  const score = Number(rawScore);
+  const solved = Number(rawSolved);
+  const attempts = Number(rawAttempts);
   const parts = [];
-  parts.push(Number.isFinite(score) ? `${formatScore(score)} поена` : "-");
-  if (Number.isFinite(solved)) parts.push(`${formatScore(solved)}/6 табли`);
-  if (Number.isFinite(attempts)) parts.push(`${formatScore(attempts)}/11 редова`);
+  parts.push(challengeScoreWritten(rawScore) ? `${formatScore(score)} поена` : "-");
+  if (challengeScoreWritten(rawSolved)) parts.push(`${formatScore(solved)}/6 табли`);
+  if (challengeScoreWritten(rawAttempts)) parts.push(`${formatScore(attempts)}/11 редова`);
   return parts.join(" · ");
 }
 
