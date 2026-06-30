@@ -8521,7 +8521,8 @@ function challengeScoreValue(status) {
 
 function renderChallengePanel(text) {
   if (!challengePanelEl) return;
-  challengePanelEl.hidden = gameType !== "challenge";
+  const showLobby = gameType === "challenge" && !challengeGameOpen();
+  challengePanelEl.hidden = !showLobby;
   const pendingCode = loadPendingChallengeCode();
   const active = loadActiveChallenge();
   if (challengeStatusEl) {
@@ -8531,7 +8532,7 @@ function renderChallengePanel(text) {
       ? `Послат изазов ${pendingCode}. Игра креће кад га противник прихвати.`
       : "Пошаљи или прихвати изазов.");
   }
-  if (challengeCodeTools) challengeCodeTools.hidden = gameType !== "challenge";
+  if (challengeCodeTools) challengeCodeTools.hidden = !showLobby;
   if (checkChallengeButton) checkChallengeButton.hidden = !(pendingCode || active?.code);
   if (challengeCodeInput && pendingCode && !active && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
 }
@@ -8608,6 +8609,10 @@ function challengePairScore(rows, creator, opponent) {
 function challengePairText(pair, creator, opponent) {
   const tieText = pair.tie ? ` · нерешено ${pair.tie}` : "";
   return `${creator} ${pair.creator} : ${pair.opponent} ${opponent}${tieText}`;
+}
+
+function challengeGameOpen() {
+  return gameType === "challenge" && !done && targets.length === CHALLENGE_WORDS;
 }
 
 function challengeRowLabel(row, role) {
@@ -8960,6 +8965,7 @@ function startChallengeGame(row, role) {
   fetchChallengeHistory()
     .then((rows) => {
       const pair = challengePairScore(rows, creator, opponent);
+      messageEl.textContent = `Играш: ${creator} против ${opponent}. Међусобно: ${challengePairText(pair, creator, opponent)}.`;
       renderChallengePanel(`Играш: ${creator} против ${opponent}. Међусобно: ${challengePairText(pair, creator, opponent)}.`);
     })
     .catch(() => {});
