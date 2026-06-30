@@ -769,6 +769,10 @@ body:not([data-game-type="challenge"]) .challenge-panel {
   display: none;
 }
 
+.challenge-panel[hidden] {
+  display: none;
+}
+
 body:not([data-game-type="hall"]) .hall-panel {
   display: none;
 }
