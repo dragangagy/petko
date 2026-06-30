@@ -525,6 +525,12 @@ body[data-game-type="normal"] .score-stack {
   line-height: 1.35;
 }
 
+.word-review-text {
+  padding-top: 8px;
+  border-top: 1px solid rgba(56, 189, 248, 0.18);
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .word-modal-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -850,12 +856,20 @@ body:not([data-game-type="hall"]) .hall-panel {
   gap: 4px;
 }
 
+.challenge-code-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px 58px;
+  gap: 4px;
+}
+
 .challenge-code-tools[hidden] {
   display: none;
 }
 
 .challenge-actions input,
-.challenge-actions button {
+.challenge-actions button,
+.challenge-code-tools input,
+.challenge-code-tools button {
   min-width: 0;
   height: 26px;
   border: 1px solid rgba(56, 189, 248, 0.22);
@@ -866,19 +880,22 @@ body:not([data-game-type="hall"]) .hall-panel {
   font-weight: 900;
 }
 
-.challenge-actions input {
+.challenge-actions input,
+.challenge-code-tools input {
   padding: 0 9px;
   text-align: center;
   text-transform: uppercase;
 }
 
-.challenge-actions button {
+.challenge-actions button,
+.challenge-code-tools button {
   display: grid;
   place-items: center;
   color: var(--cyan);
 }
 
-.challenge-actions button[hidden] {
+.challenge-actions button[hidden],
+.challenge-code-tools button[hidden] {
   display: none;
 }
 

@@ -7855,7 +7855,8 @@ const SUPABASE_CONFIG = {
   table: "scores",
   challengeTable: "challenges",
   normalStatsTable: "normal_stats",
-  wordReportsTable: "word_reports"
+  wordReportsTable: "word_reports",
+  wordMeaningsTable: "word_meanings"
 };
 
 const WORD_INFO = {};
@@ -7890,6 +7891,7 @@ const wordModal = document.querySelector("#wordModal");
 const wordModalTitle = document.querySelector("#wordModalTitle");
 const wordModalWord = document.querySelector("#wordModalWord");
 const wordModalText = document.querySelector("#wordModalText");
+const wordReviewText = document.querySelector("#wordReviewText");
 const wordModalActions = document.querySelector("#wordModalActions");
 const challengePanelEl = document.querySelector("#challengePanel");
 const challengeStatusEl = document.querySelector("#challengeStatus");
@@ -7900,6 +7902,7 @@ const createChallengeButton = document.querySelector("#createChallengeButton");
 const challengeCodeInput = document.querySelector("#challengeCodeInput");
 const acceptChallengeButton = document.querySelector("#acceptChallengeButton");
 const checkChallengeButton = document.querySelector("#checkChallengeButton");
+const challengeCodeTools = document.querySelector(".challenge-code-tools");
 const challengeHistoryEl = document.querySelector("#challengeHistory");
 const hallPanelEl = document.querySelector("#hallPanel");
 const hallCarouselEl = document.querySelector("#hallCarousel");
@@ -8238,6 +8241,10 @@ function wordReportsTable() {
   return SUPABASE_CONFIG.wordReportsTable || "word_reports";
 }
 
+function wordMeaningsTable() {
+  return SUPABASE_CONFIG.wordMeaningsTable || "word_meanings";
+}
+
 async function submitWordReport(word, action, source) {
   if (!supabaseConfigured() || !word) return false;
   const response = await fetch(supabaseUrl(wordReportsTable()), {
@@ -8252,6 +8259,23 @@ async function submitWordReport(word, action, source) {
     })
   });
   return response.ok;
+}
+
+async function fetchWordMeaning(word) {
+  if (!word) return "";
+  if (WORD_INFO[word]) return WORD_INFO[word];
+  if (!supabaseConfigured()) return "";
+
+  const query = `${wordMeaningsTable()}?select=meaning&word=eq.${encodeURIComponent(word)}&limit=1`;
+  const response = await fetch(supabaseUrl(query), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return "";
+
+  const rows = await response.json();
+  const meaning = String(rows?.[0]?.meaning || "").trim();
+  if (meaning) WORD_INFO[word] = meaning;
+  return meaning;
 }
 
 function challengeCode() {
@@ -8503,6 +8527,7 @@ function renderChallengePanel(text) {
       ? `Послат изазов ${pendingCode}. Игра креће кад га противник прихвати.`
       : "Пошаљи или прихвати изазов.");
   }
+  if (challengeCodeTools) challengeCodeTools.hidden = gameType !== "challenge";
   if (checkChallengeButton) checkChallengeButton.hidden = !(pendingCode || active?.code);
   if (challengeCodeInput && pendingCode && !active && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
 }
@@ -8680,14 +8705,19 @@ function renderChallengeHistoryCards(rows = []) {
   challengeHistoryEl.innerHTML = "";
   updateChallengeBadge(rows);
   const me = loadPlayerName();
+  const typedCode = String(challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || "").trim().toUpperCase();
   const currentRows = rows.filter((row) =>
     row.creator_device === deviceId() ||
     row.opponent_device === deviceId() ||
+    (typedCode && String(row.code || "").toUpperCase() === typedCode) ||
     sameChallengeName(row.opponent, me) ||
     sameChallengeName(row.creator, me)
   );
-  const playedRows = currentRows
-    .filter((row) => (row.creator || row.opponent) && challengeCardVisible(row))
+
+  const visibleRows = currentRows
+    .filter((row) => (row.creator || row.opponent) && challengeCardVisible(row));
+  const inviteRows = visibleRows
+    .filter((row) => !playedChallenge(row))
     .sort((a, b) => {
       const stateOrder = { accepted: 0, pending: 1, played: 2 };
       const stateDiff = stateOrder[challengeCardState(a)] - stateOrder[challengeCardState(b)];
@@ -8695,8 +8725,11 @@ function renderChallengeHistoryCards(rows = []) {
       return Date.parse(b.created_at || "") - Date.parse(a.created_at || "");
     })
     .slice(0, 12);
-  if (!playedRows.length) return;
-  playedRows.forEach((row) => challengeHistoryEl.append(challengeCard(row, rows)));
+  const resultRows = visibleRows
+    .filter(playedChallenge)
+    .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""))
+    .slice(0, 8);
+  [...inviteRows, ...resultRows].forEach((row) => challengeHistoryEl.append(challengeCard(row, rows)));
 }
 
 async function refreshChallengeHistoryCards() {
@@ -8824,7 +8857,7 @@ async function createChallenge() {
     opponent,
     created_at: new Date().toISOString()
   }]);
-  await refreshChallengeLobby().catch(() => {});
+  fetchChallengePlayers().then(renderChallengePlayers).catch(() => {});
   if (shareAfterCreate) shareChallenge(code).catch(() => {});
 }
 
@@ -9560,11 +9593,15 @@ function setWordModalButtons(buttons) {
   });
 }
 
-function showWordModal({ title, word, text, buttons }) {
+function showWordModal({ title, word, text, reviewText = "", buttons }) {
   if (!wordModal || !wordModalTitle || !wordModalWord || !wordModalText) return;
   wordModalTitle.textContent = title;
   wordModalWord.textContent = displayWord(word);
   wordModalText.textContent = text;
+  if (wordReviewText) {
+    wordReviewText.textContent = reviewText;
+    wordReviewText.hidden = !reviewText;
+  }
   setWordModalButtons(buttons);
   wordModal.hidden = false;
 }
@@ -9574,10 +9611,12 @@ function wordMeaningText(word) {
 }
 
 function showExistingWordReview(word) {
+  const fallbackText = wordMeaningText(word);
   showWordModal({
     title: "Објашњење речи",
     word,
-    text: `${wordMeaningText(word)} Да ли је ова реч сувишна, непримерена или неисправна и треба да се уклони?`,
+    text: fallbackText,
+    reviewText: "Да ли је ова реч сувишна, непримерена или неисправна и треба да се уклони?",
     buttons: [
       {
         label: "Да",
@@ -9592,12 +9631,18 @@ function showExistingWordReview(word) {
         label: "Не",
         tone: "success",
         onClick: () => {
-          submitWordReport(word, "keep", "normal_answer").catch(() => {});
           closeWordModal();
         }
       }
     ]
   });
+
+  fetchWordMeaning(word)
+    .then((meaning) => {
+      if (!meaning || !wordModal || wordModal.hidden || wordModalWord.textContent !== displayWord(word)) return;
+      wordModalText.textContent = meaning;
+    })
+    .catch(() => {});
 }
 
 function showMissingWordReview(word) {
