@@ -8922,6 +8922,11 @@ async function supabaseErrorMessage(response, fallback) {
 }
 
 function showChallengeIntro() {
+  exitChallengeToLobby();
+}
+
+function exitChallengeToLobby() {
+  saveChallengeProgress();
   gameType = "challenge";
   activeChallenge = loadActiveChallenge();
   competitiveIntro = false;
@@ -8951,17 +8956,6 @@ function showChallengeIntro() {
   updateScoreDisplay();
   renderChallengePanel();
   if (challengeCodeInput && activeChallenge) challengeCodeInput.value = "";
-  if (activeChallenge?.code) {
-    fetchChallenge(activeChallenge.code)
-      .then((row) => {
-        if (row) return renderChallengeResult(row, 0);
-        clearActiveChallenge();
-        activeChallenge = null;
-        renderChallengePanel("Пошаљи или прихвати изазов.");
-        return null;
-      })
-      .catch(() => {});
-  }
   refreshChallengeLobby().catch(() => {});
 }
 
@@ -10701,6 +10695,10 @@ typeButtons.forEach((button) => {
   button.addEventListener("click", () => {
     saveChallengeProgress();
     const nextType = button.dataset.type;
+    if (nextType === "challenge") {
+      exitChallengeToLobby();
+      return;
+    }
     if (nextType === "competitive") {
       showCompetitiveIntro();
       return;
