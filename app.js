@@ -8583,7 +8583,7 @@ function challengeWinnerName(row) {
 
 function challengeCard(row, rows = []) {
   const card = document.createElement("article");
-  card.className = `challenge-card ${challengeCardState(row)}`;
+  card.className = `challenge-card ${playedChallenge(row) ? "result" : "invite"} ${challengeCardState(row)}`;
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Чека се";
   const role = challengeRole(row);
