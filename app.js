@@ -7844,6 +7844,7 @@ const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
 const NORMAL_PROGRESS_KEY = "petko-normal-progress-v1";
+const CHALLENGE_PROGRESS_KEY = "petko-challenge-progress-v1";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
@@ -8307,6 +8308,11 @@ function challengeActiveUntil(row) {
   return base + CHALLENGE_ACTIVE_MS;
 }
 
+function challengeExpired(row) {
+  const until = challengeActiveUntil(row);
+  return Boolean(until && Date.now() >= until);
+}
+
 function challengeCountdownText(row) {
   const remaining = Math.max(0, challengeActiveUntil(row) - Date.now());
   if (!remaining) return "истекло";
@@ -8561,6 +8567,34 @@ async function updateChallenge(code, patch) {
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
 }
 
+async function finalizeExpiredChallenges(rows = []) {
+  const patchedRows = [];
+  for (const row of rows) {
+    const creatorPlayed = challengePlayedAt(row, "creator");
+    const opponentPlayed = challengePlayedAt(row, "opponent");
+    const shouldFinalize = !playedChallenge(row) && challengeExpired(row) && creatorPlayed !== opponentPlayed;
+    if (!shouldFinalize || !row.code) {
+      patchedRows.push(row);
+      continue;
+    }
+    const missingRole = creatorPlayed ? "opponent" : "creator";
+    const patch = {
+      status: "played",
+      [`${missingRole}_score`]: 0,
+      [`${missingRole}_attempts`]: 0,
+      [`${missingRole}_solved`]: 0,
+      [`${missingRole}_played_at`]: new Date().toISOString()
+    };
+    try {
+      await updateChallenge(row.code, patch);
+      patchedRows.push({ ...row, ...patch });
+    } catch {
+      patchedRows.push(row);
+    }
+  }
+  return patchedRows;
+}
+
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
   const query = [
@@ -8699,7 +8733,7 @@ function challengeCard(row, rows = []) {
     if (canPlay) {
       const play = document.createElement("button");
       play.type = "button";
-      play.textContent = "Одиграј изазов";
+      play.textContent = "Настави изазов";
       play.addEventListener("click", () => acceptChallenge(row.code, { play: true }).catch(() => renderChallengePanel("Покретање изазова није успело.")));
       actions.append(play);
     } else if (challengeIsActive(row) && role && challengeAlreadyPlayed(row, role)) {
@@ -8756,8 +8790,9 @@ async function refreshChallengeLobby() {
     fetchChallengePlayers().catch(() => []),
     fetchChallengeHistory().catch(() => [])
   ]);
+  const finalRows = await finalizeExpiredChallenges(rows);
   renderChallengePlayers(players);
-  renderChallengeHistoryCards(rows);
+  renderChallengeHistoryCards(finalRows);
 }
 
 async function renderChallengeResult(row, localScore) {
@@ -8887,6 +8922,11 @@ async function supabaseErrorMessage(response, fallback) {
 }
 
 function showChallengeIntro() {
+  const progress = loadChallengeProgress();
+  if (progress) {
+    restoreChallengeProgress(progress);
+    return;
+  }
   gameType = "challenge";
   activeChallenge = loadActiveChallenge();
   competitiveIntro = false;
@@ -8971,6 +9011,7 @@ function startChallengeGame(row, role) {
     .catch(() => {});
   renderSolutionsPanel(false);
   render();
+  saveChallengeProgress();
 }
 
 async function acceptChallenge(codeInput = "", options = {}) {
@@ -9019,6 +9060,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
 
 async function finishChallenge(status) {
   done = true;
+  clearChallengeProgress();
   renderSolutionsPanel(true);
   const resultScore = challengeScoreValue(status);
   const solvedCount = solvedAt.filter(Boolean).length;
@@ -9153,6 +9195,10 @@ function clearNormalProgress() {
   localStorage.removeItem(NORMAL_PROGRESS_KEY);
 }
 
+function clearChallengeProgress() {
+  localStorage.removeItem(CHALLENGE_PROGRESS_KEY);
+}
+
 function loadCompetitiveProgress() {
   try {
     const progress = JSON.parse(localStorage.getItem(COMPETITIVE_PROGRESS_KEY) || "null");
@@ -9208,6 +9254,31 @@ function saveNormalProgress() {
     updatedAt: new Date().toISOString()
   };
   localStorage.setItem(NORMAL_PROGRESS_KEY, JSON.stringify(progress));
+}
+
+function loadChallengeProgress() {
+  try {
+    const progress = JSON.parse(localStorage.getItem(CHALLENGE_PROGRESS_KEY) || "null");
+    if (progress && progress.status === "in_progress" && progress.active?.code) return progress;
+  } catch {}
+  return null;
+}
+
+function saveChallengeProgress() {
+  if (gameType !== "challenge" || done || !activeChallenge?.code || !targets.length) return;
+  const progress = {
+    status: "in_progress",
+    active: activeChallenge,
+    mode,
+    score,
+    targets,
+    solvedAt,
+    guesses,
+    current,
+    keyStates: [...keyStates.entries()],
+    updatedAt: new Date().toISOString()
+  };
+  localStorage.setItem(CHALLENGE_PROGRESS_KEY, JSON.stringify(progress));
 }
 
 function restoreCompetitiveProgress(progress) {
@@ -9283,6 +9354,37 @@ function restoreNormalProgress(progress) {
   render();
   renderListing();
   updateCompetitiveCountdown();
+}
+
+function restoreChallengeProgress(progress) {
+  gameType = "challenge";
+  competitiveIntro = false;
+  competitiveRunActive = false;
+  activeChallenge = progress.active || null;
+  if (activeChallenge) saveActiveChallenge(activeChallenge);
+  done = false;
+  mode = CHALLENGE_WORDS;
+  score = Number(progress.score) || 0;
+  targets = Array.isArray(progress.targets) ? progress.targets : [];
+  solvedAt = Array.isArray(progress.solvedAt) ? progress.solvedAt : Array(targets.length).fill(null);
+  guesses = Array.isArray(progress.guesses) ? progress.guesses : [];
+  current = progress.current || "";
+  keyStates = new Map(Array.isArray(progress.keyStates) ? progress.keyStates : []);
+  lastLevelAward = null;
+  bonusFlashRows = new Set();
+
+  document.body.dataset.gameType = gameType;
+  document.body.dataset.competitiveLocked = "false";
+  boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
+  boardsEl.classList.add("multi", "mega", "level-8");
+  typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
+  updateModeButtons();
+  nextLevelButton.hidden = true;
+  modeLabelEl.textContent = "Изазов";
+  messageEl.textContent = `Настављаш изазов: ${activeChallenge?.creator || "Играч 1"} против ${activeChallenge?.opponent || "Играч 2"}.`;
+  renderSolutionsPanel(false);
+  renderChallengePanel();
+  render();
 }
 
 function isFinalResult(result) {
@@ -9749,6 +9851,7 @@ function pressKey(key) {
   render();
   saveCompetitiveProgress();
   saveNormalProgress();
+  saveChallengeProgress();
 }
 
 function submitGuess() {
@@ -9773,6 +9876,7 @@ function submitGuess() {
   current = "";
   saveCompetitiveProgress();
   saveNormalProgress();
+  saveChallengeProgress();
 
   const solvedCount = solvedAt.filter(Boolean).length;
   const allSolved = solvedCount === targets.length;
@@ -10586,6 +10690,7 @@ window.addEventListener("resize", () => requestAnimationFrame(positionKeyboard))
 
 typeButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    saveChallengeProgress();
     const nextType = button.dataset.type;
     if (nextType === "competitive") {
       showCompetitiveIntro();
@@ -10827,6 +10932,7 @@ if (exitButton) {
   exitButton.addEventListener("click", () => {
     saveCompetitiveProgress();
     saveNormalProgress();
+    saveChallengeProgress();
     if (history.length > 1) {
       history.back();
       return;
@@ -10842,16 +10948,18 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("beforeunload", () => {
   saveCompetitiveProgress();
   saveNormalProgress();
+  saveChallengeProgress();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     saveCompetitiveProgress();
     saveNormalProgress();
+    saveChallengeProgress();
   }
 });
 setInterval(updateCompetitiveCountdown, 1000);
 setInterval(() => {
-  if (gameType === "challenge" && supabaseConfigured()) {
+  if (gameType === "challenge" && !challengeGameOpen() && supabaseConfigured()) {
     refreshChallengeLobby().catch(() => {});
   }
 }, 30000);
