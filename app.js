@@ -7860,7 +7860,227 @@ const SUPABASE_CONFIG = {
   wordMeaningsTable: "word_meanings"
 };
 
-const WORD_INFO = {};
+const WORD_INFO = {
+  "дизна": "Мали отвор или наставак кроз који се усмерава млаз течности, гаса или горива.",
+  "свита": "Група људи која прати важну особу, обично владара, госта или старешину.",
+  "грозд": "Скуп зрна или плодова који расту заједно на једној петељци, најчешће код грожђа.",
+  "бреза": "Листопадно дрво светле, често беличасте коре и танких грана.",
+  "морка": "Домаћа птица сивастог перја са светлим тачкама, позната и као мисирка.",
+  "чесма": "Место или уређај из кога тече вода за пиће или употребу.",
+  "гајде": "Народни дувачки инструмент са мешином и свиралама.",
+  "ћумур": "Дрвени угаљ који се добија сагоревањем дрвета без довољно ваздуха.",
+  "дрвар": "Човек који сече, припрема или продаје дрва.",
+  "летва": "Дугачка и уска дрвена даска која се користи у градњи или ограђивању.",
+  "бедем": "Заштитни зид или насип око утврђења, града или важног места.",
+  "бусен": "Комад земље са травом и корењем који се одвоји од тла.",
+  "сачма": "Ситне металне куглице које се користе као пуњење за ловачку муницију.",
+  "ћерам": "Керамички цреп или комад печене глине који се користи за покривање крова.",
+  "бркат": "Онај који има изражене бркове.",
+  "бурек": "Пециво од танких кора са месом, сиром или другим надевом.",
+  "љиљан": "Украсни цвет препознатљив по крупним мирисним цветовима.",
+  "шпајз": "Мала остава за храну, пиће и кућне намирнице.",
+  "ласта": "Птица селица дугих крила и рачвастог репа.",
+  "грива": "Дуга длака на врату коња, лава или сличне животиње.",
+  "траса": "Планирани или обележени правац пута, пруге, кабла или цевовода.",
+  "зидар": "Мајстор који зида и ради грађевинске послове.",
+  "дрчан": "Онај који је превише смео, безобзиран или непристојно самоуверен.",
+  "дукат": "Стари златни новац, често и украсни златник.",
+  "добро": "Оно што је исправно, корисно или повољно; може значити и стање без проблема.",
+  "нисам": "Одрицање у првом лицу једнине: ја нисам.",
+  "зашто": "Питање којим се тражи разлог или узрок нечега.",
+  "нешто": "Неодређена ствар, појава или количина.",
+  "хвала": "Реч којом се изражава захвалност.",
+  "можда": "Означава могућност, али без сигурности.",
+  "треба": "Означава потребу, обавезу или нешто што је пожељно урадити.",
+  "рекао": "Мушки облик прошлог времена глагола рећи.",
+  "ништа": "Ниједна ствар; одсуство нечега.",
+  "молим": "Учтива реч за захтев, одговор на захвалност или тражење пажње.",
+  "хајде": "Позив или подстицај да се нешто уради или започне.",
+  "можеш": "Облик глагола моћи: ти можеш.",
+  "желим": "Облик глагола желети: ја желим.",
+  "морам": "Облик глагола морати: ја морам.",
+  "један": "Број 1; први и најмањи природни број.",
+  "идемо": "Облик глагола ићи: ми идемо; често и позив на покрет.",
+  "много": "Велика количина или велики број нечега.",
+  "време": "Ток трајања или временске прилике, зависно од контекста.",
+  "значи": "Означава смисао, објашњење или последицу нечега.",
+  "посао": "Рад, занимање или задатак који треба обавити.",
+  "никад": "Ни у једном тренутку; никада.",
+  "хоћеш": "Облик глагола хтети: ти хоћеш.",
+  "рекла": "Женски облик прошлог времена глагола рећи.",
+  "имамо": "Облик глагола имати: ми имамо.",
+  "могао": "Мушки облик прошлог времена глагола моћи.",
+  "јесте": "Потврдни облик глагола бити или одговор који значи да.",
+  "видим": "Облик глагола видети: ја видим.",
+  "желиш": "Облик глагола желети: ти желиш.",
+  "немој": "Забрана или молба да се нешто не ради.",
+  "кажем": "Облик глагола казати: ја кажем.",
+  "радиш": "Облик глагола радити: ти радиш.",
+  "мораш": "Облик глагола морати: ти мораш.",
+  "добар": "Онај који има добре особине, квалитет или понашање.",
+  "волим": "Облик глагола волети: ја волим.",
+  "живот": "Постојање живог бића; све што човек проживљава.",
+  "своје": "Оно што припада субјекту о коме се говори.",
+  "ствар": "Предмет, појава, питање или околност.",
+  "данас": "Овај дан; дан у коме се говори.",
+  "знате": "Облик глагола знати: ви знате.",
+  "одмах": "Без одлагања; истог тренутка.",
+  "твоја": "Женски облик присвојне заменице: оно што припада теби.",
+  "видео": "Мушки облик прошлог времена глагола видети; може значити и видео-снимак.",
+  "тобом": "Облик заменице ти у инструменталу: са тобом.",
+  "веома": "У великој мери; врло.",
+  "своју": "Женски облик присвојне заменице у акузативу: своју ствар или особу.",
+  "твоје": "Средњи или множински облик присвојне заменице: оно што припада теби.",
+  "јесам": "Потврдни облик глагола бити у првом лицу једнине.",
+  "нисмо": "Одрицање глагола бити у првом лицу множине.",
+  "радим": "Облик глагола радити: ја радим.",
+  "видиш": "Облик глагола видети: ти видиш.",
+  "немам": "Облик глагола немати: ја немам.",
+  "кажеш": "Облик глагола казати: ти кажеш.",
+  "човек": "Људско биће; особа.",
+  "чекај": "Позив или наредба да неко сачека.",
+  "новац": "Средство плаћања, у облику кованица, новчаница или електронског записа.",
+  "сутра": "Дан после данашњег дана.",
+  "место": "Одређена тачка, простор или положај.",
+  "начин": "Поступак или облик на који се нешто ради.",
+  "врата": "Покретни део отвора кроз који се улази или излази.",
+  "тешко": "Оно што није лако; може значити и велику тежину или напор.",
+  "сваки": "Сваки појединачни члан неке групе, без изузетка.",
+  "мајка": "Женски родитељ.",
+  "помоћ": "Подршка или радња којом се некоме олакшава проблем.",
+  "праву": "Облик придева прави или именице право, најчешће у значењу исправну или тачну.",
+  "други": "Онај који није први; такође може значити неки други човек или предмет.",
+  "дошао": "Мушки облик прошлог времена глагола доћи.",
+  "доста": "Довољно или прилично много нечега.",
+  "имате": "Облик глагола имати: ви имате.",
+  "према": "Означава смер, однос или став у односу на некога или нешто.",
+  "овамо": "На ово место или у овом правцу.",
+  "једна": "Женски облик броја један.",
+  "драго": "Осећај пријатности, радости или наклоности.",
+  "срање": "Груба реч за неред, проблем или нешто веома лоше.",
+  "будем": "Облик глагола бити у првом лицу једнине у будућем или зависном облику.",
+  "могла": "Женски облик прошлог времена глагола моћи.",
+  "после": "Након неког времена, догађаја или редоследа.",
+  "нећеш": "Одрицање глагола хтети: ти нећеш.",
+  "добра": "Женски облик придева добар.",
+  "једну": "Женски облик броја један у акузативу.",
+  "овако": "На овај начин.",
+  "право": "Оно што је исправно, законско или смер без скретања.",
+  "након": "После нечега; по завршетку неког догађаја.",
+  "могли": "Множински облик прошлог времена глагола моћи.",
+  "надам": "Облик глагола надати се: ја се надам.",
+  "супер": "Разговорно: одлично, веома добро.",
+  "једно": "Средњи облик броја један.",
+  "прије": "Ијекавски облик речи пре; означава раније време.",
+  "нисте": "Одрицање глагола бити у другом лицу множине.",
+  "прави": "Онај који је истинит, исправан или одговарајући.",
+  "знамо": "Облик глагола знати: ми знамо.",
+  "момци": "Младићи или мушке особе у множини.",
+  "имала": "Женски облик прошлог времена глагола имати.",
+  "свиђа": "Облик глагола свиђати се; означава да је нешто пријатно или допадљиво.",
+  "имају": "Облик глагола имати: они имају.",
+  "пусти": "Облик глагола пустити или придев који значи празан, ненастањен.",
+  "преко": "Са друге стране, изнад или путем нечега.",
+  "дакле": "Реч којом се уводи закључак или објашњење.",
+  "какав": "Питање или опис особине: које врсте или каквог изгледа.",
+  "будеш": "Облик глагола бити у другом лицу једнине.",
+  "његов": "Присвојна заменица: оно што припада њему.",
+  "тачно": "Исправно, прецизно или без грешке.",
+  "мисли": "Облик глагола мислити или множина именице мисао.",
+  "имали": "Множински облик прошлог времена глагола имати.",
+  "радио": "Мушки облик прошлог времена глагола радити; може значити и радио-уређај.",
+  "рекли": "Множински облик прошлог времена глагола рећи.",
+  "имати": "Поседовати нешто или располагати нечим.",
+  "мртав": "Онај који није жив.",
+  "прича": "Казивање о догађају; може значити и разговор.",
+  "неког": "Облик заменице неко у значењу неке особе.",
+  "бисмо": "Помоћни облик за условни начин: ми бисмо.",
+  "врати": "Облик глагола вратити: дај назад или дођи назад.",
+  "друго": "Оно што није прво; нешто различито.",
+  "посла": "Облик именице посао, најчешће у значењу рада или задатка.",
+  "добио": "Мушки облик прошлог времена глагола добити.",
+  "стани": "Наредба или молба да се заустави.",
+  "знала": "Женски облик прошлог времена глагола знати.",
+  "твоју": "Женски облик присвојне заменице твоја у акузативу.",
+  "скоро": "Готово, умало или недавно, зависно од контекста.",
+  "назад": "У супротном смеру или ка месту одакле се дошло.",
+  "дошли": "Множински облик прошлог времена глагола доћи.",
+  "важно": "Оно што има значај или тежину.",
+  "питам": "Облик глагола питати: ја питам.",
+  "волео": "Мушки облик прошлог времена глагола волети.",
+  "јутро": "Део дана после ноћи и пре поднева.",
+  "овога": "Облик показне заменице овај.",
+  "брига": "Забринутост, пажња или старање о нечему.",
+  "отићи": "Напустити место или кренути негде.",
+  "брини": "Облик глагола бринути; често у изразу немој да бринеш.",
+  "дошла": "Женски облик прошлог времена глагола доћи.",
+  "нашао": "Мушки облик прошлог времена глагола наћи.",
+  "каква": "Женски облик питања какав.",
+  "љубав": "Јако осећање наклоности, привржености или блискости.",
+  "хтела": "Женски облик прошлог времена глагола хтети.",
+  "немаш": "Облик глагола немати: ти немаш.",
+  "ваљда": "Означава претпоставку или наду да је нешто тако.",
+  "желео": "Мушки облик прошлог времена глагола желети.",
+  "попут": "Као, налик на нешто.",
+  "морао": "Мушки облик прошлог времена глагола морати.",
+  "идеја": "Замисао, план или мисао о нечему.",
+  "знати": "Имати знање или бити упознат са нечим.",
+  "чудно": "Необично, неочекивано или тешко објашњиво.",
+  "друге": "Облик придева други или именице друга, зависно од контекста.",
+  "главу": "Облик именице глава у акузативу.",
+  "убити": "Одузети живот или потпуно уништити нешто.",
+  "права": "Женски облик придева прави или множина именице право.",
+  "звучи": "Оставља утисак када се чује; има одређен звук.",
+  "поред": "Близу нечега, са стране или уз нешто.",
+  "драга": "Женски облик придева драг; особа која је мила.",
+  "бисте": "Помоћни облик за условни начин у другом лицу множине.",
+  "јасно": "Разумљиво, видљиво или без недоумице.",
+  "волиш": "Облик глагола волети: ти волиш.",
+  "свету": "Облик именице свет у дативу или локативу.",
+  "икада": "У било ком тренутку; било када.",
+  "мојој": "Облик присвојне заменице моја у дативу или локативу.",
+  "стари": "Онај који има много година или нешто што није ново.",
+  "особа": "Појединац, човек или лице.",
+  "чујем": "Облик глагола чути: ја чујем.",
+  "негде": "На неком неодређеном месту.",
+  "двоје": "Бројна именица за две особе или два бића.",
+  "близу": "На малој удаљености.",
+  "крају": "Облик именице крај у дативу или локативу.",
+  "уради": "Облик глагола урадити: изврши или направи.",
+  "свега": "Облик заменице све; може значити укупно или од свега.",
+  "знају": "Облик глагола знати: они знају.",
+  "смрти": "Облик именице смрт у генитиву, дативу или локативу.",
+  "појма": "Облик именице појам; често у изразу немам појма.",
+  "шансе": "Могућности или изгледи да се нешто деси.",
+  "новца": "Облик именице новац у генитиву.",
+  "нетко": "Ијекавски или регионални облик речи неко.",
+  "синоћ": "Претходне вечери или прошле ноћи.",
+  "свима": "Облик заменице сви у дативу или инструменталу.",
+  "момак": "Младић; може значити и нечији партнер.",
+  "нашли": "Множински облик прошлог времена глагола наћи.",
+  "мојим": "Облик присвојне заменице мој.",
+  "дечко": "Младић или нечији момак.",
+  "видио": "Ијекавски облик: мушки облик прошлог времена глагола видети.",
+  "драги": "Мушки или множински облик придева драг.",
+  "испод": "На нижем месту у односу на нешто.",
+  "места": "Облик именице место у генитиву или множини.",
+  "пошто": "Пошто може значити јер, након што или по којој цени.",
+  "сећаш": "Облик глагола сећати се: ти се сећаш.",
+  "могло": "Средњи облик прошлог времена глагола моћи.",
+  "зовем": "Облик глагола звати: ја зовем.",
+  "дивно": "Веома лепо, пријатно или красно.",
+  "граду": "Облик именице град у дативу или локативу.",
+  "дајте": "Учтиви или множински облик глагола дати.",
+  "мрзим": "Облик глагола мрзети: ја мрзим.",
+  "неким": "Облик заменице неки у инструменталу или дативу.",
+  "месту": "Облик именице место у дативу или локативу.",
+  "овоме": "Облик показне заменице овај у дативу или локативу.",
+  "обоје": "Две особе узете заједно.",
+  "такав": "Такве врсте или таквих особина.",
+  "сећам": "Облик глагола сећати се: ја се сећам.",
+  "десет": "Број 10.",
+  "бојим": "Облик глагола бојити или бојати се, зависно од контекста."
+};
 
 const boardsEl = document.querySelector("#boards");
 const keyboardEl = document.querySelector("#keyboard");
@@ -7909,6 +8129,12 @@ const hallPanelEl = document.querySelector("#hallPanel");
 const hallCarouselEl = document.querySelector("#hallCarousel");
 const hallGridEl = document.querySelector("#hallGrid");
 const refreshHallButton = document.querySelector("#refreshHallButton");
+const hallModal = document.querySelector("#hallModal");
+const hallModalTitle = document.querySelector("#hallModalTitle");
+const hallModalImage = document.querySelector("#hallModalImage");
+const hallModalHolder = document.querySelector("#hallModalHolder");
+const hallTopList = document.querySelector("#hallTopList");
+const hallModalClose = document.querySelector("#hallModalClose");
 const shareButton = document.querySelector("#shareButton");
 const exitButton = document.querySelector("#exitButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
@@ -8262,6 +8488,41 @@ async function submitWordReport(word, action, source) {
   return response.ok;
 }
 
+async function fetchWordReportsRows() {
+  if (!supabaseConfigured()) return [];
+  const query = [
+    "select=created_at,word,action,nickname",
+    "order=created_at.desc",
+    "limit=1000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${wordReportsTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+function lectorStats(rows = []) {
+  const byName = new Map();
+  rows
+    .filter((row) => row.action === "add" || row.action === "remove")
+    .forEach((row) => {
+      const nickname = (row.nickname || "Играч").trim() || "Играч";
+      if (!byName.has(nickname)) {
+        byName.set(nickname, { nickname, total: 0, add: 0, remove: 0, lastAt: "" });
+      }
+      const entry = byName.get(nickname);
+      entry.total += 1;
+      if (row.action === "add") entry.add += 1;
+      if (row.action === "remove") entry.remove += 1;
+      if (!entry.lastAt || Date.parse(row.created_at || "") > Date.parse(entry.lastAt || "")) {
+        entry.lastAt = row.created_at || "";
+      }
+    });
+  return [...byName.values()];
+}
+
 async function fetchWordMeaning(word) {
   if (!word) return "";
   if (WORD_INFO[word]) return WORD_INFO[word];
@@ -8490,6 +8751,7 @@ function renderChallengePlayers(names = []) {
       [...challengePlayerMenu.querySelectorAll(".challenge-player-option")].forEach((button) => {
         button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
       });
+      renderChallengePanel();
     });
     challengePlayerMenu.append(item);
   });
@@ -8529,6 +8791,7 @@ function renderChallengePanel(text) {
   if (!challengePanelEl) return;
   const showLobby = gameType === "challenge" && !challengeGameOpen();
   challengePanelEl.hidden = !showLobby;
+  const showCodeTools = showLobby && challengePlayerSelect?.value === "__new__";
   const pendingCode = loadPendingChallengeCode();
   const active = loadActiveChallenge();
   if (challengeStatusEl) {
@@ -8538,9 +8801,9 @@ function renderChallengePanel(text) {
       ? `Послат изазов ${pendingCode}. Игра креће кад га противник прихвати.`
       : "Пошаљи или прихвати изазов.");
   }
-  if (challengeCodeTools) challengeCodeTools.hidden = !showLobby;
-  if (checkChallengeButton) checkChallengeButton.hidden = !(pendingCode || active?.code);
-  if (challengeCodeInput && pendingCode && !active && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
+  if (challengeCodeTools) challengeCodeTools.hidden = !showCodeTools;
+  if (checkChallengeButton) checkChallengeButton.hidden = !(showCodeTools && (pendingCode || active?.code));
+  if (challengeCodeInput && showCodeTools && pendingCode && !active && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
 }
 
 async function fetchChallenge(code) {
@@ -8682,9 +8945,10 @@ function challengeCard(row, rows = []) {
   card.className = `challenge-card ${playedChallenge(row) ? "result" : "invite"} ${challengeCardState(row)}`;
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Чека се";
+  const openInvite = isOpenChallengeOpponent(opponent);
   const role = challengeRole(row);
-  const otherPlayer = role === "creator" ? opponent : creator;
-  const pair = opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
+  const otherPlayer = role === "creator" ? (openInvite ? "нови корисник" : opponent) : creator;
+  const pair = openInvite || opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
   if (pair) {
     const pairEl = document.createElement("div");
     pairEl.className = "challenge-card-pair";
@@ -8698,9 +8962,9 @@ function challengeCard(row, rows = []) {
   } else if (challengeIsActive(row)) {
     title.textContent = `Изазов је прихваћен: ${creator} → ${opponent}`;
   } else if (role === "creator") {
-    title.textContent = `Упутили сте изазов: ${opponent}`;
+    title.textContent = openInvite ? "Упутили сте позивницу" : `Упутили сте изазов: ${opponent}`;
   } else {
-    title.textContent = `${creator} вам је послао изазов`;
+    title.textContent = `${creator} вас је позвао на изазов`;
   }
   const winner = document.createElement("div");
   winner.className = "challenge-card-winner";
@@ -8754,6 +9018,7 @@ function renderChallengeHistoryCards(rows = []) {
   const me = loadPlayerName();
   const typedCode = String(challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || "").trim().toUpperCase();
   const currentRows = rows.filter((row) =>
+    playedChallenge(row) ||
     row.creator_device === deviceId() ||
     row.opponent_device === deviceId() ||
     (typedCode && String(row.code || "").toUpperCase() === typedCode) ||
@@ -8847,6 +9112,11 @@ async function shareChallenge(code) {
   await navigator.clipboard.writeText(text);
 }
 
+function isOpenChallengeOpponent(value) {
+  const clean = cleanChallengeName(value);
+  return !clean || sameChallengeName(clean, "Нови корисник") || sameChallengeName(clean, "Чека се");
+}
+
 async function createChallenge() {
   if (!supabaseConfigured()) {
     renderChallengePanel("За изазове мора бити активан Supabase.");
@@ -8857,7 +9127,7 @@ async function createChallenge() {
   let opponent = cleanChallengeName(challengePlayerSelect?.value || "");
   const shareAfterCreate = opponent === "__new__";
   if (opponent === "__new__") {
-    opponent = cleanChallengeName(window.prompt("Кога изазиваш? Унеси надимак:", "") || "");
+    opponent = "Нови корисник";
   }
   if (!opponent) {
     renderChallengePanel("Изабери учесника или унеси новог корисника.");
@@ -8872,7 +9142,7 @@ async function createChallenge() {
     renderChallengePanel("Данас сте већ послали 3 изазова.");
     return;
   }
-  if (sentToday.some((row) => sameChallengeName(row.opponent, opponent))) {
+  if (!shareAfterCreate && sentToday.some((row) => sameChallengeName(row.opponent, opponent))) {
     renderChallengePanel("Ову особу сте већ изазвали данас.");
     return;
   }
@@ -8895,7 +9165,9 @@ async function createChallenge() {
   markChallengeSentToday(opponent);
   savePendingChallengeCode(code);
   if (challengeCodeInput) challengeCodeInput.value = code;
-  renderChallengePanel(`Изазов ${code} за ${opponent} је послат. Картица је жута док не прихвати.`);
+  renderChallengePanel(shareAfterCreate
+    ? `Позивница ${code} је спремна. Пошаљи линк новом кориснику.`
+    : `Изазов ${code} за ${opponent} је послат. Картица је жута док не прихвати.`);
   renderChallengeHistoryCards([{
     code,
     day: todayId(),
@@ -8906,7 +9178,7 @@ async function createChallenge() {
     created_at: new Date().toISOString()
   }]);
   fetchChallengePlayers().then(renderChallengePlayers).catch(() => {});
-  if (shareAfterCreate) shareChallenge(code).catch(() => {});
+  if (shareAfterCreate) shareChallenge(code).catch(() => renderChallengePanel(`Позивница ${code} је направљена. Копирај код или линк.`));
 }
 
 async function supabaseErrorMessage(response, fallback) {
@@ -8941,6 +9213,7 @@ function exitChallengeToLobby() {
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "false";
+  document.body.dataset.challengeFinished = "false";
   boardsEl.innerHTML = "";
   keyboardEl.innerHTML = "";
   hideWordReveal();
@@ -8964,6 +9237,11 @@ function startChallengeGame(row, role) {
     renderChallengePanel("Изазов није исправан.");
     return;
   }
+  const savedProgress = loadChallengeProgress(row.code);
+  if (savedProgress) {
+    restoreChallengeProgress(savedProgress);
+    return;
+  }
   gameType = "challenge";
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || loadPlayerName() || "Играч 2";
@@ -8985,6 +9263,7 @@ function startChallengeGame(row, role) {
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "true";
+  document.body.dataset.challengeFinished = "false";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.add("multi", "mega", "level-8");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -9012,7 +9291,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
     renderChallengePanel("Унеси код изазова.");
     return;
   }
-  const progress = loadChallengeProgress();
+  const progress = loadChallengeProgress(code);
   if (playNow && progress?.active?.code && progress.active.code.toUpperCase() === code) {
     restoreChallengeProgress(progress);
     return;
@@ -9040,7 +9319,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
     if (!acceptedName) return;
     await updateChallenge(code, {
       status: "accepted",
-      opponent: row.opponent || acceptedName,
+      opponent: isOpenChallengeOpponent(row.opponent) ? acceptedName : row.opponent,
       opponent_device: deviceId(),
       accepted_at: new Date().toISOString()
     });
@@ -9057,7 +9336,8 @@ async function acceptChallenge(codeInput = "", options = {}) {
 async function finishChallenge(status) {
   done = true;
   clearChallengeProgress();
-  document.body.dataset.challengePlaying = "false";
+  document.body.dataset.challengePlaying = "true";
+  document.body.dataset.challengeFinished = "true";
   renderSolutionsPanel(true);
   const resultScore = challengeScoreValue(status);
   const solvedCount = solvedAt.filter(Boolean).length;
@@ -9074,10 +9354,11 @@ async function finishChallenge(status) {
       [`${prefix}_solved`]: solvedCount,
       [`${prefix}_played_at`]: new Date().toISOString()
     });
-    await renderChallengeResult(await fetchChallenge(activeChallenge.code), resultScore);
+    await fetchChallenge(activeChallenge.code);
   } catch {
     renderChallengePanel("Резултат је локалан; online упис није прошао.");
   }
+  render();
 }
 
 function loadPlayerName() {
@@ -9192,8 +9473,35 @@ function clearNormalProgress() {
   localStorage.removeItem(NORMAL_PROGRESS_KEY);
 }
 
-function clearChallengeProgress() {
-  localStorage.removeItem(CHALLENGE_PROGRESS_KEY);
+function normalizeChallengeCode(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function loadChallengeProgressStore() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_PROGRESS_KEY) || "null");
+    if (!data) return {};
+    if (data.status === "in_progress" && data.active?.code) {
+      return { [normalizeChallengeCode(data.active.code)]: data };
+    }
+    return data && typeof data === "object" ? data : {};
+  } catch {}
+  return {};
+}
+
+function saveChallengeProgressStore(store) {
+  localStorage.setItem(CHALLENGE_PROGRESS_KEY, JSON.stringify(store || {}));
+}
+
+function clearChallengeProgress(code = activeChallenge?.code) {
+  const cleanCode = normalizeChallengeCode(code);
+  if (!cleanCode) {
+    localStorage.removeItem(CHALLENGE_PROGRESS_KEY);
+    return;
+  }
+  const store = loadChallengeProgressStore();
+  delete store[cleanCode];
+  saveChallengeProgressStore(store);
 }
 
 function loadCompetitiveProgress() {
@@ -9253,11 +9561,11 @@ function saveNormalProgress() {
   localStorage.setItem(NORMAL_PROGRESS_KEY, JSON.stringify(progress));
 }
 
-function loadChallengeProgress() {
-  try {
-    const progress = JSON.parse(localStorage.getItem(CHALLENGE_PROGRESS_KEY) || "null");
-    if (progress && progress.status === "in_progress" && progress.active?.code) return progress;
-  } catch {}
+function loadChallengeProgress(code = activeChallenge?.code) {
+  const cleanCode = normalizeChallengeCode(code);
+  const store = loadChallengeProgressStore();
+  const progress = cleanCode ? store[cleanCode] : Object.values(store).find((item) => item?.status === "in_progress" && item.active?.code);
+  if (progress && progress.status === "in_progress" && progress.active?.code) return progress;
   return null;
 }
 
@@ -9275,7 +9583,9 @@ function saveChallengeProgress() {
     keyStates: [...keyStates.entries()],
     updatedAt: new Date().toISOString()
   };
-  localStorage.setItem(CHALLENGE_PROGRESS_KEY, JSON.stringify(progress));
+  const store = loadChallengeProgressStore();
+  store[normalizeChallengeCode(activeChallenge.code)] = progress;
+  saveChallengeProgressStore(store);
 }
 
 function restoreCompetitiveProgress(progress) {
@@ -9300,6 +9610,7 @@ function restoreCompetitiveProgress(progress) {
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "false";
+  document.body.dataset.challengeFinished = "false";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.toggle("multi", mode > 1);
   boardsEl.classList.toggle("mega", mode === 8);
@@ -9342,6 +9653,7 @@ function restoreNormalProgress(progress) {
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "false";
+  document.body.dataset.challengeFinished = "false";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.add("level-1");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -9375,6 +9687,7 @@ function restoreChallengeProgress(progress) {
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "true";
+  document.body.dataset.challengeFinished = "false";
   boardsEl.classList.remove("multi", "mega", "level-1", "level-2", "level-4", "level-8");
   boardsEl.classList.add("multi", "mega", "level-8");
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
@@ -9487,6 +9800,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
   competitiveIntro = false;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "false";
+  document.body.dataset.challengeFinished = "false";
   if (gameType === "competitive") {
     if (options.resetLadder) {
       const locked = todayLock();
@@ -9615,7 +9929,8 @@ function renderBoards() {
   const activeCount = targets.length - collapsedCount;
   boardsEl.classList.toggle("has-collapsed", collapsedCount > 0);
   boardsEl.classList.toggle("collapsed-odd", collapsedCount % 2 === 1);
-  boardsEl.classList.toggle("collapsed-side", activeCount > 0 && activeCount % 2 === 1 && collapsedCount > 0);
+  boardsEl.classList.toggle("collapsed-side", !done && activeCount > 0 && activeCount % 2 === 1 && collapsedCount > 0);
+  boardsEl.classList.toggle("challenge-finished", gameType === "challenge" && done);
 
   boardIndexes.forEach((boardIndex) => {
     const target = targets[boardIndex];
@@ -10341,9 +10656,20 @@ function challengeStats(rows) {
   return [...byName.values()];
 }
 
-function medalCard(title, winner, value, suffix = "", image = "") {
+function medalCard(title, winner, value, suffix = "", image = "", onOpen = null) {
   const card = document.createElement("article");
   card.className = "medal-card";
+  if (onOpen) {
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.addEventListener("click", onOpen);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onOpen();
+      }
+    });
+  }
   const holder = winner || "Још нема";
   const shownValue = value ? `${formatScore(value)}${suffix}` : "-";
   const icon = document.createElement("div");
@@ -10371,6 +10697,29 @@ function medalCard(title, winner, value, suffix = "", image = "") {
   return card;
 }
 
+function topMedalRows(items, valueFn) {
+  return [...items]
+    .map((item) => ({ item, value: Number(valueFn(item)) || 0 }))
+    .filter((row) => row.value > 0)
+    .sort((a, b) => {
+      if (b.value !== a.value) return b.value - a.value;
+      return String(a.item.nickname || "").localeCompare(String(b.item.nickname || ""), "sr");
+    })
+    .slice(0, 10);
+}
+
+function medalEntry(title, items, valueFn, suffix = "", image = "", dateKey = "") {
+  const top = topMedalRows(items, valueFn);
+  return {
+    title,
+    result: top[0] || null,
+    suffix,
+    image,
+    dateKey,
+    top
+  };
+}
+
 function renderHallLoading(text = "Учитавање дворане славних...") {
   if (!hallGridEl) return;
   if (hallCarouselEl) hallCarouselEl.innerHTML = "";
@@ -10383,11 +10732,52 @@ function hallMedalDate(result, dateKey) {
   return formatHallDate(result.item[dateKey] || result.item.created_at || result.item.createdAt);
 }
 
+function openHallModal(medalData) {
+  if (!hallModal || !hallTopList || !medalData) return;
+  const { title, top = [], suffix = "", image = "" } = medalData;
+  if (hallModalTitle) hallModalTitle.textContent = title;
+  if (hallModalHolder) {
+    hallModalHolder.textContent = top.length ? `TOP 10 · ${top.length} учесника` : "Још нема резултата";
+  }
+  if (hallModalImage) {
+    hallModalImage.src = image || "";
+    hallModalImage.hidden = !image;
+  }
+  hallTopList.innerHTML = "";
+  if (!top.length) {
+    const empty = document.createElement("li");
+    empty.className = "hall-top-empty";
+    empty.textContent = "Још нема учесника за ову медаљу.";
+    hallTopList.append(empty);
+  } else {
+    top.forEach((entry, index) => {
+      const row = document.createElement("li");
+      const rank = document.createElement("span");
+      rank.className = "hall-rank";
+      rank.textContent = String(index + 1);
+      const name = document.createElement("span");
+      name.className = "hall-name";
+      name.textContent = entry.item.nickname || "Играч";
+      const score = document.createElement("span");
+      score.className = "hall-score";
+      score.textContent = `${formatScore(entry.value)}${suffix}`;
+      row.append(rank, name, score);
+      hallTopList.append(row);
+    });
+  }
+  hallModal.hidden = false;
+}
+
+function closeHallModal() {
+  if (hallModal) hallModal.hidden = true;
+}
+
 function renderHallCarousel(direction = 0) {
   if (!hallCarouselEl) return;
   hallCarouselEl.innerHTML = "";
   if (!hallMedals.length) return;
-  const [title, result, suffix, image, dateKey] = hallMedals[hallMedalIndex];
+  const medalData = hallMedals[hallMedalIndex];
+  const { title, result, image, dateKey } = medalData;
   const holder = result?.item?.nickname || "Још нема";
   const achievedAt = result?.value ? hallMedalDate(result, dateKey) : "датум није уписан";
   const prevButton = document.createElement("button");
@@ -10402,6 +10792,15 @@ function renderHallCarousel(direction = 0) {
   nextButton.addEventListener("click", () => moveHallMedal(1));
   const slide = document.createElement("article");
   slide.className = `hall-slide ${direction < 0 ? "from-left" : direction > 0 ? "from-right" : ""}`;
+  slide.tabIndex = 0;
+  slide.setAttribute("role", "button");
+  slide.addEventListener("click", () => openHallModal(medalData));
+  slide.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openHallModal(medalData);
+    }
+  });
   const medal = document.createElement("div");
   medal.className = "hall-medal-large";
   if (image) {
@@ -10436,16 +10835,18 @@ async function renderHallOfFame() {
   hallPanelEl.hidden = gameType !== "hall";
   renderHallLoading();
   try {
-    const [scoreRows, challengeRows, normalRows] = await Promise.all([
+    const [scoreRows, challengeRows, normalRows, wordReportRows] = await Promise.all([
       fetchOnlineLeaderboard(),
       fetchChallengeHistory(),
-      fetchNormalStatsRows()
+      fetchNormalStatsRows(),
+      fetchWordReportsRows()
     ]);
     const rows = Array.isArray(scoreRows) ? scoreRows : [];
     const leaderboard = aggregateLeaderboard(rows);
     const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
     const challengeLeaders = challengeStats(challengeRowsSafe);
     const normalLeaders = normalSuccessRows(Array.isArray(normalRows) ? normalRows : []);
+    const lectorLeaders = lectorStats(Array.isArray(wordReportRows) ? wordReportRows : []);
     const playerRows = leaderboard.map((row) => row);
     const rawScores = rows.map((row) => ({
       nickname: (row.nickname || "Играч").trim() || "Играч",
@@ -10457,23 +10858,31 @@ async function renderHallOfFame() {
     }));
 
     const medals = [
-      ["Највише решених дневних партија", bestBy(playerRows, (row) => row.wins), " победа", "medal-daily-wins.png", "winsAt"],
-      ["Највише добијених изазова", bestBy(challengeLeaders, (row) => row.wins), " победа", "medal-challenge-wins.png", "winsAt"],
-      ["Највећи дневни скор", bestBy(rawScores, (row) => row.score), " поена", "medal-best-daily.png", "created_at"],
-      ["Највећи укупан резултат", bestBy(playerRows, (row) => row.finalScore), " финал", "medal-total-score.png", "finalScoreAt"],
-      ["Највише започетих турнира", bestBy(playerRows, (row) => row.attempts), " турнир", "medal-started.png", "attemptsAt"],
-      ["Најбоља успешност обичне игре", bestBy(normalLeaders, (row) => row.successRate), "%", "medal-success-rate.png", "successRateAt"],
-      ["Најдужи низ", bestBy(playerRows, (row) => row.streak), " дана", "medal-streak.png", "streakAt"],
-      ["Највише активних дана", bestBy(playerRows, (row) => row.playedDays), " дана", "medal-active-days.png", "playedDaysAt"],
-      ["Најјачи изазов скор", bestBy(challengeLeaders, (row) => row.best), " поена", "medal-challenge-score.png", "bestAt"]
+      medalEntry("Највише решених дневних партија", playerRows, (row) => row.wins, " победа", "medal-daily-wins.png", "winsAt"),
+      medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt"),
+      medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at"),
+      medalEntry("Највећи укупан резултат", playerRows, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt"),
+      medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt"),
+      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt"),
+      medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt"),
+      medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt"),
+      medalEntry("Најјачи изазов скор", challengeLeaders, (row) => row.best, " поена", "medal-challenge-score.png", "bestAt"),
+      medalEntry("Лектор", lectorLeaders, (row) => row.total, " пријава", "medal-lector.png", "lastAt")
     ];
 
     hallGridEl.innerHTML = "";
     hallMedals = medals;
     hallMedalIndex = 0;
     renderHallCarousel();
-    medals.forEach(([title, result, suffix, image]) => {
-      hallGridEl.append(medalCard(title, result?.item?.nickname, result?.value, suffix, image));
+    medals.forEach((medal) => {
+      hallGridEl.append(medalCard(
+        medal.title,
+        medal.result?.item?.nickname,
+        medal.result?.value,
+        medal.suffix,
+        medal.image,
+        () => openHallModal(medal)
+      ));
     });
   } catch {
     if (hallCarouselEl) hallCarouselEl.innerHTML = "";
@@ -10490,6 +10899,7 @@ function showHallOfFame() {
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "false";
+  document.body.dataset.challengeFinished = "false";
   boardsEl.innerHTML = "";
   keyboardEl.innerHTML = "";
   renderSolutionsPanel(false);
@@ -10789,6 +11199,16 @@ if (hallCarouselEl) {
   }, { passive: true });
 }
 
+if (hallModalClose) {
+  hallModalClose.addEventListener("click", closeHallModal);
+}
+
+if (hallModal) {
+  hallModal.addEventListener("click", (event) => {
+    if (event.target === hallModal) closeHallModal();
+  });
+}
+
 if (wordInfoButton) {
   wordInfoButton.addEventListener("click", () => {
     if (targets[0]) showExistingWordReview(targets[0]);
@@ -10972,10 +11392,12 @@ setInterval(() => {
 }, 30000);
 
 const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
-if (incomingChallengeCode) {
+  if (incomingChallengeCode) {
   startGame("challenge");
+  if (challengePlayerSelect) challengePlayerSelect.value = "__new__";
+  if (challengePlayerButton) challengePlayerButton.textContent = "Нови корисник";
   if (challengeCodeInput) challengeCodeInput.value = incomingChallengeCode.toUpperCase();
-  renderChallengePanel(`Примљен изазов ${incomingChallengeCode.toUpperCase()}. Прихвати га, па играј када желиш.`);
+  renderChallengePanel(`Позвани сте на изазов ${incomingChallengeCode.toUpperCase()}. Прихвати га, па играј када желиш.`);
   fetchChallenge(incomingChallengeCode)
     .then((row) => {
       if (row) renderChallengeHistoryCards([row]);

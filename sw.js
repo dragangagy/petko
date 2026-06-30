@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache";
+const CACHE_NAME = "petko-cache-v105";
 
 const ASSETS = [
   "./",
@@ -20,7 +20,8 @@ const ASSETS = [
   "./medal-success-rate.png",
   "./medal-streak.png",
   "./medal-active-days.png",
-  "./medal-challenge-score.png"
+  "./medal-challenge-score.png",
+  "./medal-lector.png"
 ];
 
 // Instalacija

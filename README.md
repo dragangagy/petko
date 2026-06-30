@@ -20,6 +20,8 @@ Required files are already in this folder:
 
 Run `supabase-schema.sql` in the Supabase SQL editor.
 
+For starter word explanations, run `word-meanings-seed.sql` after the schema.
+
 Then set these values in `app.js`:
 
 ```js

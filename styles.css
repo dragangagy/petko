@@ -779,8 +779,11 @@ body:not([data-game-type="hall"]) .hall-panel {
 
 body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .boards,
 body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .keyboard,
-body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .solutions-panel,
 body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .word-reveal {
+  display: none;
+}
+
+body[data-game-type="challenge"][data-challenge-finished="true"] .keyboard {
   display: none;
 }
 
@@ -871,6 +874,13 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .word-reve
   display: grid;
   grid-template-columns: minmax(0, 1fr) 58px 58px;
   gap: 4px;
+}
+
+.challenge-code-label {
+  grid-column: 1 / -1;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 950;
 }
 
 .challenge-code-tools[hidden] {
@@ -1083,6 +1093,7 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .word-reve
   text-align: center;
   will-change: transform, opacity;
   animation: hall-medal-in 240ms ease both;
+  cursor: pointer;
 }
 
 .hall-slide.from-left {
@@ -1196,6 +1207,16 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .word-reve
   background: rgba(15, 23, 42, 0.72);
 }
 
+.medal-card[role="button"] {
+  cursor: pointer;
+}
+
+.medal-card[role="button"]:focus-visible,
+.hall-slide:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
 .medal-icon {
   width: 42px;
   height: 42px;
@@ -1242,6 +1263,140 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .word-reve
   white-space: nowrap;
 }
 
+.hall-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 86;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 8, 23, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.hall-modal[hidden] {
+  display: none;
+}
+
+.hall-modal-card {
+  position: relative;
+  width: min(100%, 420px);
+  max-height: min(82svh, 620px);
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.34);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 72% 18%, rgba(255, 215, 0, 0.14), transparent 32%),
+    rgba(15, 23, 42, 0.97);
+  color: #ffffff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62), 0 0 30px rgba(56, 189, 248, 0.18);
+}
+
+.hall-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.76);
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.hall-modal-bg {
+  position: absolute;
+  top: 22px;
+  right: -28px;
+  width: 210px;
+  height: 210px;
+  object-fit: contain;
+  opacity: 0.13;
+  filter: grayscale(0.18) drop-shadow(0 18px 30px rgba(0, 0, 0, 0.7));
+  pointer-events: none;
+}
+
+.hall-modal-card h2,
+.hall-modal-holder,
+.hall-top-list {
+  position: relative;
+  z-index: 1;
+}
+
+.hall-modal-card h2 {
+  margin: 0 42px 6px 0;
+  color: var(--gold);
+  font-size: 21px;
+  line-height: 1.12;
+}
+
+.hall-modal-holder {
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.hall-top-list {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hall-top-list li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 10px;
+  background: rgba(2, 8, 23, 0.46);
+}
+
+.hall-top-list .hall-top-empty {
+  grid-template-columns: 1fr;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.hall-rank {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 215, 0, 0.16);
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.hall-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hall-score {
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 body[data-game-type="hall"] .boards,
 body[data-game-type="hall"] .keyboard,
 body[data-game-type="hall"] .next-button,
@@ -1276,6 +1431,12 @@ body[data-competitive-locked="true"] .next-button {
   border: 1px solid rgba(56, 189, 248, 0.12);
   border-radius: 8px;
   background: #1e293b;
+}
+
+body[data-game-type="challenge"] .solutions-panel {
+  margin-top: 6px;
+  border-color: rgba(56, 189, 248, 0.24);
+  background: rgba(15, 23, 42, 0.82);
 }
 
 .solutions-panel[hidden] {
@@ -1355,13 +1516,15 @@ body[data-competitive-locked="true"] .next-button {
 
 .solution-chip.solved {
   border: 1px solid rgba(22, 230, 138, 0.68);
-  background: rgba(22, 230, 138, 0.18);
+  background: var(--correct);
+  color: #04131e;
   box-shadow: 0 0 12px rgba(22, 230, 138, 0.18);
 }
 
 .solution-chip.unsolved {
   border: 1px solid rgba(255, 77, 109, 0.68);
-  background: rgba(255, 77, 109, 0.18);
+  background: #ef4444;
+  color: #ffffff;
   box-shadow: 0 0 12px rgba(255, 77, 109, 0.14);
 }
 

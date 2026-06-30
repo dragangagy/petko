@@ -7,10 +7,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Петко">
     <title>Петко</title>
-    <link rel="manifest" href="manifest.webmanifest?v=86">
+    <link rel="manifest" href="manifest.webmanifest?v=103">
     <link rel="icon" href="app-icon.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon.png">
-    <link rel="stylesheet" href="styles.css?v=86">
+    <link rel="stylesheet" href="styles.css?v=105">
   </head>
   <body>
     <main class="app-shell">
@@ -77,7 +77,8 @@
           </div>
           <button id="createChallengeButton" type="button">Пошаљи</button>
         </div>
-        <div class="challenge-code-tools" hidden>
+        <div class="challenge-code-tools challenge-card invite pending" hidden>
+          <div class="challenge-code-label">Позив за новог корисника</div>
           <input id="challengeCodeInput" maxlength="8" placeholder="Код">
           <button id="acceptChallengeButton" type="button">Прихвати</button>
           <button id="checkChallengeButton" type="button" hidden>Провери</button>
@@ -207,6 +208,16 @@
       </article>
     </div>
 
-    <script src="app.js?v=96"></script>
+    <div class="hall-modal" id="hallModal" hidden>
+      <article class="hall-modal-card" role="dialog" aria-modal="true" aria-labelledby="hallModalTitle">
+        <button class="hall-modal-close" id="hallModalClose" type="button" aria-label="Затвори">×</button>
+        <img class="hall-modal-bg" id="hallModalImage" alt="">
+        <h2 id="hallModalTitle">Медаља</h2>
+        <div class="hall-modal-holder" id="hallModalHolder">TOP 10</div>
+        <ol class="hall-top-list" id="hallTopList"></ol>
+      </article>
+    </div>
+
+    <script src="app.js?v=105"></script>
   </body>
 </html>
