@@ -318,7 +318,7 @@ button {
 }
 
 body[data-game-type="normal"] .status-panel {
-  display: none;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 body[data-game-type="normal"] .status-panel p {
