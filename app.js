@@ -8590,8 +8590,11 @@ function challengeCountdownText(row) {
 
 function challengeRole(row) {
   const me = loadPlayerName();
-  if (row?.creator_device === deviceId() || sameChallengeName(row?.creator, me)) return "creator";
-  if (row?.opponent_device === deviceId() || sameChallengeName(row?.opponent, me)) return "opponent";
+  const openInvite = isOpenChallengeOpponent(row?.opponent);
+  if (row?.creator_device && row.creator_device === deviceId()) return "creator";
+  if (row?.opponent_device && row.opponent_device === deviceId()) return "opponent";
+  if (sameChallengeName(row?.opponent, me)) return "opponent";
+  if (!openInvite && sameChallengeName(row?.creator, me)) return "creator";
   return "";
 }
 
@@ -8787,6 +8790,10 @@ function renderChallengePlayers(names = []) {
     item.setAttribute("aria-pressed", value === challengePlayerSelect.value ? "true" : "false");
     item.addEventListener("click", () => {
       challengePlayerSelect.value = value;
+      if (value !== "__new__") {
+        clearPendingChallengeCode();
+        if (challengeCodeInput) challengeCodeInput.value = "";
+      }
       if (challengePlayerButton) {
         challengePlayerButton.textContent = label;
         challengePlayerButton.setAttribute("aria-expanded", "false");
@@ -9030,7 +9037,7 @@ function challengeCard(row, rows = []) {
   if (!playedChallenge(row)) {
     const actions = document.createElement("div");
     actions.className = "challenge-card-actions";
-    const canAccept = row.status === "pending" && role !== "creator" && !row.opponent_device;
+    const canAccept = row.status === "pending" && !row.opponent_device && (role !== "creator" || openInvite);
     const canPlay = challengeIsActive(row) && role && !challengeAlreadyPlayed(row, role);
     if (canAccept) {
       const accept = document.createElement("button");
@@ -9168,6 +9175,7 @@ async function shareChallenge(code) {
 }
 
 async function createChallenge() {
+  renderChallengePanel("Шаљем изазов...");
   if (!supabaseConfigured()) {
     renderChallengePanel("За изазове мора бити активан Supabase.");
     return;
@@ -9381,6 +9389,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
   const accepted = await fetchChallenge(code);
   if (!playNow) {
     renderChallengePanel("Изазов је прихваћен. Картица је зелена и активна 24h.");
+    if (accepted) renderChallengeHistoryCards([accepted]);
     await refreshChallengeLobby().catch(() => {});
     return;
   }
