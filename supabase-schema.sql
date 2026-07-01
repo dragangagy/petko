@@ -114,6 +114,10 @@ begin
     where creator_device = new.creator_device
       and day = new.day
       and lower(btrim(opponent)) = lower(btrim(new.opponent))
+      and (
+        status <> 'pending'
+        or created_at > now() - interval '6 hours'
+      )
   ) then
     raise exception 'same opponent already challenged today';
   end if;
@@ -130,6 +134,10 @@ begin
       and opponent is not null
       and btrim(opponent) <> ''
       and lower(btrim(opponent)) not in (lower('Нови корисник'), lower('Чека се'))
+      and (
+        status <> 'pending'
+        or created_at > now() - interval '6 hours'
+      )
   ) >= 3 then
     raise exception 'daily challenge limit reached';
   end if;

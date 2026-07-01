@@ -7836,6 +7836,7 @@ const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
 const CHALLENGE_DAILY_LIMIT = 3;
+const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
@@ -8575,17 +8576,36 @@ function challengeActiveUntil(row) {
   return base + CHALLENGE_ACTIVE_MS;
 }
 
+function challengePendingUntil(row) {
+  const created = Date.parse(row?.created_at || "");
+  if (!Number.isFinite(created)) return 0;
+  return created + CHALLENGE_PENDING_MS;
+}
+
+function challengePendingExpired(row) {
+  if (row?.status !== "pending" || row?.opponent_device || row?.accepted_at) return false;
+  const until = challengePendingUntil(row);
+  return Boolean(until && Date.now() >= until);
+}
+
 function challengeExpired(row) {
   const until = challengeActiveUntil(row);
   return Boolean(until && Date.now() >= until);
 }
 
-function challengeCountdownText(row) {
-  const remaining = Math.max(0, challengeActiveUntil(row) - Date.now());
+function formatChallengeCountdown(remaining) {
   if (!remaining) return "истекло";
   const hours = Math.floor(remaining / 3600000);
   const minutes = Math.floor((remaining % 3600000) / 60000);
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function challengeCountdownText(row) {
+  return formatChallengeCountdown(Math.max(0, challengeActiveUntil(row) - Date.now()));
+}
+
+function challengePendingCountdownText(row) {
+  return formatChallengeCountdown(Math.max(0, challengePendingUntil(row) - Date.now()));
 }
 
 function challengeRole(row) {
@@ -8618,7 +8638,9 @@ function challengePlayedToday(row) {
 }
 
 function challengeCardVisible(row) {
+  if (challengePendingExpired(row)) return false;
   if (playedChallenge(row)) return challengePlayedToday(row);
+  if (row?.status === "pending") return true;
   const until = challengeActiveUntil(row);
   return !until || Date.now() < until;
 }
@@ -8695,7 +8717,7 @@ function isOpenChallengeOpponent(value) {
 }
 
 function challengeCountsForDailyLimit(row) {
-  return !isOpenChallengeOpponent(row?.opponent);
+  return !isOpenChallengeOpponent(row?.opponent) && !challengePendingExpired(row);
 }
 
 function dailyChallengeCount(rows = []) {
@@ -8722,7 +8744,7 @@ async function fetchSentChallengesToday() {
     .map((opponent) => ({ opponent }));
   if (!supabaseConfigured()) return local;
   const query = [
-    "select=code,opponent",
+    "select=code,day,status,opponent,opponent_device,accepted_at,created_at",
     `creator_device=eq.${encodeURIComponent(deviceId())}`,
     `day=eq.${encodeURIComponent(todayId())}`,
     "limit=10"
@@ -9020,13 +9042,14 @@ function challengeCard(row, rows = []) {
   }
   const winner = document.createElement("div");
   winner.className = "challenge-card-winner";
+  const pendingCountdown = challengePendingCountdownText(row);
   winner.textContent = playedChallenge(row)
     ? `Победник: ${challengeWinnerName(row)} · добија ${formatScore(challengeDifference(row))}`
     : challengeIsActive(row)
       ? `Зелена карта важи још ${challengeCountdownText(row)}`
       : role === "creator"
-        ? `Чека се да ${otherPlayer} прихвати`
-        : "Прихватите изазов да се отвори игра";
+        ? `Чека се да ${otherPlayer} прихвати · истиче за ${pendingCountdown}`
+        : `Прихватите изазов да се отвори игра · истиче за ${pendingCountdown}`;
   const scores = document.createElement("div");
   scores.className = "challenge-card-scores";
   scores.textContent = playedChallenge(row)
