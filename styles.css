@@ -1681,8 +1681,20 @@ body[data-game-type="challenge"] .solutions-panel {
   min-height: 36px;
 }
 
-.boards.collapsed-side .board-card.collapsed {
+.boards.collapsed-side > .board-card.collapsed {
   grid-column: 2;
+  min-height: 36px;
+  border-radius: 14px;
+}
+
+.boards.collapsed-side .collapsed-stack {
+  grid-column: 2;
+  display: grid;
+  align-self: start;
+  gap: 10px;
+}
+
+.boards.collapsed-side .collapsed-stack .board-card.collapsed {
   min-height: 36px;
   border-radius: 14px;
 }

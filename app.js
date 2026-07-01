@@ -10058,10 +10058,13 @@ function renderBoards() {
     collapsibleGame && solvedAt[index]
   ).length;
   const activeCount = targets.length - collapsedCount;
+  const collapsedSide = !done && activeCount > 0 && activeCount % 2 === 1 && collapsedCount > 0;
+  const collapsedStack = collapsedSide ? document.createElement("div") : null;
   boardsEl.classList.toggle("has-collapsed", collapsedCount > 0);
   boardsEl.classList.toggle("collapsed-odd", collapsedCount % 2 === 1);
-  boardsEl.classList.toggle("collapsed-side", !done && activeCount > 0 && activeCount % 2 === 1 && collapsedCount > 0);
+  boardsEl.classList.toggle("collapsed-side", collapsedSide);
   boardsEl.classList.toggle("challenge-finished", gameType === "challenge" && done);
+  if (collapsedStack) collapsedStack.className = "collapsed-stack";
 
   boardIndexes.forEach((boardIndex) => {
     const target = targets[boardIndex];
@@ -10098,7 +10101,7 @@ function renderBoards() {
       info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
       info.addEventListener("click", () => showExistingWordReview(target));
       title.append(word, info);
-      boardsEl.append(fragment);
+      (collapsedStack || boardsEl).append(fragment);
       return;
     }
 
@@ -10124,6 +10127,10 @@ function renderBoards() {
     if (solvedTry) card.classList.add("solved");
     boardsEl.append(fragment);
   });
+
+  if (collapsedStack && collapsedStack.childElementCount) {
+    boardsEl.append(collapsedStack);
+  }
 }
 
 function renderSolutionsPanel(show) {
