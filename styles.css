@@ -58,9 +58,18 @@ body[data-friday="true"] {
   --line: rgba(255, 215, 0, 0.28);
   --shadow: 0 0 30px rgba(255, 215, 0, 0.16), 0 0 60px rgba(245, 158, 11, 0.1);
   background:
-    radial-gradient(circle at 20% 0%, rgba(255, 215, 0, 0.2), transparent 32%),
-    radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.16), transparent 30%),
-    linear-gradient(180deg, #111827 0%, #101820 52%, #080b12 100%);
+    radial-gradient(circle at 20% 0%, rgba(255, 215, 0, 0.28), transparent 34%),
+    radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.22), transparent 30%),
+    linear-gradient(180deg, #15110a 0%, #101820 52%, #080b12 100%);
+}
+
+body[data-friday="true"]::before {
+  background:
+    radial-gradient(circle at 13% 16%, rgba(255, 215, 0, 0.28) 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 22%, rgba(255, 236, 153, 0.18) 0 1px, transparent 2px),
+    radial-gradient(circle at 44% 34%, rgba(245, 158, 11, 0.2) 0 1px, transparent 2px),
+    radial-gradient(circle at 22% 72%, rgba(255, 215, 0, 0.18) 0 1px, transparent 2px),
+    radial-gradient(circle at 86% 78%, rgba(255, 236, 153, 0.16) 0 1px, transparent 2px);
 }
 
 body[data-friday="true"] .status-panel,
@@ -81,6 +90,15 @@ body[data-friday="true"] .challenge-player-menu,
 body[data-friday="true"] .challenge-actions button {
   border-color: rgba(255, 215, 0, 0.36);
   box-shadow: inset 0 0 14px rgba(255, 215, 0, 0.06), 0 0 16px rgba(255, 215, 0, 0.14);
+}
+
+body[data-friday="true"] .app-logo {
+  filter: drop-shadow(0 0 14px rgba(255, 215, 0, 0.42));
+}
+
+body[data-friday="true"] .tile.present,
+body[data-friday="true"] .key.present {
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.56);
 }
 
 button {

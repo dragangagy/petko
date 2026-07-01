@@ -8344,8 +8344,16 @@ function todayId() {
   return `${year}-${month}-${day}`;
 }
 
+function fridayOverride() {
+  const value = new URLSearchParams(window.location.search).get("friday");
+  if (value === "1" || value === "true" || value === "gold") return true;
+  if (value === "0" || value === "false") return false;
+  return null;
+}
+
 function isPetkoFriday() {
-  return new Date().getDay() === 5;
+  const override = fridayOverride();
+  return override === null ? new Date().getDay() === 5 : override;
 }
 
 function currentYearId() {
