@@ -270,14 +270,14 @@ button {
 
 body[data-friday="true"] .status-brand {
   grid-template-columns: minmax(0, 1fr);
-  padding: 6px 10px;
+  padding: 6px 10px 6px 8px;
 }
 
 body[data-friday="true"] .status-logo {
   content: url("petak-za-petka-logo.png");
   width: min(100%, 340px);
   height: 74px;
-  justify-self: center;
+  justify-self: start;
   filter: drop-shadow(0 0 14px rgba(255, 228, 92, 0.48)) drop-shadow(0 0 22px rgba(247, 183, 49, 0.22));
 }
 
