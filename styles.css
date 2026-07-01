@@ -53,23 +53,24 @@ body::before {
 }
 
 body[data-friday="true"] {
-  --cyan: #ffd700;
-  --blue: #f59e0b;
-  --line: rgba(255, 215, 0, 0.28);
-  --shadow: 0 0 30px rgba(255, 215, 0, 0.16), 0 0 60px rgba(245, 158, 11, 0.1);
+  --cyan: #ffe45c;
+  --blue: #f7b731;
+  --line: rgba(255, 228, 92, 0.42);
+  --shadow: 0 0 34px rgba(255, 215, 0, 0.24), 0 0 70px rgba(247, 183, 49, 0.16);
   background:
-    radial-gradient(circle at 20% 0%, rgba(255, 215, 0, 0.28), transparent 34%),
-    radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.22), transparent 30%),
-    linear-gradient(180deg, #15110a 0%, #101820 52%, #080b12 100%);
+    radial-gradient(circle at 20% 0%, rgba(255, 228, 92, 0.42), transparent 34%),
+    radial-gradient(circle at 85% 10%, rgba(247, 183, 49, 0.34), transparent 32%),
+    radial-gradient(circle at 45% 86%, rgba(255, 190, 45, 0.2), transparent 38%),
+    linear-gradient(180deg, #2a2107 0%, #191407 48%, #080b12 100%);
 }
 
 body[data-friday="true"]::before {
   background:
-    radial-gradient(circle at 13% 16%, rgba(255, 215, 0, 0.28) 0 1px, transparent 2px),
-    radial-gradient(circle at 78% 22%, rgba(255, 236, 153, 0.18) 0 1px, transparent 2px),
-    radial-gradient(circle at 44% 34%, rgba(245, 158, 11, 0.2) 0 1px, transparent 2px),
-    radial-gradient(circle at 22% 72%, rgba(255, 215, 0, 0.18) 0 1px, transparent 2px),
-    radial-gradient(circle at 86% 78%, rgba(255, 236, 153, 0.16) 0 1px, transparent 2px);
+    radial-gradient(circle at 13% 16%, rgba(255, 228, 92, 0.36) 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 22%, rgba(255, 244, 186, 0.24) 0 1px, transparent 2px),
+    radial-gradient(circle at 44% 34%, rgba(247, 183, 49, 0.28) 0 1px, transparent 2px),
+    radial-gradient(circle at 22% 72%, rgba(255, 215, 0, 0.24) 0 1px, transparent 2px),
+    radial-gradient(circle at 86% 78%, rgba(255, 236, 153, 0.2) 0 1px, transparent 2px);
 }
 
 body[data-friday="true"] .status-panel,
@@ -88,8 +89,8 @@ body[data-friday="true"] .challenge-card,
 body[data-friday="true"] .challenge-player-select,
 body[data-friday="true"] .challenge-player-menu,
 body[data-friday="true"] .challenge-actions button {
-  border-color: rgba(255, 215, 0, 0.36);
-  box-shadow: inset 0 0 14px rgba(255, 215, 0, 0.06), 0 0 16px rgba(255, 215, 0, 0.14);
+  border-color: rgba(255, 228, 92, 0.5);
+  box-shadow: inset 0 0 16px rgba(255, 228, 92, 0.09), 0 0 20px rgba(255, 215, 0, 0.2);
 }
 
 body[data-friday="true"] .app-logo {
