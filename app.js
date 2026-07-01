@@ -11117,7 +11117,7 @@ async function renderHallOfFame() {
     }));
 
     const medals = [
-      medalEntry("Највише решених дневних партија", playerRows, (row) => row.wins, " победа", "medal-daily-wins.png", "winsAt"),
+      medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt"),
       medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt"),
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at"),
       medalEntry("Највећи укупан резултат", playerRows, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt"),
