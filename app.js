@@ -8931,7 +8931,7 @@ function notifyChallengeEvents(rows = []) {
     const creator = row.creator || "Играч";
     const opponent = row.opponent || "Играч";
     const openInvite = isOpenChallengeOpponent(opponent);
-    const canAccept = row.status === "pending" && !row.opponent_device && (role !== "creator" || openInvite);
+    const canAccept = row.status === "pending" && !row.opponent_device && role !== "creator";
     const canPlay = challengeIsActive(row) && role && !challengeAlreadyPlayed(row, role);
 
     if (canAccept && role !== "creator") {
@@ -9158,7 +9158,7 @@ function challengeCard(row, rows = []) {
   if (!playedChallenge(row)) {
     const actions = document.createElement("div");
     actions.className = "challenge-card-actions";
-    const canAccept = row.status === "pending" && !row.opponent_device && (role !== "creator" || openInvite);
+    const canAccept = row.status === "pending" && !row.opponent_device && role !== "creator";
     const canPlay = challengeIsActive(row) && role && !challengeAlreadyPlayed(row, role);
     if (canAccept) {
       const accept = document.createElement("button");
