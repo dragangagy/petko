@@ -804,6 +804,19 @@ body[data-game-type="challenge"][data-challenge-finished="true"] .keyboard {
   text-align: center;
 }
 
+.challenge-quota {
+  justify-self: center;
+  min-width: 88px;
+  padding: 3px 9px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 999px;
+  background: rgba(2, 8, 23, 0.38);
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 950;
+  text-align: center;
+}
+
 .challenge-player-picker {
   position: relative;
   min-width: 0;

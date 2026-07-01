@@ -28,11 +28,14 @@ Then set these values in `app.js`:
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
   anonKey: "YOUR_SB_PUBLISHABLE_KEY",
-  table: "scores"
+  table: "scores",
+  playersTable: "players"
 };
 ```
 
 Without these values the app uses local results only.
+
+`players` keeps one row per nickname. `scores` stays as the result history, so old scores are not deleted when a player has multiple played days.
 
 `scores.score` stores the daily score. The seasonal leaderboard is calculated in the app:
 

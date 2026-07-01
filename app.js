@@ -7856,6 +7856,7 @@ const SUPABASE_CONFIG = {
   table: "scores",
   challengeTable: "challenges",
   normalStatsTable: "normal_stats",
+  playersTable: "players",
   wordReportsTable: "word_reports",
   wordMeaningsTable: "word_meanings"
 };
@@ -8116,6 +8117,7 @@ const wordReviewText = document.querySelector("#wordReviewText");
 const wordModalActions = document.querySelector("#wordModalActions");
 const challengePanelEl = document.querySelector("#challengePanel");
 const challengeStatusEl = document.querySelector("#challengeStatus");
+const challengeQuotaEl = document.querySelector("#challengeQuota");
 const challengePlayerSelect = document.querySelector("#challengePlayerSelect");
 const challengePlayerButton = document.querySelector("#challengePlayerButton");
 const challengePlayerMenu = document.querySelector("#challengePlayerMenu");
@@ -8464,6 +8466,10 @@ function normalStatsTable() {
   return SUPABASE_CONFIG.normalStatsTable || "normal_stats";
 }
 
+function playersTable() {
+  return SUPABASE_CONFIG.playersTable || "players";
+}
+
 function wordReportsTable() {
   return SUPABASE_CONFIG.wordReportsTable || "word_reports";
 }
@@ -8667,6 +8673,7 @@ function loadSentChallengesToday() {
 
 function markChallengeSentToday(opponent) {
   const opponents = loadSentChallengesToday();
+  if (!challengeCountsForDailyLimit({ opponent })) return;
   opponents.push(opponent || "");
   localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({ date: todayId(), opponents }));
 }
@@ -8679,8 +8686,37 @@ function sameChallengeName(left, right) {
   return cleanChallengeName(left).toLocaleLowerCase("sr") === cleanChallengeName(right).toLocaleLowerCase("sr");
 }
 
+function isOpenChallengeOpponent(value) {
+  const clean = cleanChallengeName(value);
+  return !clean || sameChallengeName(clean, "Нови корисник") || sameChallengeName(clean, "Чека се");
+}
+
+function challengeCountsForDailyLimit(row) {
+  return !isOpenChallengeOpponent(row?.opponent);
+}
+
+function dailyChallengeCount(rows = []) {
+  return rows.filter(challengeCountsForDailyLimit).length;
+}
+
+function sentChallengeRowsFromHistory(rows = []) {
+  return rows.filter((row) =>
+    row.creator_device === deviceId() &&
+    String(row.day || "").slice(0, 10) === todayId() &&
+    challengeCountsForDailyLimit(row)
+  );
+}
+
+function updateChallengeQuota(rows = null) {
+  if (!challengeQuotaEl) return;
+  const count = Array.isArray(rows) ? dailyChallengeCount(rows) : loadSentChallengesToday().filter((opponent) => !isOpenChallengeOpponent(opponent)).length;
+  challengeQuotaEl.textContent = `Изазови ${Math.min(count, CHALLENGE_DAILY_LIMIT)}/${CHALLENGE_DAILY_LIMIT}`;
+}
+
 async function fetchSentChallengesToday() {
-  const local = loadSentChallengesToday().map((opponent) => ({ opponent }));
+  const local = loadSentChallengesToday()
+    .filter((opponent) => !isOpenChallengeOpponent(opponent))
+    .map((opponent) => ({ opponent }));
   if (!supabaseConfigured()) return local;
   const query = [
     "select=code,opponent",
@@ -8693,11 +8729,19 @@ async function fetchSentChallengesToday() {
   });
   if (!response.ok) return local;
   const rows = await response.json();
-  return Array.isArray(rows) ? rows : local;
+  return Array.isArray(rows) ? rows.filter(challengeCountsForDailyLimit) : local;
 }
 
 async function fetchChallengePlayers() {
   if (!supabaseConfigured()) return [];
+  const playerRows = await fetchPlayerRows().catch(() => null);
+  if (Array.isArray(playerRows)) {
+    const currentName = loadPlayerName();
+    return playerRows
+      .map((row) => cleanChallengeName(row.nickname))
+      .filter((name) => name && !sameChallengeName(name, currentName))
+      .sort((a, b) => a.localeCompare(b, "sr"));
+  }
   const [normalRows, scoreRows, challengeRows] = await Promise.all([
     fetchNormalStatsRows().catch(() => []),
     fetchOnlineLeaderboard().catch(() => []),
@@ -8791,6 +8835,7 @@ function renderChallengePanel(text) {
   if (!challengePanelEl) return;
   const showLobby = gameType === "challenge" && !challengeGameOpen();
   challengePanelEl.hidden = !showLobby;
+  updateChallengeQuota();
   const showCodeTools = showLobby && challengePlayerSelect?.value === "__new__";
   const pendingCode = loadPendingChallengeCode();
   const active = loadActiveChallenge();
@@ -9015,6 +9060,7 @@ function renderChallengeHistoryCards(rows = []) {
   if (!challengeHistoryEl) return;
   challengeHistoryEl.innerHTML = "";
   updateChallengeBadge(rows);
+  updateChallengeQuota(sentChallengeRowsFromHistory(rows));
   const me = loadPlayerName();
   const typedCode = String(challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || "").trim().toUpperCase();
   const currentRows = rows.filter((row) =>
@@ -9112,11 +9158,6 @@ async function shareChallenge(code) {
   await navigator.clipboard.writeText(text);
 }
 
-function isOpenChallengeOpponent(value) {
-  const clean = cleanChallengeName(value);
-  return !clean || sameChallengeName(clean, "Нови корисник") || sameChallengeName(clean, "Чека се");
-}
-
 async function createChallenge() {
   if (!supabaseConfigured()) {
     renderChallengePanel("За изазове мора бити активан Supabase.");
@@ -9138,6 +9179,7 @@ async function createChallenge() {
     return;
   }
   const sentToday = await fetchSentChallengesToday();
+  updateChallengeQuota(sentToday);
   if (sentToday.length >= CHALLENGE_DAILY_LIMIT) {
     renderChallengePanel("Данас сте већ послали 3 изазова.");
     return;
@@ -9163,6 +9205,7 @@ async function createChallenge() {
   });
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није направљен."));
   markChallengeSentToday(opponent);
+  updateChallengeQuota(shareAfterCreate ? sentToday : [...sentToday, { opponent }]);
   savePendingChallengeCode(code);
   if (challengeCodeInput) challengeCodeInput.value = code;
   renderChallengePanel(shareAfterCreate
@@ -9376,10 +9419,45 @@ function savePlayerName(value) {
   return clean;
 }
 
+async function fetchPlayerRows() {
+  if (!supabaseConfigured()) return [];
+  const query = [
+    "select=nickname,created_at",
+    "order=nickname.asc",
+    "limit=1000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return null;
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function registerPlayerName(name) {
+  if (!supabaseConfigured()) return true;
+  const clean = normalizePlayerName(name);
+  const response = await fetch(supabaseUrl(playersTable()), {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({
+      nickname: clean,
+      device_id: deviceId()
+    })
+  });
+  if (response.ok) return true;
+  if (response.status === 409) return false;
+  return null;
+}
+
 async function playerNameTaken(name) {
   const clean = normalizePlayerName(name);
   const current = loadPlayerName();
   if (!supabaseConfigured() || sameChallengeName(clean, current)) return false;
+  const playerRows = await fetchPlayerRows().catch(() => null);
+  if (Array.isArray(playerRows)) {
+    return playerRows.some((row) => sameChallengeName(row.nickname, clean));
+  }
   const [normalRows, scoreRows, challengeRows] = await Promise.all([
     fetchNormalStatsRows().catch(() => []),
     fetchOnlineLeaderboard().catch(() => []),
@@ -9396,6 +9474,12 @@ async function savePlayerNameUnique(value) {
   const clean = normalizePlayerName(value);
   const previous = loadPlayerName();
   if (await playerNameTaken(clean)) {
+    if (playerNameInput) playerNameInput.value = previous;
+    messageEl.textContent = `Надимак "${clean}" већ постоји. Изабери други.`;
+    return "";
+  }
+  const registered = await registerPlayerName(clean).catch(() => null);
+  if (registered === false) {
     if (playerNameInput) playerNameInput.value = previous;
     messageEl.textContent = `Надимак "${clean}" већ постоји. Изабери други.`;
     return "";
