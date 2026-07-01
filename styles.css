@@ -97,6 +97,13 @@ body[data-friday="true"] .app-logo {
   filter: drop-shadow(0 0 14px rgba(255, 215, 0, 0.42));
 }
 
+body[data-friday="true"] .brand-logo {
+  content: url("petak-za-petka-logo.png");
+  width: min(100%, 188px);
+  max-height: 72px;
+  filter: drop-shadow(0 0 14px rgba(255, 228, 92, 0.44)) drop-shadow(0 0 20px rgba(247, 183, 49, 0.2));
+}
+
 body[data-friday="true"] .tile.present,
 body[data-friday="true"] .key.present {
   box-shadow: 0 0 20px rgba(255, 215, 0, 0.56);
