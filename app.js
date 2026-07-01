@@ -8637,8 +8637,22 @@ function challengePlayedToday(row) {
   return (playedDay || row?.day) === todayId();
 }
 
+function sameChallengePlayerPair(creator, opponent) {
+  return Boolean(cleanChallengeName(creator) && cleanChallengeName(opponent) && sameChallengeName(creator, opponent));
+}
+
+function ownPendingChallenge(row) {
+  if (!row || row.status !== "pending") return false;
+  return row.creator_device === deviceId() || sameChallengeName(row.creator, loadPlayerName());
+}
+
+function selfChallengeRow(row) {
+  return sameChallengePlayerPair(row?.creator, row?.opponent);
+}
+
 function challengeCardVisible(row) {
   if (challengePendingExpired(row)) return false;
+  if (selfChallengeRow(row)) return false;
   if (playedChallenge(row)) return challengePlayedToday(row);
   if (row?.status === "pending") return true;
   const until = challengeActiveUntil(row);
@@ -8717,7 +8731,7 @@ function isOpenChallengeOpponent(value) {
 }
 
 function challengeCountsForDailyLimit(row) {
-  return !isOpenChallengeOpponent(row?.opponent) && !challengePendingExpired(row);
+  return !isOpenChallengeOpponent(row?.opponent) && !selfChallengeRow(row) && !challengePendingExpired(row);
 }
 
 function dailyChallengeCount(rows = []) {
@@ -8837,6 +8851,7 @@ function challengeNotificationRows(rows = []) {
   const me = loadPlayerName();
   return rows.filter((row) => {
     if (playedChallenge(row)) return false;
+    if (selfChallengeRow(row)) return false;
     const mineByDevice = row.creator_device === deviceId() || row.opponent_device === deviceId();
     const mineByName = me && (sameChallengeName(row.opponent, me) || sameChallengeName(row.creator, me));
     return mineByDevice || mineByName;
@@ -8930,8 +8945,7 @@ function notifyChallengeEvents(rows = []) {
     const role = challengeRole(row);
     const creator = row.creator || "Играч";
     const opponent = row.opponent || "Играч";
-    const openInvite = isOpenChallengeOpponent(opponent);
-    const canAccept = row.status === "pending" && !row.opponent_device && role !== "creator";
+    const canAccept = row.status === "pending" && !row.opponent_device && !ownPendingChallenge(row);
     const canPlay = challengeIsActive(row) && role && !challengeAlreadyPlayed(row, role);
 
     if (canAccept && role !== "creator") {
@@ -8966,16 +8980,20 @@ function renderChallengePanel(text) {
   const showCodeTools = false;
   const pendingCode = loadPendingChallengeCode();
   const active = loadActiveChallenge();
+  if (active && sameChallengePlayerPair(active.creator, active.opponent)) {
+    clearActiveChallenge();
+  }
+  const safeActive = active && !sameChallengePlayerPair(active.creator, active.opponent) ? active : null;
   if (challengeStatusEl) {
-    challengeStatusEl.textContent = text || (active
-      ? `Активан изазов: ${active.creator || "Играч 1"} против ${active.opponent || "Играч 2"}.`
+    challengeStatusEl.textContent = text || (safeActive
+      ? `Активан изазов: ${safeActive.creator || "Играч 1"} против ${safeActive.opponent || "Играч 2"}.`
       : pendingCode
       ? `Послат изазов ${pendingCode}. Игра креће кад га противник прихвати.`
       : "Пошаљи или прихвати изазов.");
   }
   if (challengeCodeTools) challengeCodeTools.hidden = !showCodeTools;
   if (checkChallengeButton) checkChallengeButton.hidden = !(showCodeTools && (pendingCode || active?.code));
-  if (challengeCodeInput && showCodeTools && pendingCode && !active && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
+  if (challengeCodeInput && showCodeTools && pendingCode && !safeActive && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
 }
 
 async function fetchChallenge(code) {
@@ -9158,7 +9176,7 @@ function challengeCard(row, rows = []) {
   if (!playedChallenge(row)) {
     const actions = document.createElement("div");
     actions.className = "challenge-card-actions";
-    const canAccept = row.status === "pending" && !row.opponent_device && role !== "creator";
+    const canAccept = row.status === "pending" && !row.opponent_device && !ownPendingChallenge(row);
     const canPlay = challengeIsActive(row) && role && !challengeAlreadyPlayed(row, role);
     if (canAccept) {
       const accept = document.createElement("button");
@@ -9208,7 +9226,7 @@ function renderChallengeHistoryCards(rows = []) {
     (typedCode && String(row.code || "").toUpperCase() === typedCode) ||
     sameChallengeName(row.opponent, me) ||
     sameChallengeName(row.creator, me)
-  );
+  ).filter((row) => !selfChallengeRow(row));
 
   const visibleRows = currentRows
     .filter((row) => (row.creator || row.opponent) && challengeCardVisible(row));
