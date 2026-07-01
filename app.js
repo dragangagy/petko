@@ -7886,6 +7886,7 @@ const PLAYER_NAME_KEY = "petko-player-name-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
+const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v1";
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const SUPABASE_CONFIG = {
@@ -7894,6 +7895,7 @@ const SUPABASE_CONFIG = {
   table: "scores",
   challengeTable: "challenges",
   normalStatsTable: "normal_stats",
+  lectorStatsTable: "lector_stats",
   playersTable: "players",
   wordReportsTable: "word_reports",
   wordMeaningsTable: "word_meanings"
@@ -8185,6 +8187,7 @@ const helpButton = document.querySelector("#helpButton");
 const helpModal = document.querySelector("#helpModal");
 const helpCloseButton = document.querySelector("#helpCloseButton");
 const normalStatsEl = document.querySelector("#normalStats");
+const statusLogoEl = document.querySelector(".status-logo");
 const wordRevealEl = document.querySelector("#wordReveal");
 const wordRevealTextEl = document.querySelector("#wordRevealText");
 const wordInfoButton = document.querySelector("#wordInfoButton");
@@ -8397,7 +8400,12 @@ function fridayBonusTotal(data = loadFridayBonus()) {
 }
 
 function updateFridayTheme() {
-  document.body.dataset.friday = isPetkoFriday() ? "true" : "false";
+  const friday = isPetkoFriday();
+  document.body.dataset.friday = friday ? "true" : "false";
+  if (statusLogoEl) {
+    statusLogoEl.src = friday ? "petak-za-petka-logo.png" : "logo-cut.png";
+    statusLogoEl.alt = friday ? "Petak za Petka" : "G-Lab";
+  }
 }
 
 function fridayLabel() {
@@ -8561,8 +8569,55 @@ function wordReportsTable() {
   return SUPABASE_CONFIG.wordReportsTable || "word_reports";
 }
 
+function lectorStatsTable() {
+  return SUPABASE_CONFIG.lectorStatsTable || "lector_stats";
+}
+
 function wordMeaningsTable() {
   return SUPABASE_CONFIG.wordMeaningsTable || "word_meanings";
+}
+
+function emptyLectorStats() {
+  return { total: 0, add: 0, remove: 0, updated_at: "" };
+}
+
+function loadLectorStats() {
+  try {
+    return { ...emptyLectorStats(), ...JSON.parse(localStorage.getItem(LECTOR_STATS_KEY) || "{}") };
+  } catch {
+    return emptyLectorStats();
+  }
+}
+
+function saveLectorStats(stats) {
+  localStorage.setItem(LECTOR_STATS_KEY, JSON.stringify(stats));
+}
+
+async function submitLectorStats(stats = loadLectorStats()) {
+  if (!supabaseConfigured()) return false;
+  const response = await fetch(supabaseUrl(`${lectorStatsTable()}?on_conflict=device_id`), {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    body: JSON.stringify({
+      nickname: loadPlayerName() || "Играч",
+      device_id: deviceId(),
+      total: Number(stats.total) || 0,
+      add_count: Number(stats.add) || 0,
+      remove_count: Number(stats.remove) || 0,
+      updated_at: stats.updated_at || new Date().toISOString()
+    })
+  });
+  return response.ok;
+}
+
+function bumpLectorStats(action) {
+  const stats = loadLectorStats();
+  stats.total += 1;
+  if (action === "add") stats.add += 1;
+  if (action === "remove") stats.remove += 1;
+  stats.updated_at = new Date().toISOString();
+  saveLectorStats(stats);
+  submitLectorStats(stats).catch(() => {});
 }
 
 async function submitWordReport(word, action, source) {
@@ -8578,6 +8633,7 @@ async function submitWordReport(word, action, source) {
       device_id: deviceId()
     })
   });
+  if (response.ok) bumpLectorStats(action);
   return response.ok;
 }
 
@@ -8589,6 +8645,21 @@ async function fetchWordReportsRows() {
     "limit=1000"
   ].join("&");
   const response = await fetch(supabaseUrl(`${wordReportsTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function fetchLectorStatsRows() {
+  if (!supabaseConfigured()) return [];
+  const query = [
+    "select=nickname,total,add_count,remove_count,updated_at",
+    "order=updated_at.desc",
+    "limit=1000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${lectorStatsTable()}?${query}`), {
     headers: supabaseHeaders()
   });
   if (!response.ok) return [];
@@ -8613,6 +8684,33 @@ function lectorStats(rows = []) {
         entry.lastAt = row.created_at || "";
       }
     });
+  return [...byName.values()];
+}
+
+function lectorStatsPersistent(rows = []) {
+  const byName = new Map();
+  rows.forEach((row) => {
+    const hasTotal = row.total !== undefined || row.add_count !== undefined || row.remove_count !== undefined;
+    if (!hasTotal && row.action !== "add" && row.action !== "remove") return;
+    const nickname = (row.nickname || "Играч").trim() || "Играч";
+    if (!byName.has(nickname)) {
+      byName.set(nickname, { nickname, total: 0, add: 0, remove: 0, lastAt: "" });
+    }
+    const entry = byName.get(nickname);
+    if (hasTotal) {
+      entry.total += Number(row.total) || 0;
+      entry.add += Number(row.add_count) || 0;
+      entry.remove += Number(row.remove_count) || 0;
+    } else {
+      entry.total += 1;
+      if (row.action === "add") entry.add += 1;
+      if (row.action === "remove") entry.remove += 1;
+    }
+    const lastAt = row.updated_at || row.created_at || "";
+    if (!entry.lastAt || Date.parse(lastAt || "") > Date.parse(entry.lastAt || "")) {
+      entry.lastAt = lastAt;
+    }
+  });
   return [...byName.values()];
 }
 
@@ -10930,7 +11028,7 @@ function normalSuccessRows(rows) {
         successRateAt: row.updated_at || ""
       };
     })
-    .filter((row) => row.started > 0);
+    .filter((row) => row.started >= 10);
 }
 
 function aggregateLeaderboard(rows) {
@@ -11179,18 +11277,34 @@ async function renderHallOfFame() {
   hallPanelEl.hidden = gameType !== "hall";
   renderHallLoading();
   try {
-    const [scoreRows, challengeRows, normalRows, wordReportRows] = await Promise.all([
+    const [scoreRows, challengeRows, normalRows, wordReportRows, lectorRows] = await Promise.all([
       fetchOnlineLeaderboard(),
       fetchChallengeHistory(),
       fetchNormalStatsRows(),
-      fetchWordReportsRows()
+      fetchWordReportsRows(),
+      fetchLectorStatsRows()
     ]);
     const rows = Array.isArray(scoreRows) ? scoreRows : [];
     const leaderboard = aggregateLeaderboard(rows);
     const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
     const challengeLeaders = challengeStats(challengeRowsSafe);
     const normalLeaders = normalSuccessRows(Array.isArray(normalRows) ? normalRows : []);
-    const lectorLeaders = lectorStats(Array.isArray(wordReportRows) ? wordReportRows : []);
+    const localLector = loadLectorStats();
+    const onlineLectorRows = Array.isArray(lectorRows) ? lectorRows : [];
+    const localLectorName = loadPlayerName() || "Играч";
+    const hasOnlineLector = onlineLectorRows.some((row) => String(row.nickname || "").trim() === localLectorName);
+    const localLectorRows = localLector.total && !hasOnlineLector ? [{
+      nickname: localLectorName,
+      total: localLector.total,
+      add_count: localLector.add,
+      remove_count: localLector.remove,
+      updated_at: localLector.updated_at
+    }] : [];
+    const lectorLeaders = lectorStatsPersistent([
+      ...onlineLectorRows,
+      ...localLectorRows,
+      ...(Array.isArray(wordReportRows) ? wordReportRows : [])
+    ]);
     const playerRows = leaderboard.map((row) => row);
     const rawScores = rows.map((row) => ({
       nickname: (row.nickname || "Играч").trim() || "Играч",

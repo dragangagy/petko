@@ -274,7 +274,6 @@ body[data-friday="true"] .status-brand {
 }
 
 body[data-friday="true"] .status-logo {
-  content: url("petak-za-petka-logo.png");
   width: min(100%, 340px);
   height: 74px;
   justify-self: start;
