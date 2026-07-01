@@ -97,13 +97,6 @@ body[data-friday="true"] .app-logo {
   filter: drop-shadow(0 0 14px rgba(255, 215, 0, 0.42));
 }
 
-body[data-friday="true"] .brand-logo {
-  content: url("petak-za-petka-logo.png");
-  width: min(100%, 188px);
-  max-height: 72px;
-  filter: drop-shadow(0 0 14px rgba(255, 228, 92, 0.44)) drop-shadow(0 0 20px rgba(247, 183, 49, 0.2));
-}
-
 body[data-friday="true"] .tile.present,
 body[data-friday="true"] .key.present {
   box-shadow: 0 0 20px rgba(255, 215, 0, 0.56);
@@ -273,6 +266,23 @@ button {
   justify-self: start;
   border-radius: 0;
   filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.28)) drop-shadow(0 0 9px rgba(56, 189, 248, 0.18));
+}
+
+body[data-friday="true"] .status-brand {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 6px 10px;
+}
+
+body[data-friday="true"] .status-logo {
+  content: url("petak-za-petka-logo.png");
+  width: min(100%, 340px);
+  height: 74px;
+  justify-self: center;
+  filter: drop-shadow(0 0 14px rgba(255, 228, 92, 0.48)) drop-shadow(0 0 22px rgba(247, 183, 49, 0.22));
+}
+
+body[data-friday="true"] .status-signature {
+  display: none;
 }
 
 .status-signature {
