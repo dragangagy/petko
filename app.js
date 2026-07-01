@@ -8836,7 +8836,7 @@ function renderChallengePanel(text) {
   const showLobby = gameType === "challenge" && !challengeGameOpen();
   challengePanelEl.hidden = !showLobby;
   updateChallengeQuota();
-  const showCodeTools = showLobby && challengePlayerSelect?.value === "__new__";
+  const showCodeTools = false;
   const pendingCode = loadPendingChallengeCode();
   const active = loadActiveChallenge();
   if (challengeStatusEl) {
@@ -9007,7 +9007,7 @@ function challengeCard(row, rows = []) {
   } else if (challengeIsActive(row)) {
     title.textContent = `Изазов је прихваћен: ${creator} → ${opponent}`;
   } else if (role === "creator") {
-    title.textContent = openInvite ? "Упутили сте позивницу" : `Упутили сте изазов: ${opponent}`;
+    title.textContent = openInvite ? "Позван нови корисник" : `Упутили сте изазов: ${opponent}`;
   } else {
     title.textContent = `${creator} вас је позвао на изазов`;
   }
@@ -9038,6 +9038,15 @@ function challengeCard(row, rows = []) {
       accept.textContent = "Прихвати изазов";
       accept.addEventListener("click", () => acceptChallenge(row.code, { play: false }).catch(() => renderChallengePanel("Прихватање изазова није успело.")));
       actions.append(accept);
+    }
+    if (role === "creator" && openInvite && row.status === "pending") {
+      const share = document.createElement("button");
+      share.type = "button";
+      share.textContent = "Пошаљи линк";
+      share.addEventListener("click", () => {
+        shareChallenge(row.code).catch(() => renderChallengePanel(`Позивница ${row.code} је направљена. Копирај код или линк.`));
+      });
+      actions.append(share);
     }
     if (canPlay) {
       const play = document.createElement("button");
@@ -9168,9 +9177,9 @@ async function createChallenge() {
   let opponent = cleanChallengeName(challengePlayerSelect?.value || "");
   const shareAfterCreate = opponent === "__new__";
   if (opponent === "__new__") {
-    opponent = "Нови корисник";
+    opponent = "";
   }
-  if (!opponent) {
+  if (!opponent && !shareAfterCreate) {
     renderChallengePanel("Изабери учесника или унеси новог корисника.");
     return;
   }
@@ -9180,7 +9189,7 @@ async function createChallenge() {
   }
   const sentToday = await fetchSentChallengesToday();
   updateChallengeQuota(sentToday);
-  if (sentToday.length >= CHALLENGE_DAILY_LIMIT) {
+  if (!shareAfterCreate && sentToday.length >= CHALLENGE_DAILY_LIMIT) {
     renderChallengePanel("Данас сте већ послали 3 изазова.");
     return;
   }
@@ -9197,8 +9206,8 @@ async function createChallenge() {
       code,
       day: todayId(),
       creator: nickname,
-      creator_device: deviceId(),
-      opponent,
+      creator_device: shareAfterCreate ? null : deviceId(),
+      opponent: shareAfterCreate ? "Чека се" : opponent,
       status: "pending",
       words
     })
@@ -9216,12 +9225,14 @@ async function createChallenge() {
     day: todayId(),
     status: "pending",
     creator: nickname,
-    creator_device: deviceId(),
-    opponent,
+    creator_device: shareAfterCreate ? null : deviceId(),
+    opponent: shareAfterCreate ? "Чека се" : opponent,
     created_at: new Date().toISOString()
   }]);
   fetchChallengePlayers().then(renderChallengePlayers).catch(() => {});
-  if (shareAfterCreate) shareChallenge(code).catch(() => renderChallengePanel(`Позивница ${code} је направљена. Копирај код или линк.`));
+  if (shareAfterCreate) {
+    shareChallenge(code).catch(() => renderChallengePanel(`Позивница ${code} је направљена. Отвори жуту картицу и пошаљи линк.`));
+  }
 }
 
 async function supabaseErrorMessage(response, fallback) {
@@ -9473,6 +9484,10 @@ async function playerNameTaken(name) {
 async function savePlayerNameUnique(value) {
   const clean = normalizePlayerName(value);
   const previous = loadPlayerName();
+  if (previous && sameChallengeName(clean, previous)) {
+    if (playerNameInput) playerNameInput.value = previous;
+    return previous;
+  }
   if (await playerNameTaken(clean)) {
     if (playerNameInput) playerNameInput.value = previous;
     messageEl.textContent = `Надимак "${clean}" већ постоји. Изабери други.`;
@@ -11234,7 +11249,7 @@ if (shareButton) {
 
 if (createChallengeButton) {
   createChallengeButton.addEventListener("click", () => {
-    createChallenge().catch(() => renderChallengePanel("Слање изазова није успело."));
+    createChallenge().catch((error) => renderChallengePanel(error?.message || "Слање изазова није успело."));
   });
 }
 
@@ -11476,7 +11491,7 @@ setInterval(() => {
 }, 30000);
 
 const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
-  if (incomingChallengeCode) {
+if (incomingChallengeCode) {
   startGame("challenge");
   if (challengePlayerSelect) challengePlayerSelect.value = "__new__";
   if (challengePlayerButton) challengePlayerButton.textContent = "Нови корисник";
