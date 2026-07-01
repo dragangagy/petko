@@ -8611,11 +8611,10 @@ function challengePendingCountdownText(row) {
 
 function challengeRole(row) {
   const me = loadPlayerName();
-  const openInvite = isOpenChallengeOpponent(row?.opponent);
   if (row?.creator_device && row.creator_device === deviceId()) return "creator";
   if (row?.opponent_device && row.opponent_device === deviceId()) return "opponent";
   if (sameChallengeName(row?.opponent, me)) return "opponent";
-  if (!openInvite && sameChallengeName(row?.creator, me)) return "creator";
+  if (sameChallengeName(row?.creator, me)) return "creator";
   return "";
 }
 
@@ -9337,7 +9336,7 @@ async function createChallenge() {
       code,
       day: todayId(),
       creator: nickname,
-      creator_device: shareAfterCreate ? null : deviceId(),
+      creator_device: deviceId(),
       opponent: shareAfterCreate ? "Чека се" : opponent,
       status: "pending",
       words
@@ -9356,7 +9355,7 @@ async function createChallenge() {
     day: todayId(),
     status: "pending",
     creator: nickname,
-    creator_device: shareAfterCreate ? null : deviceId(),
+    creator_device: deviceId(),
     opponent: shareAfterCreate ? "Чека се" : opponent,
     created_at: new Date().toISOString()
   }]);
@@ -9497,6 +9496,10 @@ async function acceptChallenge(codeInput = "", options = {}) {
       return;
     }
     startChallengeGame(row, "creator");
+    return;
+  }
+  if (row.status === "pending" && sameChallengeName(row.creator, loadPlayerName())) {
+    renderChallengePanel("Ово је твоја позивница. Чека се да је прихвати други корисник.");
     return;
   }
   if (row.status === "pending") {
