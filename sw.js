@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache-v114";
+const CACHE_NAME = "petko-cache-v115";
 
 const ASSETS = [
   "./",
@@ -62,5 +62,20 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => caches.match(event.request))
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "./";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      const current = clientList.find((client) => "focus" in client);
+      if (current) {
+        current.focus();
+        return current.navigate ? current.navigate(url) : undefined;
+      }
+      return clients.openWindow ? clients.openWindow(url) : undefined;
+    })
   );
 });

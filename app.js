@@ -7851,6 +7851,7 @@ const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
 const USED_WORDS_KEY = "petko-used-words-v1";
+const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
   anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
@@ -8854,6 +8855,104 @@ function updateChallengeBadge(rows = []) {
   }
 }
 
+function notificationSeenIds() {
+  try {
+    const ids = JSON.parse(localStorage.getItem(NOTIFICATION_SEEN_KEY) || "[]");
+    return Array.isArray(ids) ? ids : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberNotification(id) {
+  const ids = notificationSeenIds().filter((item) => item !== id);
+  ids.unshift(id);
+  localStorage.setItem(NOTIFICATION_SEEN_KEY, JSON.stringify(ids.slice(0, 80)));
+}
+
+function notificationWasSeen(id) {
+  return notificationSeenIds().includes(id);
+}
+
+function notificationsReady() {
+  return "Notification" in window && Notification.permission === "granted";
+}
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window) || Notification.permission !== "default") return;
+  try {
+    await Notification.requestPermission();
+  } catch {}
+}
+
+async function petkoNotify(id, title, body, tag = id) {
+  if (!id || notificationWasSeen(id) || !notificationsReady()) return;
+  rememberNotification(id);
+  const options = {
+    body,
+    tag,
+    renotify: false,
+    icon: "app-icon.png",
+    badge: "logo-icon.png",
+    data: { url: window.location.href }
+  };
+  try {
+    const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (registration?.showNotification) {
+      await registration.showNotification(title, options);
+      return;
+    }
+    new Notification(title, options);
+  } catch {}
+}
+
+function notifyDailyEvents() {
+  if (isPetkoFriday()) {
+    petkoNotify(
+      `friday-${todayId()}`,
+      "Петак за Петка",
+      "Данас су такмичарски поени дупли, а 5 обичних победа доноси бонус.",
+      "petko-friday"
+    );
+  }
+  if (!todayLock()) {
+    petkoNotify(
+      `competitive-ready-${todayId()}`,
+      "Такмичарски је спреман",
+      "Данашњи турнир те чека. Један покушај дневно.",
+      "petko-competitive"
+    );
+  }
+}
+
+function notifyChallengeEvents(rows = []) {
+  challengeNotificationRows(rows).forEach((row) => {
+    if (!challengeCardVisible(row)) return;
+    const role = challengeRole(row);
+    const creator = row.creator || "Играч";
+    const opponent = row.opponent || "Играч";
+    const openInvite = isOpenChallengeOpponent(opponent);
+    const canAccept = row.status === "pending" && !row.opponent_device && (role !== "creator" || openInvite);
+    const canPlay = challengeIsActive(row) && role && !challengeAlreadyPlayed(row, role);
+
+    if (canAccept && role !== "creator") {
+      petkoNotify(
+        `challenge-invite-${row.code}-${row.updated_at || row.created_at || ""}`,
+        "Позив на изазов",
+        `${creator} те је позвао на изазов. Прихвати код ${row.code}.`,
+        `petko-challenge-${row.code}`
+      );
+    } else if (canPlay) {
+      petkoNotify(
+        `challenge-ready-${row.code}-${role}`,
+        "Изазов је активан",
+        `${creator} против ${opponent}. Можеш да играш или наставиш изазов.`,
+        `petko-challenge-${row.code}`
+      );
+    }
+  });
+}
+
 function challengeScoreValue(status) {
   const solvedCount = solvedAt.filter(Boolean).length;
   const unusedRows = status === "finished" ? unusedAttempts() : 0;
@@ -9099,6 +9198,7 @@ function renderChallengeHistoryCards(rows = []) {
   if (!challengeHistoryEl) return;
   challengeHistoryEl.innerHTML = "";
   updateChallengeBadge(rows);
+  notifyChallengeEvents(rows);
   updateChallengeQuota(sentChallengeRowsFromHistory(rows));
   const me = loadPlayerName();
   const typedCode = String(challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || "").trim().toUpperCase();
@@ -11363,6 +11463,12 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
+document.addEventListener("pointerdown", () => {
+  requestNotificationPermission().then(() => notifyDailyEvents());
+}, { once: true });
+
+setTimeout(notifyDailyEvents, 1200);
+
 function renderListing() {
   const results = loadResults();
   const finalResults = results.filter(isFinalResult);
@@ -11523,6 +11629,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 setInterval(updateCompetitiveCountdown, 1000);
+setInterval(notifyDailyEvents, 600000);
 setInterval(() => {
   if (gameType === "challenge" && !challengeGameOpen() && supabaseConfigured()) {
     refreshChallengeLobby().catch(() => {});
