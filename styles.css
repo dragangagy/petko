@@ -1056,6 +1056,19 @@ body[data-game-type="challenge"][data-challenge-finished="true"] .keyboard {
   gap: 6px;
 }
 
+.challenge-card-name {
+  grid-column: 1 / -1;
+  height: 34px;
+  min-width: 0;
+  border: 1px solid rgba(255, 215, 0, 0.42);
+  border-radius: 8px;
+  background: rgba(8, 13, 27, 0.5);
+  color: #ffffff;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .challenge-card-actions button,
 .challenge-card-waiting {
   height: 32px;
