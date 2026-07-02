@@ -1827,6 +1827,18 @@ body[data-game-type="challenge"] .solutions-panel {
   align-items: center;
 }
 
+.solutions-panel .solution-chip .mini-word-info,
+.board-card.collapsed .mini-word-info {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+  aspect-ratio: 1 / 1 !important;
+  justify-self: start;
+  align-self: center;
+  padding: 0;
+}
+
 .board-title {
   min-height: 15px;
   margin-bottom: 5px;
