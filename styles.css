@@ -1570,7 +1570,8 @@ body[data-game-type="challenge"] .solutions-panel {
 
 .solution-chip {
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -1581,6 +1582,17 @@ body[data-game-type="challenge"] .solutions-panel {
   font-weight: 950;
   text-align: center;
   letter-spacing: 0;
+}
+
+.solution-chip .mini-word {
+  width: 100%;
+}
+
+.solution-chip .mini-word-info {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  aspect-ratio: auto;
 }
 
 .solution-chip.solved {
