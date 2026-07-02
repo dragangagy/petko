@@ -8112,6 +8112,12 @@ const hallModalClose = document.querySelector("#hallModalClose");
 const shareButton = document.querySelector("#shareButton");
 const exitButton = document.querySelector("#exitButton");
 const nextLevelButton = document.querySelector("#nextLevelButton");
+const petkoSplash = document.querySelector("#petkoSplash");
+const petkoSplashImage = document.querySelector("#petkoSplashImage");
+const petkoSplashButton = document.querySelector("#petkoSplashButton");
+const petkoMood = document.querySelector("#petkoMood");
+const petkoMoodImage = document.querySelector("#petkoMoodImage");
+const petkoMoodText = document.querySelector("#petkoMoodText");
 const modeButtons = [...document.querySelectorAll(".mode-button")];
 const typeButtons = [...document.querySelectorAll(".type-button")];
 
@@ -8292,10 +8298,75 @@ function fridayBonusTotal(data = loadFridayBonus()) {
 function updateFridayTheme() {
   const friday = isPetkoFriday();
   document.body.dataset.friday = friday ? "true" : "false";
+  if (petkoSplashImage) {
+    petkoSplashImage.src = friday ? "petak-splash.png" : "petko-splash.png";
+    petkoSplashImage.alt = friday ? "Петак за Петка" : "Петко";
+  }
   if (statusLogoEl) {
     statusLogoEl.src = friday ? "petak-za-petka-logo.png" : "logo-cut.png";
     statusLogoEl.alt = friday ? "Petak za Petka" : "G-Lab";
   }
+}
+
+const PETKO_MOODS = {
+  hello: "2.png",
+  think: "5.png",
+  win: "1.png",
+  miss: "4.png",
+  laugh: "3.png",
+  oops: "4.png",
+  sad: "4.png",
+  cool: "1.png",
+  great: "3.png",
+  trophy: "3.png"
+};
+
+let petkoMoodTimer = null;
+let petkoMoodLastShownAt = 0;
+let petkoMoodQuietGuesses = 0;
+
+function showPetkoMood(mood = "hello", text = "Здраво!", duration = 1800, options = {}) {
+  if (!petkoMood || !petkoMoodImage || !petkoMoodText) return;
+  const now = Date.now();
+  if (!options.force && now - petkoMoodLastShownAt < (options.minGap || 5500)) return;
+  petkoMoodLastShownAt = now;
+  const src = PETKO_MOODS[mood] || PETKO_MOODS.hello;
+  const sideShift = options.sideShift ?? [-18, -8, 0, 10, 20][Math.floor(Math.random() * 5)];
+  petkoMood.style.setProperty("--petko-side-shift", `${sideShift}px`);
+  const centerShift = options.centerShift ?? [-42, -22, 0, 24, 44][Math.floor(Math.random() * 5)];
+  petkoMood.style.setProperty("--petko-center-shift", `${centerShift}px`);
+  petkoMoodImage.src = src;
+  petkoMoodText.textContent = text;
+  document.body.dataset.petkoMood = "true";
+  petkoMood.hidden = false;
+  petkoMood.classList.remove("showing");
+  void petkoMood.offsetWidth;
+  petkoMood.classList.add("showing");
+  clearTimeout(petkoMoodTimer);
+  petkoMoodTimer = setTimeout(() => {
+    petkoMood.hidden = true;
+    document.body.dataset.petkoMood = "false";
+  }, duration);
+}
+
+function maybeShowPetkoMood(mood, text, duration = 1600, options = {}) {
+  const chance = options.chance ?? 0.35;
+  const minGap = options.minGap ?? 9000;
+  if (Math.random() > chance) return;
+  showPetkoMood(mood, text, duration, { minGap });
+}
+
+function markQuietGuessForPetko() {
+  petkoMoodQuietGuesses += 1;
+  if (petkoMoodQuietGuesses >= 4) {
+    petkoMoodQuietGuesses = 0;
+    maybeShowPetkoMood("think", "Размисли... следећи покушај.", 1300, { chance: 0.5, minGap: 10000 });
+  }
+}
+
+function hidePetkoSplash() {
+  if (petkoSplash) petkoSplash.hidden = true;
+  showPetkoMood("hello", "Здраво! Погоди реч.", 1500, { force: true });
 }
 
 function fridayLabel() {
@@ -8773,7 +8844,7 @@ function clearActiveChallenge() {
   localStorage.removeItem(CHALLENGE_ACTIVE_KEY);
 }
 
-function loadSentChallengesToday() {
+function loadSentChallengeRowsToday() {
   try {
     const data = JSON.parse(localStorage.getItem(CHALLENGE_SENT_KEY) || "null");
     if (Array.isArray(data?.entries)) {
@@ -8783,13 +8854,40 @@ function loadSentChallengesToday() {
       }
       return active
         .filter((entry) => String(entry.day || entry.created_at || entry.sentAt || "").slice(0, 10) === todayId())
-        .map((entry) => entry.opponent || "");
+        .map((entry) => ({
+          code: entry.code || "",
+          day: entry.day || todayId(),
+          opponent: entry.opponent || "",
+          status: entry.status || "pending",
+          created_at: entry.created_at || entry.sentAt || new Date().toISOString(),
+          sentAt: entry.sentAt || entry.created_at || new Date().toISOString()
+        }));
     }
-    if (data?.date === todayId() && Array.isArray(data.opponents)) return data.opponents;
+    if (data?.date === todayId() && Array.isArray(data.opponents)) {
+      return data.opponents.map((opponent) => ({
+        day: todayId(),
+        opponent,
+        status: "pending",
+        created_at: new Date().toISOString(),
+        sentAt: new Date().toISOString()
+      }));
+    }
   } catch {
-    if (localStorage.getItem(CHALLENGE_SENT_KEY) === todayId()) return ["legacy"];
+    if (localStorage.getItem(CHALLENGE_SENT_KEY) === todayId()) {
+      return [{
+        day: todayId(),
+        opponent: "legacy",
+        status: "pending",
+        created_at: new Date().toISOString(),
+        sentAt: new Date().toISOString()
+      }];
+    }
   }
   return [];
+}
+
+function loadSentChallengesToday() {
+  return loadSentChallengeRowsToday().map((entry) => entry.opponent || "");
 }
 
 function markChallengeSentToday(opponent, row = null) {
@@ -8855,14 +8953,12 @@ function sentChallengeRowsFromHistory(rows = []) {
 
 function updateChallengeQuota(rows = null) {
   if (!challengeQuotaEl) return;
-  const count = Array.isArray(rows) ? dailyChallengeCount(rows) : loadSentChallengesToday().filter((opponent) => !isOpenChallengeOpponent(opponent)).length;
+  const count = Array.isArray(rows) ? dailyChallengeCount(rows) : dailyChallengeCount(loadSentChallengeRowsToday());
   challengeQuotaEl.textContent = `Изазови ${Math.min(count, CHALLENGE_DAILY_LIMIT)}/${CHALLENGE_DAILY_LIMIT}`;
 }
 
 async function fetchSentChallengesToday() {
-  const local = loadSentChallengesToday()
-    .filter((opponent) => !isOpenChallengeOpponent(opponent))
-    .map((opponent) => ({ opponent }));
+  const local = loadSentChallengeRowsToday().filter(challengeCountsForDailyLimit);
   if (!supabaseConfigured()) return local;
   const query = [
     "select=code,day,status,opponent,opponent_device,accepted_at,created_at",
@@ -9447,32 +9543,44 @@ async function createChallenge() {
     renderChallengePanel("Не можеш изазвати самог себе.");
     return;
   }
-  const sentToday = await fetchSentChallengesToday();
+  const sentToday = await fetchSentChallengesToday().catch(() => loadSentChallengeRowsToday());
   updateChallengeQuota(sentToday);
-  if (!shareAfterCreate && sentToday.length >= CHALLENGE_DAILY_LIMIT) {
+  const sentCount = dailyChallengeCount(sentToday);
+  if (!shareAfterCreate && sentCount >= CHALLENGE_DAILY_LIMIT) {
     renderChallengePanel("Данас сте већ послали 3 изазова.");
     return;
   }
-  if (!shareAfterCreate && sentToday.some((row) => sameChallengeName(row.opponent, opponent))) {
+  if (!shareAfterCreate && sentToday.some((row) => challengeCountsForDailyLimit(row) && sameChallengeName(row.opponent, opponent))) {
     renderChallengePanel("Ову особу сте већ изазвали данас.");
     return;
   }
   const code = challengeCode();
   const words = chooseTargets(CHALLENGE_WORDS);
-  const response = await fetch(supabaseUrl(challengeTable()), {
-    method: "POST",
-    headers: supabaseHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      code,
-      day: todayId(),
-      creator: nickname,
-      creator_device: deviceId(),
-      opponent: shareAfterCreate ? "Чека се" : opponent,
-      status: "pending",
-      words
-    })
-  });
-  if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није направљен."));
+  let response;
+  try {
+    response = await fetch(supabaseUrl(challengeTable()), {
+      method: "POST",
+      headers: supabaseHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        code,
+        day: todayId(),
+        creator: nickname,
+        creator_device: deviceId(),
+        opponent: shareAfterCreate ? "Чека се" : opponent,
+        status: "pending",
+        words
+      })
+    });
+  } catch {
+    updateChallengeQuota(sentToday);
+    renderChallengePanel("Слање изазова није успело. Покушај поново.");
+    return;
+  }
+  if (!response.ok) {
+    updateChallengeQuota(sentToday);
+    renderChallengePanel(await supabaseErrorMessage(response, "Изазов није направљен."));
+    return;
+  }
   const createdAt = new Date().toISOString();
   const localChallengeRow = {
     code,
@@ -9635,9 +9743,24 @@ async function acceptChallenge(codeInput = "", options = {}) {
     return;
   }
   if (row.status === "pending") {
-    const requestedName = cleanChallengeName(options.name || loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || "");
-    const acceptedName = await savePlayerNameUnique(requestedName || window.prompt("Унеси име или надимак за игру:", "") || "");
-    if (!acceptedName) return;
+    let requestedName = cleanChallengeName(options.name || loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || "");
+    if (!requestedName) {
+      requestedName = cleanChallengeName(window.prompt("Унеси име или надимак за игру:", "") || "");
+    }
+    if (!requestedName) {
+      renderChallengePanel("Унеси име или надимак за игру.");
+      return;
+    }
+    if (await playerNameTaken(requestedName)) {
+      renderChallengePanel(`Надимак "${requestedName}" већ постоји. Пробај други назив.`);
+      if (playerNameInput) playerNameInput.value = loadPlayerName();
+      return;
+    }
+    const acceptedName = await savePlayerNameUnique(requestedName);
+    if (!acceptedName) {
+      renderChallengePanel(`Надимак "${requestedName}" већ постоји. Пробај други назив.`);
+      return;
+    }
     await updateChallenge(code, {
       status: "accepted",
       opponent: isOpenChallengeOpponent(row.opponent) ? acceptedName : row.opponent,
@@ -10405,6 +10528,7 @@ function renderSolutionsPanel(show) {
 
 function closeWordModal() {
   if (wordModal) wordModal.hidden = true;
+  document.body.dataset.wordModalOpen = "false";
 }
 
 function setWordModalButtons(buttons) {
@@ -10431,6 +10555,7 @@ function showWordModal({ title, word, text, reviewText = "", buttons }) {
   }
   setWordModalButtons(buttons);
   wordModal.hidden = false;
+  document.body.dataset.wordModalOpen = "true";
 }
 
 function wordMeaningText(word) {
@@ -10568,6 +10693,7 @@ function pressKey(key) {
 function submitGuess() {
   if (current.length !== WORD_LENGTH) {
     messageEl.textContent = "Треба тачно 5 слова.";
+    showPetkoMood("oops", "Треба тачно 5 слова.", 1600, { force: true });
     return;
   }
 
@@ -10575,6 +10701,7 @@ function submitGuess() {
     const missingWord = current;
     current = "";
     messageEl.textContent = "Нема те речи.";
+    showPetkoMood("oops", "Хммм... нема те речи.", 1800, { force: true });
     showMissingWordReview(missingWord);
     render();
     saveNormalProgress();
@@ -10591,9 +10718,11 @@ function submitGuess() {
 
   const solvedCount = solvedAt.filter(Boolean).length;
   const allSolved = solvedCount === targets.length;
+  markQuietGuessForPetko();
 
   if (allSolved) {
     done = true;
+    petkoMoodQuietGuesses = 0;
     if (gameType === "competitive") {
       competitiveCompleted = Math.max(competitiveCompleted, competitiveLevelIndex + 1);
       applyLevelAward();
@@ -10607,13 +10736,16 @@ function submitGuess() {
       if (isFinalLevel) {
         finishCompetitive("finished");
       }
+      showPetkoMood(isFinalLevel ? "trophy" : "win", isFinalLevel ? "Браво, мајсторе!" : "Ниво решен!", 2200, { force: true });
       updateModeButtons();
     } else if (gameType === "challenge") {
+      showPetkoMood("trophy", "Изазов решен!", 2200, { force: true });
       finishChallenge("finished");
     } else {
       bumpNormalFinished();
       const fridayText = recordFridayNormalWin();
       messageEl.textContent = fridayText || "Погођено!";
+      showPetkoMood(fridayText ? "trophy" : "win", fridayText || "Погођено!", 2200, { force: true });
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
@@ -10621,15 +10753,19 @@ function submitGuess() {
     }
   } else if (guesses.length >= maxAttempts()) {
     done = true;
+    petkoMoodQuietGuesses = 0;
     if (gameType === "competitive") {
       applyFailurePenalty();
       renderSolutionsPanel(true);
       messageEl.textContent = finalMessage("failed");
+      showPetkoMood("sad", "Више среће сутра.", 2200, { force: true });
       finishCompetitive("failed");
     } else if (gameType === "challenge") {
+      showPetkoMood("miss", "Изазов је завршен.", 2200, { force: true });
       finishChallenge("failed");
     } else {
       messageEl.textContent = `Реч је била: ${displayWords(targets)}`;
+      showPetkoMood("miss", "Промашио! Пробај следећу.", 2200, { force: true });
       resetFridayNormalStreak();
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
@@ -11754,10 +11890,21 @@ function setHelpOpen(open) {
     });
   }
   helpModal.hidden = !open;
+  document.body.dataset.helpOpen = open ? "true" : "false";
 }
 
 if (helpButton) {
   helpButton.addEventListener("click", () => setHelpOpen(true));
+}
+
+if (petkoSplashButton) {
+  petkoSplashButton.addEventListener("click", hidePetkoSplash);
+}
+
+if (petkoSplash) {
+  petkoSplash.addEventListener("click", (event) => {
+    if (event.target === petkoSplash) hidePetkoSplash();
+  });
 }
 
 if (helpCloseButton) {

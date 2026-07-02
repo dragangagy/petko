@@ -10,9 +10,15 @@
     <link rel="manifest" href="manifest.webmanifest?v=103">
     <link rel="icon" href="app-icon.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon.png">
-    <link rel="stylesheet" href="styles.css?v=137">
+  <link rel="stylesheet" href="styles.css?v=145">
   </head>
   <body>
+    <div class="petko-splash" id="petkoSplash" role="dialog" aria-label="Петко" aria-modal="true">
+      <div class="petko-splash-card">
+        <img id="petkoSplashImage" src="petko-splash.png" alt="Петко">
+        <button id="petkoSplashButton" type="button">Играм</button>
+      </div>
+    </div>
     <main class="app-shell">
       <header class="topbar">
         <div class="left-actions">
@@ -131,6 +137,10 @@
 
       <div class="score-burst" id="scoreBurst" hidden></div>
     </main>
+    <div class="petko-mood" id="petkoMood" hidden aria-live="polite">
+      <img id="petkoMoodImage" src="petko-mood-hello.png" alt="">
+      <span id="petkoMoodText">Здраво!</span>
+    </div>
 
     <template id="boardTemplate">
       <article class="board-card">
@@ -219,6 +229,6 @@
       </article>
     </div>
 
-    <script src="app.js?v=137"></script>
+  <script src="app.js?v=145"></script>
   </body>
 </html>
