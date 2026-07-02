@@ -11230,11 +11230,10 @@ async function renderHallOfFame() {
   hallPanelEl.hidden = gameType !== "hall";
   renderHallLoading();
   try {
-    const [scoreRows, challengeRows, normalRows, wordReportRows, lectorRows] = await Promise.all([
+    const [scoreRows, challengeRows, normalRows, lectorRows] = await Promise.all([
       fetchOnlineLeaderboard(),
       fetchChallengeHistory(),
       fetchNormalStatsRows(),
-      fetchWordReportsRows(),
       fetchLectorStatsRows()
     ]);
     const rows = Array.isArray(scoreRows) ? scoreRows : [];
@@ -11255,8 +11254,7 @@ async function renderHallOfFame() {
     }] : [];
     const lectorLeaders = lectorStatsPersistent([
       ...onlineLectorRows,
-      ...localLectorRows,
-      ...(Array.isArray(wordReportRows) ? wordReportRows : [])
+      ...localLectorRows
     ]);
     const playerRows = leaderboard.map((row) => row);
     const rawScores = rows.map((row) => ({
