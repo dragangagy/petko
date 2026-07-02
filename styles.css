@@ -1494,6 +1494,10 @@ body[data-competitive-locked="true"] .next-button {
   background: #1e293b;
 }
 
+.boards.final-hidden {
+  display: none;
+}
+
 body[data-game-type="challenge"] .solutions-panel {
   margin-top: 6px;
   border-color: rgba(56, 189, 248, 0.24);
@@ -1566,7 +1570,11 @@ body[data-game-type="challenge"] .solutions-panel {
 
 .solution-chip {
   min-width: 0;
-  padding: 7px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
   border-radius: 8px;
   color: #ffffff;
   font-size: 13px;
@@ -1576,17 +1584,24 @@ body[data-game-type="challenge"] .solutions-panel {
 }
 
 .solution-chip.solved {
-  border: 1px solid rgba(22, 230, 138, 0.68);
-  background: var(--correct);
-  color: #04131e;
+  border: 0;
+  background: transparent;
+  color: inherit;
   box-shadow: 0 0 12px rgba(22, 230, 138, 0.18);
 }
 
 .solution-chip.unsolved {
-  border: 1px solid rgba(255, 77, 109, 0.68);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: 0 0 12px rgba(255, 77, 109, 0.14);
+}
+
+.solution-chip.unsolved .mini-word-tile {
+  border-color: rgba(239, 68, 68, 0.76);
   background: #ef4444;
   color: #ffffff;
-  box-shadow: 0 0 12px rgba(255, 77, 109, 0.14);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.16);
 }
 
 .listing-panel {

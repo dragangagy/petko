@@ -10410,6 +10410,7 @@ function renderBoards() {
   boardsEl.classList.toggle("collapsed-odd", collapsedCount % 2 === 1);
   boardsEl.classList.toggle("collapsed-side", collapsedSide);
   boardsEl.classList.toggle("challenge-finished", gameType === "challenge" && done);
+  boardsEl.classList.toggle("final-hidden", done && (gameType === "competitive" || gameType === "challenge"));
   if (collapsedStack) collapsedStack.className = "collapsed-stack";
 
   boardIndexes.forEach((boardIndex) => {
@@ -10488,7 +10489,21 @@ function renderSolutionsPanel(show) {
   targets.forEach((target, index) => {
     const chip = document.createElement("div");
     chip.className = `solution-chip ${solvedAt[index] ? "solved" : "unsolved"}`;
-    chip.textContent = displayWord(target);
+    const word = document.createElement("div");
+    word.className = "mini-word";
+    [...displayWord(target)].forEach((letter) => {
+      const tile = document.createElement("span");
+      tile.className = "mini-word-tile";
+      tile.textContent = letter;
+      word.append(tile);
+    });
+    const info = document.createElement("button");
+    info.className = "mini-word-info";
+    info.type = "button";
+    info.textContent = "?";
+    info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+    info.addEventListener("click", () => showExistingWordReview(target));
+    chip.append(word, info);
     solutionsPanelEl.append(chip);
   });
 }
@@ -10687,6 +10702,7 @@ function submitGuess() {
     if (gameType === "competitive") {
       competitiveCompleted = Math.max(competitiveCompleted, competitiveLevelIndex + 1);
       applyLevelAward();
+      renderSolutionsPanel(true);
       const isFinalLevel = competitiveLevelIndex === COMPETITIVE_LEVELS.length - 1;
       nextLevelButton.hidden = isFinalLevel;
       messageEl.textContent = isFinalLevel
