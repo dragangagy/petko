@@ -1822,7 +1822,7 @@ body[data-game-type="challenge"] .solutions-panel {
 
 .board-card.collapsed .board-title {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(28px, 1fr);
+  grid-template-columns: minmax(0, 1fr) 34px;
   gap: 5px;
   align-items: center;
 }
