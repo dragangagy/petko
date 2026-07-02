@@ -8886,6 +8886,15 @@ function clearActiveChallenge() {
 function loadSentChallengesToday() {
   try {
     const data = JSON.parse(localStorage.getItem(CHALLENGE_SENT_KEY) || "null");
+    if (Array.isArray(data?.entries)) {
+      const active = data.entries.filter(challengeSentEntryActive);
+      if (active.length !== data.entries.length) {
+        localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({ entries: active }));
+      }
+      return active
+        .filter((entry) => String(entry.day || entry.created_at || entry.sentAt || "").slice(0, 10) === todayId())
+        .map((entry) => entry.opponent || "");
+    }
     if (data?.date === todayId() && Array.isArray(data.opponents)) return data.opponents;
   } catch {
     if (localStorage.getItem(CHALLENGE_SENT_KEY) === todayId()) return ["legacy"];
@@ -8893,11 +8902,26 @@ function loadSentChallengesToday() {
   return [];
 }
 
-function markChallengeSentToday(opponent) {
-  const opponents = loadSentChallengesToday();
+function markChallengeSentToday(opponent, row = null) {
   if (!challengeCountsForDailyLimit({ opponent })) return;
-  opponents.push(opponent || "");
-  localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({ date: todayId(), opponents }));
+  let entries = [];
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_SENT_KEY) || "null");
+    entries = Array.isArray(data?.entries)
+      ? data.entries.filter(challengeSentEntryActive)
+      : loadSentChallengesToday().map((name) => ({ opponent: name, sentAt: new Date().toISOString(), status: "pending" }));
+  } catch {
+    entries = [];
+  }
+  entries.push({
+    code: row?.code || "",
+    day: row?.day || todayId(),
+    opponent: opponent || "",
+    status: row?.status || "pending",
+    created_at: row?.created_at || new Date().toISOString(),
+    sentAt: new Date().toISOString()
+  });
+  localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({ entries }));
 }
 
 function cleanChallengeName(value) {
@@ -8915,6 +8939,16 @@ function isOpenChallengeOpponent(value) {
 
 function challengeCountsForDailyLimit(row) {
   return !isOpenChallengeOpponent(row?.opponent) && !selfChallengeRow(row) && !challengePendingExpired(row);
+}
+
+function challengeSentEntryActive(entry) {
+  const created = Date.parse(entry?.created_at || entry?.sentAt || "");
+  if (!Number.isFinite(created)) return false;
+  const pendingUntil = created + CHALLENGE_PENDING_MS;
+  const activeUntil = created + CHALLENGE_ACTIVE_MS;
+  const status = entry?.status || "pending";
+  if (status === "accepted" || status === "played") return Date.now() < activeUntil;
+  return Date.now() < pendingUntil;
 }
 
 function dailyChallengeCount(rows = []) {
@@ -9544,22 +9578,24 @@ async function createChallenge() {
     })
   });
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није направљен."));
-  markChallengeSentToday(opponent);
-  updateChallengeQuota(shareAfterCreate ? sentToday : [...sentToday, { opponent }]);
-  savePendingChallengeCode(code);
-  if (challengeCodeInput) challengeCodeInput.value = code;
-  renderChallengePanel(shareAfterCreate
-    ? `Позивница ${code} је спремна. Пошаљи линк новом кориснику.`
-    : `Изазов ${code} за ${opponent} је послат. Картица је жута док не прихвати.`);
-  renderChallengeHistoryCards([{
+  const createdAt = new Date().toISOString();
+  const localChallengeRow = {
     code,
     day: todayId(),
     status: "pending",
     creator: nickname,
     creator_device: deviceId(),
-    opponent: shareAfterCreate ? "Чека се" : opponent,
-    created_at: new Date().toISOString()
-  }]);
+    opponent: shareAfterCreate ? "" : opponent,
+    created_at: createdAt
+  };
+  markChallengeSentToday(opponent, localChallengeRow);
+  updateChallengeQuota(shareAfterCreate ? sentToday : [...sentToday, localChallengeRow]);
+  savePendingChallengeCode(code);
+  if (challengeCodeInput) challengeCodeInput.value = code;
+  renderChallengePanel(shareAfterCreate
+    ? `Позивница ${code} је спремна. Пошаљи линк новом кориснику.`
+    : `Изазов ${code} за ${opponent} је послат. Картица је жута док не прихвати.`);
+  renderChallengeHistoryCards([localChallengeRow]);
   fetchChallengePlayers().then(renderChallengePlayers).catch(() => {});
   if (shareAfterCreate) {
     shareChallenge(code).catch(() => renderChallengePanel(`Позивница ${code} је направљена. Отвори жуту картицу и пошаљи линк.`));
