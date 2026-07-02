@@ -2119,6 +2119,12 @@ body[data-game-type="competitive"][data-competitive-locked="true"] .listing-pane
   border-color: transparent;
 }
 
+body[data-friday="true"] .tile.correct,
+body[data-friday="true"] .tile.present,
+body[data-friday="true"] .tile.absent {
+  border-color: rgba(255, 228, 92, 0.88);
+}
+
 .tile.correct {
   background: var(--correct);
   color: #06130d;

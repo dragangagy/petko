@@ -8327,6 +8327,7 @@ let petkoMoodQuietGuesses = 0;
 
 function showPetkoMood(mood = "hello", text = "Здраво!", duration = 1800, options = {}) {
   if (!petkoMood || !petkoMoodImage || !petkoMoodText) return;
+  const visibleDuration = Math.max(duration, 2000);
   const now = Date.now();
   if (!options.force && now - petkoMoodLastShownAt < (options.minGap || 5500)) return;
   petkoMoodLastShownAt = now;
@@ -8346,7 +8347,7 @@ function showPetkoMood(mood = "hello", text = "Здраво!", duration = 1800, 
   petkoMoodTimer = setTimeout(() => {
     petkoMood.hidden = true;
     document.body.dataset.petkoMood = "false";
-  }, duration);
+  }, visibleDuration);
 }
 
 function maybeShowPetkoMood(mood, text, duration = 1600, options = {}) {
