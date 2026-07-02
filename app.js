@@ -9069,6 +9069,7 @@ function challengeNotificationRows(rows = []) {
   return rows.filter((row) => {
     if (playedChallenge(row)) return false;
     if (selfChallengeRow(row)) return false;
+    if (!challengeCardVisible(row)) return false;
     const mineByDevice = row.creator_device === deviceId() || row.opponent_device === deviceId();
     const mineByName = me && (sameChallengeName(row.opponent, me) || sameChallengeName(row.creator, me));
     return mineByDevice || mineByName;
