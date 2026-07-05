@@ -575,10 +575,10 @@ body[data-game-type="normal"] .status-panel p {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-rows: 34px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
-  gap: 5px;
-  padding: 7px 6px;
+  gap: 3px;
+  padding: 5px 6px 6px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -592,17 +592,22 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .status-profile-button .profile-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  font-size: 18px;
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  font-size: 24px;
 }
 
 .status-profile-button .profile-name {
   width: 100%;
-  font-size: 12px;
+  min-height: 14px;
+  overflow: hidden;
+  font-size: 11px;
   font-weight: 950;
+  line-height: 1.05;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-profile-button.profile-hint {
@@ -836,7 +841,9 @@ body[data-game-type="normal"] .status-panel p {
 .profile-card {
   position: relative;
   width: min(360px, 92vw);
+  min-height: min(520px, calc(100vh - 36px));
   display: grid;
+  grid-template-rows: auto minmax(190px, 1fr) auto auto auto auto;
   justify-items: center;
   gap: 12px;
   padding: 18px;
@@ -869,21 +876,21 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .profile-avatar-large {
-  width: 96px;
-  height: 96px;
+  width: min(250px, 74vw);
+  height: clamp(190px, 42vh, 290px);
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 215, 0, 0.4);
-  border-radius: 20px;
+  border-radius: 24px;
   background: rgba(30, 41, 59, 0.72);
   box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.06), 0 0 20px rgba(56, 189, 248, 0.16);
 }
 
 .profile-avatar-large .profile-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
-  font-size: 25px;
+  width: min(190px, 58vw);
+  height: min(190px, 58vw);
+  border-radius: 34px;
+  font-size: clamp(42px, 15vw, 76px);
 }
 
 .profile-name-row {
@@ -914,6 +921,46 @@ body[data-game-type="normal"] .status-panel p {
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
   font-weight: 900;
+}
+
+.profile-link-code {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.58);
+}
+
+.profile-link-code span {
+  grid-column: 1 / -1;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.profile-link-code strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: 1px;
+  text-overflow: ellipsis;
+}
+
+.profile-link-code button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 215, 0, 0.36);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 950;
 }
 
 .profile-edit-row {

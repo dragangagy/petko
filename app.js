@@ -8885,6 +8885,8 @@ const profileEditRow = document.querySelector("#profileEditRow");
 const profileNameInput = document.querySelector("#profileNameInput");
 const profileSaveNameButton = document.querySelector("#profileSaveNameButton");
 const profileCancelNameButton = document.querySelector("#profileCancelNameButton");
+const profileLinkCode = document.querySelector("#profileLinkCode");
+const profileCopyCodeButton = document.querySelector("#profileCopyCodeButton");
 const profileAvatarMenu = document.querySelector("#profileAvatarMenu");
 const profileAvatarGrid = document.querySelector("#profileAvatarGrid");
 const profileMessage = document.querySelector("#profileMessage");
@@ -10910,6 +10912,7 @@ function renderProfileModal() {
   renderAvatarText(profileModalAvatar, name);
   if (profileModalName) profileModalName.textContent = name;
   if (profileNameInput) profileNameInput.value = name;
+  if (profileLinkCode) profileLinkCode.textContent = profileConnectionCode();
   const activeGroup = profileAvatarTabs.find((tab) => tab.classList.contains("active"))?.dataset.avatarTab || "male";
   renderProfileAvatarGrid(activeGroup);
 }
@@ -11134,6 +11137,10 @@ function deviceId() {
   id = crypto.randomUUID ? crypto.randomUUID() : `d-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   localStorage.setItem(DEVICE_ID_KEY, id);
   return id;
+}
+
+function profileConnectionCode() {
+  return `PK-${deviceId().replace(/[^a-z0-9]/gi, "").slice(0, 10).toUpperCase()}`;
 }
 
 function dayNumber(dateText) {
@@ -12953,6 +12960,15 @@ if (profileCancelNameButton) {
     setProfileEditMode(false);
     renderProfileModal();
     setProfileMessage("");
+  });
+}
+
+if (profileCopyCodeButton) {
+  profileCopyCodeButton.addEventListener("click", () => {
+    const code = profileConnectionCode();
+    navigator.clipboard?.writeText(code)
+      .then(() => setProfileMessage("Код је копиран."))
+      .catch(() => setProfileMessage(`Код: ${code}`));
   });
 }
 
