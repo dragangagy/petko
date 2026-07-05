@@ -8887,6 +8887,8 @@ const profileSaveNameButton = document.querySelector("#profileSaveNameButton");
 const profileCancelNameButton = document.querySelector("#profileCancelNameButton");
 const profileLinkCode = document.querySelector("#profileLinkCode");
 const profileCopyCodeButton = document.querySelector("#profileCopyCodeButton");
+const profileConnectInput = document.querySelector("#profileConnectInput");
+const profileConnectButton = document.querySelector("#profileConnectButton");
 const profileAvatarMenu = document.querySelector("#profileAvatarMenu");
 const profileAvatarGrid = document.querySelector("#profileAvatarGrid");
 const profileMessage = document.querySelector("#profileMessage");
@@ -11055,7 +11057,7 @@ async function editChallengePlayerName() {
 async function fetchPlayerRows() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=nickname,created_at",
+    "select=nickname,created_at,device_id",
     "order=nickname.asc",
     "limit=1000"
   ].join("&");
@@ -11081,6 +11083,19 @@ async function registerPlayerName(name) {
   if (response.ok) return true;
   if (response.status === 409) return false;
   return null;
+}
+
+async function syncCurrentPlayerDevice() {
+  if (!supabaseConfigured()) return false;
+  const name = normalizePlayerName(loadPlayerName() || "");
+  if (!name) return false;
+  const registered = await registerPlayerName(name).catch(() => null);
+  if (registered === true) return true;
+  if (registered === false) {
+    const encodedName = encodeURIComponent(name);
+    return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, { device_id: deviceId() });
+  }
+  return false;
 }
 
 async function playerNameTaken(name) {
@@ -11140,7 +11155,13 @@ function deviceId() {
 }
 
 function profileConnectionCode() {
-  return `PK-${deviceId().replace(/[^a-z0-9]/gi, "").slice(0, 10).toUpperCase()}`;
+  return `PK-${deviceId().toUpperCase()}`;
+}
+
+function parseProfileConnectionCode(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.replace(/^PK[-\s]*/i, "").trim().toLowerCase();
 }
 
 function dayNumber(dateText) {
@@ -12964,11 +12985,27 @@ if (profileCancelNameButton) {
 }
 
 if (profileCopyCodeButton) {
-  profileCopyCodeButton.addEventListener("click", () => {
+  profileCopyCodeButton.addEventListener("click", async () => {
+    await syncCurrentPlayerDevice().catch(() => false);
     const code = profileConnectionCode();
     navigator.clipboard?.writeText(code)
       .then(() => setProfileMessage("Код је копиран."))
       .catch(() => setProfileMessage(`Код: ${code}`));
+  });
+}
+
+if (profileConnectButton) {
+  profileConnectButton.addEventListener("click", () => {
+    connectProfileByCode().catch(() => setProfileMessage("Повезивање тренутно није успело."));
+  });
+}
+
+if (profileConnectInput) {
+  profileConnectInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      connectProfileByCode().catch(() => setProfileMessage("Повезивање тренутно није успело."));
+    }
   });
 }
 
@@ -13187,6 +13224,50 @@ async function recoverExistingPlayerProfile(name) {
   setProfileMessage(restored ? "Профил и скор су враћени из online базе." : "Профил је повезан са online надимком.");
   refreshOnlineLeaderboard();
   return true;
+}
+
+async function fetchPlayerByDeviceId(targetDeviceId) {
+  if (!supabaseConfigured() || !targetDeviceId) return null;
+  const query = [
+    "select=nickname,device_id",
+    `device_id=eq.${encodeURIComponent(targetDeviceId)}`,
+    "limit=1"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return null;
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+async function connectProfileByCode() {
+  const targetDeviceId = parseProfileConnectionCode(profileConnectInput?.value || "");
+  if (!targetDeviceId) {
+    setProfileMessage("Унеси код за повезивање.");
+    return;
+  }
+  if (targetDeviceId === deviceId().toLowerCase()) {
+    setProfileMessage("Ово је већ код овог профила.");
+    return;
+  }
+  const row = await fetchPlayerByDeviceId(targetDeviceId);
+  const nickname = normalizePlayerName(row?.nickname || "");
+  if (!nickname) {
+    setProfileMessage("Код није пронађен. Провери да ли је добро копиран.");
+    return;
+  }
+  localStorage.setItem(DEVICE_ID_KEY, targetDeviceId);
+  savePlayerName(nickname);
+  updateChallengePlayerName();
+  const onlineRows = await fetchOnlineLeaderboard().catch(() => []);
+  const restored = restoreLocalResultsFromOnline(onlineRows, nickname);
+  renderProfileModal();
+  setProfileEditMode(false);
+  if (profileConnectInput) profileConnectInput.value = "";
+  setProfileMessage(restored ? "Профил и скор су повезани." : "Профил је повезан.");
+  refreshChallengePanel();
+  refreshOnlineLeaderboard();
 }
 
 function refreshOnlineLeaderboard() {
