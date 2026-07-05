@@ -21,7 +21,6 @@ const WORDS = [
   "амиго",
   "амосе",
   "ангие",
-  "андја",
   "андре",
   "анита",
   "апаца",
@@ -50,9 +49,6 @@ const WORDS = [
   "бандо",
   "барта",
   "барте",
-  "баста",
-  "басте",
-  "бацац",
   "бацач",
   "башта",
   "баште",
@@ -69,8 +65,6 @@ const WORDS = [
   "берзе",
   "берта",
   "берте",
-  "бивса",
-  "бивсе",
   "бивша",
   "бивше",
   "биемо",
@@ -79,7 +73,6 @@ const WORDS = [
   "бисмо",
   "бисте",
   "бјеже",
-  "бјезе",
   "блага",
   "благе",
   "благо",
@@ -93,16 +86,12 @@ const WORDS = [
   "ближа",
   "ближе",
   "близа",
-  "близе",
   "блуза",
   "блузе",
   "богме",
   "бодље",
   "божја",
   "божје",
-  "бозја",
-  "бозје",
-  "боије",
   "бојде",
   "бојте",
   "бокса",
@@ -124,9 +113,6 @@ const WORDS = [
   "брате",
   "браћа",
   "браћо",
-  "браца",
-  "браце",
-  "брацо",
   "брбља",
   "брега",
   "бреда",
@@ -136,7 +122,6 @@ const WORDS = [
   "брига",
   "бриге",
   "брије",
-  "брисе",
   "брише",
   "брода",
   "броја",
@@ -161,8 +146,6 @@ const WORDS = [
   "ведро",
   "вежба",
   "вежбе",
-  "везба",
-  "везбе",
   "вејда",
   "вејде",
   "велик",
@@ -174,9 +157,7 @@ const WORDS = [
   "веома",
   "вепра",
   "верде",
-  "веруе",
   "веста",
-  "весто",
   "ветра",
   "вешта",
   "вешто",
@@ -201,7 +182,6 @@ const WORDS = [
   "владе",
   "вожња",
   "вожње",
-  "возац",
   "возач",
   "волта",
   "волте",
@@ -210,27 +190,20 @@ const WORDS = [
   "врата",
   "врате",
   "враћа",
-  "враца",
   "врача",
   "вреба",
-  "вреда",
   "вреде",
   "вређа",
   "време",
   "врећа",
   "вреће",
   "врећо",
-  "вреца",
-  "вреце",
-  "врецо",
   "врпца",
   "врпце",
   "врста",
   "врсте",
   "врућа",
   "вруће",
-  "вруца",
-  "вруце",
   "газда",
   "газде",
   "гајба",
@@ -239,7 +212,6 @@ const WORDS = [
   "гарде",
   "гарза",
   "гвидо",
-  "гдица",
   "гдице",
   "гђица",
   "гђице",
@@ -271,7 +243,6 @@ const WORDS = [
   "госпо",
   "госта",
   "госте",
-  "госца",
   "гошћа",
   "града",
   "граде",
@@ -286,7 +257,6 @@ const WORDS = [
   "греда",
   "греде",
   "греје",
-  "гресе",
   "грета",
   "греха",
   "грехе",
@@ -331,25 +301,8 @@ const WORDS = [
   "делта",
   "делуе",
   "дерик",
-  "децја",
-  "децје",
   "дечја",
   "дечје",
-  "дзаба",
-  "дзабе",
-  "дзафа",
-  "дзеза",
-  "дзеја",
-  "дзеје",
-  "дзема",
-  "дзепа",
-  "дзефа",
-  "дзефе",
-  "дзима",
-  "дзиме",
-  "дзипа",
-  "дзоса",
-  "дзосе",
   "дивља",
   "дивље",
   "диега",
@@ -364,7 +317,6 @@ const WORDS = [
   "додир",
   "донор",
   "допре",
-  "дорде",
   "досје",
   "доспе",
   "доста",
@@ -374,13 +326,10 @@ const WORDS = [
   "драго",
   "дража",
   "драже",
-  "драза",
-  "дразе",
   "драма",
   "драме",
   "дрвце",
   "држач",
-  "дрзац",
   "дрога",
   "дроге",
   "дроља",
@@ -390,12 +339,10 @@ const WORDS = [
   "друге",
   "друго",
   "друже",
-  "друзе",
   "дрхте",
   "дубља",
   "дубље",
   "дубоа",
-  "дубре",
   "дугме",
   "дуњац",
   "ђечја",
@@ -431,30 +378,22 @@ const WORDS = [
   "жудње",
   "журба",
   "журбе",
-  "забац",
   "задња",
   "задње",
-  "залба",
-  "залбе",
   "залто",
   "заљто",
   "заспе",
-  "заста",
-  "засто",
   "зашта",
   "зашто",
   "збиља",
   "звање",
   "звасе",
-  "зваце",
   "зваше",
-  "звуце",
   "звуче",
   "здање",
   "зебра",
   "зебре",
   "зелда",
-  "зелеа",
   "земља",
   "земље",
   "земљо",
@@ -748,7 +687,6 @@ const WORDS = [
   "нокте",
   "норма",
   "норме",
-  "носац",
   "носач",
   "нужде",
   "обара",
@@ -1344,9 +1282,7 @@ const WORDS = [
   "цвета",
   "цвећа",
   "цвеће",
-  "цвора",
   "цента",
-  "ципса",
   "циста",
   "цисте",
   "цифра",
@@ -7269,6 +7205,7 @@ const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
 const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
+const WORD_DECK_KEY = "petko-word-deck-v1";
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
@@ -7458,9 +7395,7 @@ const WORD_INFO = {
   "цвета": "Облик речи цвет или глагола цветати.",
   "цвећа": "Облик речи цвеће; цветови као целина.",
   "цвеће": "Скуп цветова или украсне биљке.",
-  "цвора": "Облик речи чвор у ошишаном запису или регионалном облику; везано место на нити.",
   "цента": "Облик речи цент; стоти део новчане јединице.",
-  "ципса": "Облик речи чипс у ошишаном запису; грицкалица од кромпира.",
   "циста": "Мехураста патолошка творевина у ткиву.",
   "цисте": "Множина или падежни облик речи циста.",
   "цифра": "Бројчани знак или износ.",
@@ -7920,7 +7855,6 @@ const WORD_INFO = {
   "нокте": "Множина или падежни облик речи нокат.",
   "норма": "Правило, мера, стандард или уобичајена вредност.",
   "норме": "Множина или падежни облик речи норма.",
-  "носац": "Запис речи носач без слова ч; онај који носи.",
   "носач": "Онај који носи или део који нешто држи.",
   "нужде": "Множина или падежни облик речи нужда; потреба или невоља.",
   "обара": "Облик глагола обарати; руши, спушта или побеђује.",
@@ -8238,20 +8172,16 @@ const WORD_INFO = {
   "додир": "Лаган контакт руком, предметом или површином.",
   "донор": "Особа која даје крв, орган, новац или нешто друго за помоћ.",
   "допре": "Облик глагола допрети; стигне до некога или нечега.",
-  "дорде": "Запис имена Ђорђе без слова ђ; у бази је варијанта имена.",
   "досје": "Скуп докумената или података о некој особи, предмету или случају.",
   "доспе": "Облик глагола доспети; стигне или дође на ред.",
   "доуга": "Страни запис или име; у бази се третира као посебан запис.",
   "драге": "Множина или падежни облик речи драг.",
   "дража": "Женски облик речи дражи; милија или привлачнија.",
   "драже": "Оно што је милије, пријатније или више вољено.",
-  "драза": "Запис речи дража без слова ж.",
-  "дразе": "Запис речи драже без слова ж.",
   "драма": "Књижевно или сценско дело; у говору и напета ситуација.",
   "драме": "Множина или падежни облик речи драма.",
   "дрвце": "Мало дрво или комад дрвета.",
   "држач": "Предмет који нешто држи, носи или причвршћује.",
-  "дрзац": "Запис речи држач без слова ж/ч.",
   "дрога": "Опојна супстанца; може означавати и лек у ширем значењу.",
   "дроге": "Множина или падежни облик речи дрога.",
   "дроља": "Погрдан и увредљив назив за жену; реч грубог стила.",
@@ -8259,12 +8189,10 @@ const WORD_INFO = {
   "дрољо": "Вокатив речи дроља; грубо и увредљиво обраћање.",
   "друга": "Женски облик речи други; може значити и пријатељица.",
   "друже": "Вокатив речи друг; пријатељско обраћање.",
-  "друзе": "Запис речи друже без слова ж.",
   "дрхте": "Облик глагола дрхтати; тресу се од хладноће, страха или узбуђења.",
   "дубља": "Женски облик речи дубљи; она која има већу дубину.",
   "дубље": "На већој дубини или у већој мери.",
   "дубоа": "Презиме или страни назив Dubois; у бази је посебан запис.",
-  "дубре": "Запис речи ђубре без слова ђ; отпад или увреда.",
   "дугме": "Мали предмет за закопчавање или тастер на уређају.",
   "ђечја": "Ијекавски облик речи дечја; оно што припада деци.",
   "ђечје": "Ијекавски облик речи дечје.",
@@ -8299,29 +8227,21 @@ const WORD_INFO = {
   "жудње": "Множина или падежни облик речи жудња.",
   "журба": "Хитња, пожуривање или брзо кретање због недостатка времена.",
   "журбе": "Множина или падежни облик речи журба.",
-  "забац": "Запис речи жабац без слова ж или облик глагола забацити.",
   "задња": "Женски облик речи задњи; последња или она која је позади.",
   "задње": "Средњи род или множина речи задњи; оно што је позади или последње.",
-  "залба": "Запис речи жалба без слова ж.",
-  "залбе": "Запис речи жалбе без слова ж.",
   "залто": "Погрешан или разговорни запис речи зашто.",
   "заљто": "Погрешан запис речи зашто.",
   "заспе": "Облик глагола заспати; утоне у сан.",
-  "заста": "Запис речи зашта или заста; у бази је варијанта записа.",
-  "засто": "Запис речи зашто без слова ш.",
   "зашта": "Упитна реч која значи за коју сврху или због чега.",
   "збиља": "Истина, стварност; такође значи озбиљно.",
   "звање": "Назив занимања, титуле или положаја.",
   "звасе": "Архаичан или дијалекатски облик који значи зваше се.",
-  "зваце": "Запис речи зваће без слова ћ.",
   "зваше": "Архаичан облик глагола звати; звао је или називао.",
-  "звуце": "Запис речи звуче без слова ч.",
   "звуче": "Облик глагола звучати; производе утисак или звук.",
   "здање": "Већа зграда или грађевина.",
   "зебра": "Афричка животиња са црно-белим пругама.",
   "зебре": "Множина или падежни облик речи зебра.",
   "зелда": "Женско име; познато и као име из поп културе.",
-  "зелеа": "Облик речи желе без слова ж; желатинаста маса.",
   "земља": "Планета на којој живимо; тло, држава или земљиште.",
   "земље": "Множина или падежни облик речи земља.",
   "горња": "Женски облик речи горњи; она која је изнад или на вишем месту.",
@@ -8331,7 +8251,6 @@ const WORD_INFO = {
   "госпо": "Вокатив речи госпа; обраћање жени.",
   "госта": "Облик речи гост; особа која је дошла у посету.",
   "госте": "Множина или падежни облик речи гост.",
-  "госца": "Запис речи гошћа без слова ш/ћ; женска особа у посети.",
   "гошћа": "Жена која је дошла у посету или борави као гост.",
   "града": "Облик речи град; насеље или ледена падавина.",
   "граде": "Облик речи град или глагола градити; они граде.",
@@ -8344,7 +8263,6 @@ const WORD_INFO = {
   "греда": "Дугачки носећи комад дрвета, метала или бетона.",
   "греде": "Множина или падежни облик речи греда.",
   "греје": "Облик глагола грејати; даје топлоту.",
-  "гресе": "Запис речи греше без слова ш; праве грешку.",
   "грета": "Женско име.",
   "греха": "Облик речи грех; поступак који се сматра морално лошим.",
   "грехе": "Множина или падежни облик речи грех.",
@@ -8386,25 +8304,8 @@ const WORD_INFO = {
   "делта": "Четврто слово грчког алфабета; ушће реке разгранато у више рукаваца.",
   "делуе": "Запис који личи на облик глагола деловати; у бази је варијанта.",
   "дерик": "Мушко име, варијанта имена Дерек.",
-  "децја": "Запис речи дечја без слова ч; оно што припада деци.",
-  "децје": "Запис речи дечје без слова ч.",
   "дечја": "Женски облик придева дечји; оно што припада деци.",
   "дечје": "Средњи род или множина придева дечји.",
-  "дзаба": "Запис речи џаба без слова џ; узалуд или бесплатно.",
-  "дзабе": "Запис речи џабе без слова џ; узалуд, бесплатно.",
-  "дзафа": "Запис имена или речи са џ; у бази је варијанта записа.",
-  "дзеза": "Запис речи џеза без слова џ; облик речи џез.",
-  "дзеја": "Запис имена Џеј или Џеја без слова џ.",
-  "дзеје": "Облик имена Џеј/Џеја без слова џ.",
-  "дзема": "Запис речи џем без слова џ; слатки намаз од воћа.",
-  "дзепа": "Запис речи џеп без слова џ; облик речи џеп.",
-  "дзефа": "Запис имена Џеф без слова џ.",
-  "дзефе": "Облик имена Џеф без слова џ.",
-  "дзима": "Запис имена Џим без слова џ.",
-  "дзиме": "Облик имена Џим без слова џ.",
-  "дзипа": "Запис речи џип без слова џ; теренско возило.",
-  "дзоса": "Запис имена Џош без слова џ.",
-  "дзосе": "Облик имена Џош без слова џ.",
   "дивља": "Женски облик речи дивљи; неукроћена, природна или необуздана.",
   "дивље": "Средњи род или множина речи дивљи; неукроћено или природно.",
   "диега": "Облик имена Диего.",
@@ -8419,9 +8320,7 @@ const WORD_INFO = {
   "венча": "Облик глагола венчати; спаја у брак.",
   "вепра": "Облик речи вепар; мужјак дивље свиње.",
   "верде": "Страна реч за зелено или део имена/назива; у бази је посебан запис.",
-  "веруе": "Запис који личи на облик глагола веровати; у бази је варијанта записа.",
   "веста": "Плетени или ткани одевни предмет који се носи преко кошуље.",
-  "весто": "Облик који личи на реч вешто без слова ш; значи спретно или умешно.",
   "ветра": "Облик речи ветар; кретање ваздуха.",
   "вешта": "Женски облик речи вешт; спретна, умешна.",
   "вешто": "На спретан, умешан или сналажљив начин.",
@@ -8444,7 +8343,6 @@ const WORD_INFO = {
   "владе": "Облик речи влада или имена Владо.",
   "вожња": "Кретање превозним средством или управљање њим.",
   "вожње": "Множина или падежни облик речи вожња.",
-  "возац": "Запис речи возач без слова ч; онај који управља возилом.",
   "возач": "Особа која управља возилом.",
   "волта": "Облик речи волт; јединица за електрични напон.",
   "волте": "Множина или падежни облик речи волт.",
@@ -8452,26 +8350,19 @@ const WORD_INFO = {
   "врага": "Облик речи враг; ђаво, невоља или израз љутње.",
   "врате": "Облик глагола вратити; они или ви нешто враћате.",
   "враћа": "Облик глагола враћати; он или она враћа.",
-  "враца": "Запис речи враћа без слова ћ.",
   "врача": "Облик речи врач; особа којој се приписује врачање.",
   "вреба": "Облик глагола вребати; чека прилику, посматра из заседе.",
-  "вреда": "Запис речи вређа без слова ђ или облик речи вредност у старом запису.",
   "вреде": "Облик глагола вредети; имају вредност.",
   "вређа": "Облик глагола вређати; наноси увреду.",
   "врећа": "Велика торба од тканине, папира или пластике за ношење ствари.",
   "вреће": "Множина или падежни облик речи врећа.",
   "врећо": "Вокатив речи врећа; обраћање у разговорном или шаљивом тону.",
-  "вреца": "Запис речи врећа без слова ћ.",
-  "вреце": "Запис речи вреће без слова ћ.",
-  "врецо": "Запис речи врећо без слова ћ.",
   "врпца": "Уска трака од тканине, коже или другог материјала.",
   "врпце": "Множина или падежни облик речи врпца.",
   "врста": "Група ствари или бића са истим особинама; тип или категорија.",
   "врсте": "Множина или падежни облик речи врста.",
   "врућа": "Женски облик речи врућ; топла, загрејана.",
   "вруће": "Средњи род или прилошки облик речи врућ; јако топло.",
-  "вруца": "Запис речи врућа без слова ћ.",
-  "вруце": "Запис речи вруће без слова ћ.",
   "газда": "Власник, домаћин или особа која руководи послом.",
   "газде": "Множина или падежни облик речи газда.",
   "гајба": "Дрвена, пластична или метална кутија за ношење робе; разговорно и стан.",
@@ -8479,7 +8370,6 @@ const WORD_INFO = {
   "гарде": "Множина или падежни облик речи гарда.",
   "гарза": "Реч страног порекла или име; у бази се третира као посебан запис.",
   "гвидо": "Мушко име италијанског порекла.",
-  "гдица": "Скраћеница или облик речи госпођица без слова ђ.",
   "гдице": "Облик речи гдица; скраћено од госпођице.",
   "гђица": "Скраћено од госпођица.",
   "гђице": "Облик речи гђица; обраћање или падежни облик.",
@@ -8508,7 +8398,6 @@ const WORD_INFO = {
   "бинго": "Игра на срећу; у говору значи и погодак или тачан избор.",
   "бироа": "Облик речи биро; канцеларија, служба или радни сто.",
   "бјеже": "Ијекавски облик глагола бежати; они одлазе или се склањају.",
-  "бјезе": "Запис облика бјеже без слова ж; значи да неко бежи.",
   "блага": "Женски облик речи благ; нежна, умерена или пријатна.",
   "благе": "Множина или падежни облик речи благ.",
   "благо": "Нешто драгоцено; може значити и нежно, тихо или умерено.",
@@ -8522,16 +8411,12 @@ const WORD_INFO = {
   "ближа": "Женски облик речи ближи; она која је мање удаљена.",
   "ближе": "Ближе значи на мањој удаљености или у мањем размаку.",
   "близа": "Женски облик речи близак; она која је недалеко или присна.",
-  "близе": "Запис речи ближе без слова ж или облик речи близак.",
   "блуза": "Женски одевни предмет за горњи део тела.",
   "блузе": "Множина или падежни облик речи блуза.",
   "богме": "Узречица којом се нешто потврђује или наглашава.",
   "бодље": "Оштри шиљци на биљци, животињи или предмету.",
   "божја": "Женски облик придева божји; оно што припада Богу или је од Бога.",
   "божје": "Средњи род или множина придева божји.",
-  "бозја": "Запис речи божја без слова ж.",
-  "бозје": "Запис речи божје без слова ж.",
-  "боије": "Облик који личи на запис речи боје; у бази се третира као варијанта записа.",
   "бојде": "Разговорни или регионални облик; у бази се третира као посебна реч.",
   "бојте": "Облик глагола бојити или бојати; ви бојте нешто.",
   "бокса": "Облик речи бокс; спорт у ком се противници боре песницама.",
@@ -8553,9 +8438,6 @@ const WORD_INFO = {
   "брате": "Вокатив речи брат; често и разговорно обраћање.",
   "браћа": "Множина речи брат.",
   "браћо": "Вокатив множине речи браћа; обраћање групи.",
-  "браца": "Запис речи браћа без слова ћ; може бити и надимак.",
-  "браце": "Запис облика браће без слова ћ или страни запис имена.",
-  "брацо": "Запис речи браћо без слова ћ; обраћање групи.",
   "брбља": "Облик глагола брбљати; говори много, често без мере.",
   "брега": "Облик речи брег; узвишење или обала.",
   "бреда": "Облик имена Бред или Бреда; може бити и градски назив.",
@@ -8563,7 +8445,6 @@ const WORD_INFO = {
   "бреме": "Терет, обавеза или нешто што притиска човека.",
   "бриге": "Множина или падежни облик речи брига.",
   "брије": "Облик глагола бријати; уклања длаке бријачем.",
-  "брисе": "Запис речи брише без слова ш.",
   "брише": "Облик глагола брисати; уклања траг, прашину или запис.",
   "брода": "Облик речи брод; пловило за превоз водом.",
   "броја": "Облик речи број; знак или количина.",
@@ -8587,8 +8468,6 @@ const WORD_INFO = {
   "ведро": "Посуда за воду; може значити и јасно, без облака.",
   "вежба": "Понављање или рад ради учења, јачања или усавршавања.",
   "вежбе": "Множина или падежни облик речи вежба.",
-  "везба": "Запис речи вежба без слова ж.",
-  "везбе": "Запис речи вежбе без слова ж.",
   "вејда": "Лично име или страни запис имена.",
   "вејде": "Облик имена Вејда.",
   "велик": "Скраћени или мушки облик речи велики; крупан, значајан или простран.",
@@ -8616,7 +8495,6 @@ const WORD_INFO = {
   "амиго": "Шпанска реч за пријатеља; у говору значи друг или пријатељ.",
   "амосе": "Вокатив или облик имена Амос.",
   "ангие": "Лично име или надимак, латинични облик имена Енџи.",
-  "андја": "Запис имена Анђа без слова ђ; женско име.",
   "андре": "Лично име; облик имена Андреј или Андре.",
   "анита": "Женско име.",
   "апаца": "Облик назива Апач; припадник северноамеричког староседелачког народа.",
@@ -8645,9 +8523,6 @@ const WORD_INFO = {
   "бандо": "Вокатив речи банда; обраћање групи у разговорном стилу.",
   "барта": "Лично име или облик презимена/имена Барт.",
   "барте": "Облик имена Барт или Барта.",
-  "баста": "Запис речи башта без слова ш; простор за гајење биљака.",
-  "басте": "Облик речи башта записан без слова ш.",
-  "бацац": "Запис речи бацач без слова ч; онај који нешто баца.",
   "бацач": "Онај који баца предмет, лопту или оруђе.",
   "башта": "Ограђен или уређен простор за цвеће, поврће или одмор.",
   "баште": "Множина или падежни облик речи башта.",
@@ -8664,8 +8539,6 @@ const WORD_INFO = {
   "берзе": "Множина или падежни облик речи берза.",
   "берта": "Женско име.",
   "берте": "Облик женског имена Берта.",
-  "бивса": "Запис речи бивша без слова ш; она која је раније била нешто.",
-  "бивсе": "Запис речи бивше без слова ш; оно што је раније било.",
   "бивша": "Женски облик речи бивши; некадашња.",
   "бивше": "Средњи род или множина речи бивши; некадашње.",
   "зидни": "Који се односи на зид или је намењен постављању на зид.",
@@ -9118,23 +8991,51 @@ function rememberUsedWords(words) {
   localStorage.setItem(USED_WORDS_KEY, JSON.stringify(merged.slice(0, limit)));
 }
 
-function pickFreshWord(startIndex, used, chosen) {
-  for (let step = 0; step < WORDS.length; step += 1) {
-    const word = WORDS[(startIndex + step) % WORDS.length];
-    if (!used.has(word) && !chosen.has(word)) return word;
-  }
-  for (let step = 0; step < WORDS.length; step += 1) {
-    const word = WORDS[(startIndex + step) % WORDS.length];
-    if (!chosen.has(word)) return word;
-  }
-  return WORDS[startIndex % WORDS.length];
+function normalizeWordDeck(deck) {
+  const seen = new Set();
+  return (Array.isArray(deck) ? deck : []).filter((word) => {
+    if (!WORD_SET.has(word) || seen.has(word)) return false;
+    seen.add(word);
+    return true;
+  });
 }
 
-function dailyOffset() {
-  const start = new Date("2026-01-01T00:00:00");
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.floor((today - start) / 86400000);
+function loadWordDeck() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WORD_DECK_KEY) || "[]");
+    return normalizeWordDeck(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function saveWordDeck(deck) {
+  localStorage.setItem(WORD_DECK_KEY, JSON.stringify(normalizeWordDeck(deck)));
+}
+
+function freshWordDeck(exclude = []) {
+  const excluded = new Set(exclude.filter((word) => WORD_SET.has(word)));
+  const preferred = WORDS.filter((word) => !excluded.has(word));
+  const delayed = WORDS.filter((word) => excluded.has(word));
+  return [...shuffledCopy(preferred), ...shuffledCopy(delayed)];
+}
+
+function takeWordsFromDeck(count) {
+  const wanted = Math.min(Math.max(1, count), WORDS.length);
+  let deck = loadWordDeck();
+  const chosen = [];
+  while (chosen.length < wanted) {
+    if (!deck.length) {
+      deck = freshWordDeck([...loadUsedWords(), ...chosen]);
+    }
+    const next = deck.shift();
+    if (WORD_SET.has(next) && !chosen.includes(next)) {
+      chosen.push(next);
+    }
+  }
+  saveWordDeck(deck);
+  rememberUsedWords(chosen);
+  return chosen;
 }
 
 function todayId() {
@@ -9211,30 +9112,143 @@ function updateFridayTheme() {
 }
 
 const PETKO_MOODS = {
-  hello: "2.png",
-  think: "5.png",
-  win: "6.png",
-  miss: "7.png",
-  laugh: "3.png",
-  oops: "8.png",
-  sad: "9.png",
-  cool: "10.png",
-  great: "11.png",
-  trophy: "12.png",
-  extreme: "extrime1.png"
+  hello: ["2.png", "13.png", "22.png", "petko-mood-hello.png"],
+  think: ["5.png", "14.png", "15.png", "petko-mood-think.png"],
+  win: ["6.png", "11.png", "16.png", "17.png", "petko-mood-win.png"],
+  miss: ["7.png", "8.png", "18.png", "19.png", "petko-mood-miss.png"],
+  laugh: ["3.png", "20.png", "21.png", "petko-mood-laugh.png"],
+  oops: ["8.png", "18.png", "23.png", "petko-mood-oops.png"],
+  sad: ["9.png", "24.png", "petko-mood-sad.png"],
+  cool: ["10.png", "25.png", "petko-mood-cool.png"],
+  great: ["11.png", "16.png", "26.png", "petko-mood-great.png"],
+  trophy: ["12.png", "extrime2.png", "extrime3.png", "petko-mood-trophy.png"],
+  extreme: ["extrime1.png", "extrime2.png", "extrime3.png"]
+};
+
+const PETKO_MOOD_DURATION = 3000;
+
+const PETKO_MOMENTS = {
+  start: [
+    { mood: "hello", text: "Здраво! Погоди реч." },
+    { mood: "hello", text: "Петко је спреман." },
+    { mood: "great", text: "Крећемо!" },
+    { mood: "cool", text: "Данас ловимо пет слова." },
+    { mood: "laugh", text: "Петко навија од старта." }
+  ],
+  short: [
+    { mood: "oops", text: "Треба тачно 5 слова." },
+    { mood: "think", text: "Још мало, фали слово." },
+    { mood: "oops", text: "Петко броји само до пет." },
+    { mood: "think", text: "Попуни свих пет поља." }
+  ],
+  unknown: [
+    { mood: "oops", text: "Хммм... нема те речи." },
+    { mood: "think", text: "Провери реч, па пробај поново." },
+    { mood: "oops", text: "Петко је не налази у бази." },
+    { mood: "think", text: "Можда постоји бољи облик." }
+  ],
+  quiet: [
+    { mood: "think", text: "Размисли... следећи покушај." },
+    { mood: "cool", text: "Полако, Петко прати." },
+    { mood: "think", text: "Још један добар траг." },
+    { mood: "hello", text: "Погледај жута слова." },
+    { mood: "cool", text: "Има још простора." }
+  ],
+  normalWin: [
+    { mood: "win", text: "Погођено!" },
+    { mood: "great", text: "Браво, то је реч!" },
+    { mood: "laugh", text: "Петко слави!" },
+    { mood: "win", text: "Чиста петица!" },
+    { mood: "great", text: "Тако се игра." }
+  ],
+  fridayWin: [
+    { mood: "trophy", text: "Петак за Петка!" },
+    { mood: "extreme", text: "Златни погодак!" },
+    { mood: "trophy", text: "Петак носи бонус." },
+    { mood: "extreme", text: "Златни низ ради." }
+  ],
+  normalMiss: [
+    { mood: "miss", text: "Промашио! Пробај следећу." },
+    { mood: "sad", text: "Није овај пут." },
+    { mood: "miss", text: "Реч је побегла." },
+    { mood: "sad", text: "Следећа може бити твоја." }
+  ],
+  levelWin: [
+    { mood: "win", text: "Ниво решен!" },
+    { mood: "great", text: "Идемо даље!" },
+    { mood: "laugh", text: "Петко отвара следећи ниво." },
+    { mood: "win", text: "Добар пролаз!" }
+  ],
+  tournamentWin: [
+    { mood: "trophy", text: "Браво, мајсторе!" },
+    { mood: "extreme", text: "Турнир освојен!" },
+    { mood: "trophy", text: "Петко шампион!" },
+    { mood: "great", text: "Ово је велики скор." }
+  ],
+  tournamentFail: [
+    { mood: "sad", text: "Више среће сутра." },
+    { mood: "miss", text: "Такмичење је стало овде." },
+    { mood: "sad", text: "Данас није прошло." },
+    { mood: "think", text: "Сутра идемо паметније." }
+  ],
+  challengeWin: [
+    { mood: "trophy", text: "Изазов решен!" },
+    { mood: "great", text: "Петко носи победу!" },
+    { mood: "win", text: "Противник има шта да јури." },
+    { mood: "trophy", text: "Изазов је твој!" }
+  ],
+  challengeFail: [
+    { mood: "miss", text: "Изазов је завршен." },
+    { mood: "sad", text: "Противник чека резултат." },
+    { mood: "miss", text: "Није свака табла пала." },
+    { mood: "think", text: "Следећи изазов боље." }
+  ]
 };
 
 let petkoMoodTimer = null;
 let petkoMoodLastShownAt = 0;
 let petkoMoodQuietGuesses = 0;
+const petkoMomentBags = {};
+const petkoImageBags = {};
+
+function shuffledCopy(items) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
+}
+
+function takeFromBag(store, key, items) {
+  if (!Array.isArray(items)) return items;
+  if (!store[key] || !store[key].length) {
+    store[key] = shuffledCopy(items);
+  }
+  return store[key].shift();
+}
+
+function pickPetkoMoment(name) {
+  const options = PETKO_MOMENTS[name] || PETKO_MOMENTS.start;
+  return takeFromBag(petkoMomentBags, name, options);
+}
+
+function playPetkoMoment(name, options = {}) {
+  const moment = pickPetkoMoment(name);
+  showPetkoMood(moment.mood, options.text || moment.text, PETKO_MOOD_DURATION, {
+    minGap: options.minGap,
+    force: options.force
+  });
+}
 
 function showPetkoMood(mood = "hello", text = "Здраво!", duration = 1800, options = {}) {
   if (!petkoMood || !petkoMoodImage || !petkoMoodText) return;
-  const visibleDuration = Math.max(duration, 2000);
+  const visibleDuration = Math.max(duration, PETKO_MOOD_DURATION);
   const now = Date.now();
   if (!options.force && now - petkoMoodLastShownAt < (options.minGap || 5500)) return;
   petkoMoodLastShownAt = now;
-  const src = PETKO_MOODS[mood] || PETKO_MOODS.hello;
+  const moodImages = PETKO_MOODS[mood] || PETKO_MOODS.hello;
+  const src = takeFromBag(petkoImageBags, mood, moodImages);
   const sideShift = options.sideShift ?? [-18, -8, 0, 10, 20][Math.floor(Math.random() * 5)];
   petkoMood.style.setProperty("--petko-side-shift", `${sideShift}px`);
   const centerShift = options.centerShift ?? [-42, -22, 0, 24, 44][Math.floor(Math.random() * 5)];
@@ -9257,20 +9271,20 @@ function maybeShowPetkoMood(mood, text, duration = 1600, options = {}) {
   const chance = options.chance ?? 0.35;
   const minGap = options.minGap ?? 9000;
   if (Math.random() > chance) return;
-  showPetkoMood(mood, text, duration, { minGap });
+  showPetkoMood(mood, text, duration, { minGap, force: options.force });
 }
 
 function markQuietGuessForPetko() {
   petkoMoodQuietGuesses += 1;
   if (petkoMoodQuietGuesses >= 4) {
     petkoMoodQuietGuesses = 0;
-    maybeShowPetkoMood("think", "Размисли... следећи покушај.", 1300, { chance: 0.5, minGap: 10000 });
+    if (Math.random() <= 0.5) playPetkoMoment("quiet", { minGap: 10000 });
   }
 }
 
 function hidePetkoSplash() {
   if (petkoSplash) petkoSplash.hidden = true;
-  showPetkoMood("hello", "Здраво! Погоди реч.", 1500, { force: true });
+  playPetkoMoment("start", { force: true });
 }
 
 function fridayLabel() {
@@ -10762,6 +10776,7 @@ function savePlayerName(value) {
   localStorage.setItem(PLAYER_NAME_KEY, clean);
   if (playerNameInput) playerNameInput.value = clean;
   updateChallengePlayerName();
+  updateTopScoreProfile();
   return clean;
 }
 
@@ -10779,6 +10794,38 @@ function updateChallengePlayerName() {
   const name = loadPlayerName() || "Играч";
   const left = Math.max(0, 3 - loadRenameCount());
   challengePlayerNameEl.textContent = `${name} · измена ${left}/3`;
+}
+
+function playerInitial(name) {
+  const clean = normalizePlayerName(name);
+  return clean.slice(0, 1).toUpperCase();
+}
+
+function updateTopScoreProfile(totalScore) {
+  if (!annualTopScoreEl) return;
+  const showProfile = gameType !== "competitive";
+  annualTopScoreEl.classList.toggle("profile-mode", showProfile);
+  annualTopScoreEl.classList.toggle("score-mode", !showProfile);
+
+  if (!showProfile) {
+    annualTopScoreEl.replaceChildren(document.createTextNode(formatScore(totalScore ?? 0)));
+    annualTopScoreEl.setAttribute("aria-label", "Коначни годишњи скор");
+    annualTopScoreEl.title = "Коначни годишњи скор";
+    return;
+  }
+
+  const name = loadPlayerName() || "Играч";
+  const avatar = document.createElement("span");
+  avatar.className = "profile-avatar";
+  avatar.textContent = playerInitial(name);
+
+  const label = document.createElement("span");
+  label.className = "profile-name";
+  label.textContent = name;
+
+  annualTopScoreEl.replaceChildren(avatar, label);
+  annualTopScoreEl.setAttribute("aria-label", `Профил играча ${name}`);
+  annualTopScoreEl.title = "Профил играча";
 }
 
 async function patchSupabaseRows(path, body) {
@@ -11252,22 +11299,7 @@ function upsertTodayResult(patch) {
 }
 
 function chooseTargets(count) {
-  const offset = dailyOffset();
-  const levelOffset = gameType === "competitive" ? competitiveLevelIndex * 5 : normalGameSeed * 7;
-  let usedWords = loadUsedWords();
-  if (usedWords.length > Math.max(0, WORDS.length - count)) {
-    usedWords = [];
-    localStorage.removeItem(USED_WORDS_KEY);
-  }
-  const used = new Set(usedWords);
-  const chosen = new Set();
-  const words = Array.from({ length: count }, (_, index) => {
-    const word = pickFreshWord(offset + levelOffset + index * 11, used, chosen);
-    chosen.add(word);
-    return word;
-  });
-  rememberUsedWords(words);
-  return words;
+  return takeWordsFromDeck(count);
 }
 
 function showCompetitiveIntro() {
@@ -11733,7 +11765,7 @@ function pressKey(key) {
 function submitGuess() {
   if (current.length !== WORD_LENGTH) {
     messageEl.textContent = "Треба тачно 5 слова.";
-    showPetkoMood("oops", "Треба тачно 5 слова.", 1600, { force: true });
+    playPetkoMoment("short", { force: true });
     return;
   }
 
@@ -11741,7 +11773,7 @@ function submitGuess() {
     const missingWord = current;
     current = "";
     messageEl.textContent = "Нема те речи.";
-    showPetkoMood("oops", "Хммм... нема те речи.", 1800, { force: true });
+    playPetkoMoment("unknown", { force: true });
     showMissingWordReview(missingWord);
     render();
     saveNormalProgress();
@@ -11776,16 +11808,16 @@ function submitGuess() {
       if (isFinalLevel) {
         finishCompetitive("finished");
       }
-      showPetkoMood(isFinalLevel ? "trophy" : "win", isFinalLevel ? "Браво, мајсторе!" : "Ниво решен!", 2200, { force: true });
+      playPetkoMoment(isFinalLevel ? "tournamentWin" : "levelWin", { force: true });
       updateModeButtons();
     } else if (gameType === "challenge") {
-      showPetkoMood("trophy", "Изазов решен!", 2200, { force: true });
+      playPetkoMoment("challengeWin", { force: true });
       finishChallenge("finished");
     } else {
       bumpNormalFinished();
       const fridayText = recordFridayNormalWin();
       messageEl.textContent = fridayText || "Погођено!";
-      showPetkoMood(fridayText ? "trophy" : "win", fridayText || "Погођено!", 2200, { force: true });
+      playPetkoMoment(fridayText ? "fridayWin" : "normalWin", { text: fridayText || "", force: true });
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
@@ -11798,14 +11830,14 @@ function submitGuess() {
       applyFailurePenalty();
       renderSolutionsPanel(true);
       messageEl.textContent = finalMessage("failed");
-      showPetkoMood("sad", "Више среће сутра.", 2200, { force: true });
+      playPetkoMoment("tournamentFail", { force: true });
       finishCompetitive("failed");
     } else if (gameType === "challenge") {
-      showPetkoMood("miss", "Изазов је завршен.", 2200, { force: true });
+      playPetkoMoment("challengeFail", { force: true });
       finishChallenge("failed");
     } else {
       messageEl.textContent = `Реч је била: ${displayWords(targets)}`;
-      showPetkoMood("miss", "Промашио! Пробај следећу.", 2200, { force: true });
+      playPetkoMoment("normalMiss", { force: true });
       resetFridayNormalStreak();
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
@@ -11970,7 +12002,7 @@ function annualScoreSummary(currentPatch = null) {
 
 function updateScoreDisplay(result) {
   const summary = annualScoreSummary(result);
-  if (annualTopScoreEl) annualTopScoreEl.textContent = formatScore(summary.total);
+  updateTopScoreProfile(summary.total);
   if (scoreTotalLineEl && scoreDifferenceLineEl) {
     scoreTotalLineEl.textContent = `${formatScore(summary.started)}/${formatScore(summary.total)}`;
     scoreDifferenceLineEl.textContent = formatScore(summary.bestDaily);
@@ -12495,6 +12527,7 @@ function showHallOfFame() {
   tryCountEl.textContent = "0";
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
+  updateScoreDisplay();
   renderHallOfFame();
 }
 
@@ -12742,6 +12775,17 @@ if (createChallengeButton) {
 if (editChallengeNameButton) {
   editChallengeNameButton.addEventListener("click", () => {
     editChallengePlayerName().catch(() => renderChallengePanel("Промена имена није успела."));
+  });
+}
+
+if (annualTopScoreEl) {
+  annualTopScoreEl.addEventListener("click", () => {
+    if (gameType === "competitive") return;
+    editChallengePlayerName()
+      .then(() => updateTopScoreProfile())
+      .catch(() => {
+        if (gameType === "challenge") renderChallengePanel("Промена имена није успела.");
+      });
   });
 }
 

@@ -361,11 +361,51 @@ body[data-word-modal-open="true"] .petko-mood span {
   color: var(--present);
   font-size: 17px;
   font-weight: 950;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.annual-top-score.score-mode {
+  grid-template-columns: 1fr;
+}
+
+.annual-top-score.profile-mode {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 6px;
+  justify-items: start;
+  padding: 4px 7px;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.profile-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #22c55e, #ffd700 78%);
+  color: #08111f;
+  font-size: 15px;
+  font-weight: 950;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 12px rgba(34, 197, 94, 0.22);
+}
+
+.profile-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: #ffffff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .icon-button:hover,
 .help-top-button:hover,
 .exit-button:hover,
+.annual-top-score:hover,
 .try-button:hover {
   border-color: #38bdf8;
   color: #38bdf8;
