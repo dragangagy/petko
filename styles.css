@@ -978,13 +978,10 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .next-button[hidden],
-body[data-game-type="normal"] .points-pill,
 body[data-game-type="normal"] .mode-row,
 body[data-game-type="normal"] .listing-panel,
-body[data-game-type="challenge"] .points-pill,
 body[data-game-type="challenge"] .mode-row,
 body[data-game-type="challenge"] .listing-panel,
-body[data-game-type="hall"] .points-pill,
 body[data-game-type="hall"] .mode-row,
 body[data-game-type="hall"] .listing-panel {
   display: none;
