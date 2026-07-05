@@ -8838,6 +8838,9 @@ const scoreCountEl = document.querySelector("#scoreCount");
 const scoreTotalLineEl = document.querySelector("#scoreTotalLine");
 const scoreDifferenceLineEl = document.querySelector("#scoreDifferenceLine");
 const annualTopScoreEl = document.querySelector("#annualTopScore");
+const statusProfileButton = document.querySelector("#statusProfileButton");
+const statusProfileAvatar = document.querySelector("#statusProfileAvatar");
+const statusProfileName = document.querySelector("#statusProfileName");
 const awardPopEl = document.querySelector("#awardPop");
 const scoreBurstEl = document.querySelector("#scoreBurst");
 const listingListEl = document.querySelector("#listingList");
@@ -10776,7 +10779,7 @@ function savePlayerName(value) {
   localStorage.setItem(PLAYER_NAME_KEY, clean);
   if (playerNameInput) playerNameInput.value = clean;
   updateChallengePlayerName();
-  updateTopScoreProfile();
+  updateStatusProfile();
   return clean;
 }
 
@@ -10802,30 +10805,25 @@ function playerInitial(name) {
 }
 
 function updateTopScoreProfile(totalScore) {
-  if (!annualTopScoreEl) return;
-  const showProfile = gameType !== "competitive";
-  annualTopScoreEl.classList.toggle("profile-mode", showProfile);
-  annualTopScoreEl.classList.toggle("score-mode", !showProfile);
-
-  if (!showProfile) {
-    annualTopScoreEl.replaceChildren(document.createTextNode(formatScore(totalScore ?? 0)));
-    annualTopScoreEl.setAttribute("aria-label", "Коначни годишњи скор");
-    annualTopScoreEl.title = "Коначни годишњи скор";
-    return;
+  if (annualTopScoreEl) {
+    annualTopScoreEl.textContent = formatScore(totalScore ?? 0);
   }
+  updateStatusProfile();
+}
 
+function updateStatusProfile() {
+  if (!scoreCountEl || !statusProfileButton) return;
+  const showProfile = gameType !== "competitive";
+  scoreCountEl.classList.toggle("profile-mode", showProfile);
+  if (scoreTotalLineEl) scoreTotalLineEl.hidden = showProfile;
+  if (scoreDifferenceLineEl) scoreDifferenceLineEl.hidden = showProfile;
+  statusProfileButton.hidden = !showProfile;
+  if (!showProfile) return;
   const name = loadPlayerName() || "Играч";
-  const avatar = document.createElement("span");
-  avatar.className = "profile-avatar";
-  avatar.textContent = playerInitial(name);
-
-  const label = document.createElement("span");
-  label.className = "profile-name";
-  label.textContent = name;
-
-  annualTopScoreEl.replaceChildren(avatar, label);
-  annualTopScoreEl.setAttribute("aria-label", `Профил играча ${name}`);
-  annualTopScoreEl.title = "Профил играча";
+  if (statusProfileAvatar) statusProfileAvatar.textContent = playerInitial(name);
+  if (statusProfileName) statusProfileName.textContent = name;
+  statusProfileButton.setAttribute("aria-label", `Профил играча ${name}`);
+  statusProfileButton.title = "Профил играча";
 }
 
 async function patchSupabaseRows(path, body) {
@@ -12778,11 +12776,10 @@ if (editChallengeNameButton) {
   });
 }
 
-if (annualTopScoreEl) {
-  annualTopScoreEl.addEventListener("click", () => {
-    if (gameType === "competitive") return;
+if (statusProfileButton) {
+  statusProfileButton.addEventListener("click", () => {
     editChallengePlayerName()
-      .then(() => updateTopScoreProfile())
+      .then(() => updateStatusProfile())
       .catch(() => {
         if (gameType === "challenge") renderChallengePanel("Промена имена није успела.");
       });

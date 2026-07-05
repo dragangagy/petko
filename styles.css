@@ -361,23 +361,6 @@ body[data-word-modal-open="true"] .petko-mood span {
   color: var(--present);
   font-size: 17px;
   font-weight: 950;
-  padding: 0;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.annual-top-score.score-mode {
-  grid-template-columns: 1fr;
-}
-
-.annual-top-score.profile-mode {
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 6px;
-  justify-items: start;
-  padding: 4px 7px;
-  color: #ffffff;
-  font-size: 11px;
-  line-height: 1;
 }
 
 .profile-avatar {
@@ -405,7 +388,6 @@ body[data-word-modal-open="true"] .petko-mood span {
 .icon-button:hover,
 .help-top-button:hover,
 .exit-button:hover,
-.annual-top-score:hover,
 .try-button:hover {
   border-color: #38bdf8;
   color: #38bdf8;
@@ -534,15 +516,7 @@ body[data-friday="true"] .status-signature {
   line-height: 1.25;
 }
 
-body[data-game-type="normal"] .status-panel {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 body[data-game-type="normal"] .status-panel p {
-  display: none;
-}
-
-body[data-game-type="normal"] .score-stack {
   display: none;
 }
 
@@ -591,6 +565,44 @@ body[data-game-type="normal"] .score-stack {
   grid-template-rows: 1fr 2fr;
   place-items: center;
   line-height: 1;
+}
+
+.score-count.profile-mode {
+  grid-template-rows: 1fr;
+}
+
+.status-profile-button {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 34px minmax(0, 1fr);
+  place-items: center;
+  gap: 5px;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #ffffff;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.status-profile-button[hidden] {
+  display: none;
+}
+
+.status-profile-button .profile-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 18px;
+}
+
+.status-profile-button .profile-name {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 950;
+  text-align: center;
 }
 
 .score-total {
