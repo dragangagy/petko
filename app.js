@@ -10952,6 +10952,7 @@ async function saveProfileNameChange() {
     return;
   }
   if (await playerNameTaken(next)) {
+    if (await recoverExistingPlayerProfile(next)) return;
     setProfileMessage(`Надимак "${next}" већ постоји. Пробај други назив.`);
     return;
   }
@@ -13112,6 +13113,66 @@ function renderPlayerStats(rows) {
   playerStatsEl.textContent = `Коначно ${formatScore(stats.finalScore)} · Победе ${formatScore(stats.wins)} · Покушаји ${formatScore(stats.attempts)} · Најбољи ${formatScore(stats.best)} · Низ ${formatScore(stats.streak)}`;
 }
 
+function onlineRowDate(row) {
+  const date = new Date(row?.created_at || "");
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function restoredResultFromOnline(row) {
+  const finalScore = Number(row.score) || 0;
+  const started = Math.max(0, Number(row.attempts) || 0);
+  const scoreTotal = finalScore + started;
+  return {
+    status: Number(row.wins) > 0 ? "finished" : "failed",
+    date: onlineRowDate(row),
+    score: scoreTotal,
+    finalScore,
+    started,
+    completed: Number(row.wins) > 0 ? 4 : 0,
+    level: Number(row.wins) > 0 ? 4 : 1,
+    words: "",
+    points: "враћено из online скора",
+    attempts: started,
+    wins: Number(row.wins) || 0,
+    streak: Number(row.streak) || 0,
+    restored: true
+  };
+}
+
+function restoreLocalResultsFromOnline(rows, nickname = loadPlayerName()) {
+  if (!nickname || !Array.isArray(rows) || loadResults().length) return false;
+  const year = currentYearId();
+  const byDate = new Map();
+  rows
+    .filter((row) => sameChallengeName(row.nickname, nickname))
+    .map(restoredResultFromOnline)
+    .filter((result) => result.date && result.date.startsWith(year))
+    .forEach((result) => {
+      const old = byDate.get(result.date);
+      if (!old || Number(result.finalScore) > Number(old.finalScore)) byDate.set(result.date, result);
+    });
+  const restored = [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
+  if (!restored.length) return false;
+  saveResults(restored);
+  updateScoreDisplay();
+  renderListing();
+  return true;
+}
+
+async function recoverExistingPlayerProfile(name) {
+  const rows = await fetchOnlineLeaderboard().catch(() => []);
+  if (!Array.isArray(rows) || !rows.some((row) => sameChallengeName(row.nickname, name))) return false;
+  savePlayerName(name);
+  updateChallengePlayerName();
+  const restored = restoreLocalResultsFromOnline(rows, name);
+  renderProfileModal();
+  setProfileEditMode(false);
+  setProfileMessage(restored ? "Профил и скор су враћени из online базе." : "Профил је повезан са online надимком.");
+  refreshOnlineLeaderboard();
+  return true;
+}
+
 function refreshOnlineLeaderboard() {
   if (!supabaseConfigured() || !listingListEl) return;
   const nickname = loadPlayerName();
@@ -13120,7 +13181,10 @@ function refreshOnlineLeaderboard() {
     fetchOnlinePlayerStats(nickname)
   ])
     .then(([rows, stats]) => {
-      if (Array.isArray(rows)) renderOnlineLeaderboard(rows);
+      if (Array.isArray(rows)) {
+        restoreLocalResultsFromOnline(rows, nickname);
+        renderOnlineLeaderboard(rows);
+      }
       if (nickname) renderPlayerStats(stats);
     })
     .catch(() => {
