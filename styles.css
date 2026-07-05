@@ -605,6 +605,22 @@ body[data-game-type="normal"] .status-panel p {
   text-align: center;
 }
 
+.status-profile-button.profile-hint {
+  border: 1px solid rgba(255, 215, 0, 0.78);
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.12), 0 0 22px rgba(255, 215, 0, 0.45);
+  animation: profile-hint-pulse 900ms ease-in-out 3;
+}
+
+@keyframes profile-hint-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
 .score-total {
   color: #ffffff;
   font-size: 24px;
@@ -800,6 +816,191 @@ body[data-game-type="normal"] .status-panel p {
 
 .word-modal-actions .success {
   color: var(--correct);
+}
+
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 8, 23, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.profile-modal[hidden] {
+  display: none;
+}
+
+.profile-card {
+  position: relative;
+  width: min(360px, 92vw);
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.34);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.98);
+  color: #ffffff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58), 0 0 28px rgba(56, 189, 248, 0.18);
+}
+
+.profile-card h2 {
+  margin: 0;
+  color: var(--cyan);
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.profile-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 8px;
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.profile-avatar-large {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 20px;
+  background: rgba(30, 41, 59, 0.72);
+  box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.06), 0 0 20px rgba(56, 189, 248, 0.16);
+}
+
+.profile-avatar-large .profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  font-size: 25px;
+}
+
+.profile-name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.profile-player-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 950;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-edit-button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profile-edit-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 7px;
+}
+
+.profile-edit-row[hidden] {
+  display: none;
+}
+
+.profile-edit-row input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 9px;
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.profile-edit-row button,
+.profile-avatar-tabs button,
+.profile-avatar-option {
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.profile-avatar-menu {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.profile-avatar-menu[hidden] {
+  display: none;
+}
+
+.profile-avatar-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.profile-avatar-tabs button {
+  min-height: 36px;
+}
+
+.profile-avatar-tabs button.active {
+  border-color: rgba(255, 215, 0, 0.55);
+  color: var(--gold);
+}
+
+.profile-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.profile-avatar-option {
+  min-height: 56px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+}
+
+.profile-avatar-option.active {
+  border-color: var(--correct);
+  box-shadow: 0 0 14px rgba(22, 216, 132, 0.24);
+}
+
+.profile-message {
+  min-height: 18px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .points-pill.score-bump {
@@ -1051,38 +1252,6 @@ body[data-game-type="challenge"][data-challenge-finished="true"] .keyboard {
 
 .challenge-copy[hidden] {
   display: none;
-}
-
-.challenge-user-line {
-  min-height: 28px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 5px;
-  border: 1px solid rgba(56, 189, 248, 0.22);
-  border-radius: 8px;
-  background: rgba(2, 8, 23, 0.34);
-}
-
-#challengePlayerName {
-  min-width: 0;
-  overflow: hidden;
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 950;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#editChallengeNameButton {
-  height: 22px;
-  border: 1px solid rgba(56, 189, 248, 0.32);
-  border-radius: 7px;
-  background: rgba(15, 23, 42, 0.72);
-  color: var(--cyan);
-  font-size: 10px;
-  font-weight: 950;
 }
 
 .challenge-quota {

@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=103">
     <link rel="icon" href="app-icon.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon.png">
-  <link rel="stylesheet" href="styles.css?v=172">
+  <link rel="stylesheet" href="styles.css?v=174">
   </head>
   <body>
     <div class="petko-splash" id="petkoSplash" role="dialog" aria-label="Петко" aria-modal="true">
@@ -78,10 +78,6 @@
       <section class="normal-stats" id="normalStats" aria-live="polite"></section>
 
       <section class="challenge-panel" id="challengePanel" hidden aria-live="polite">
-        <div class="challenge-user-line">
-          <span id="challengePlayerName">Играч</span>
-          <button id="editChallengeNameButton" type="button">Измени</button>
-        </div>
         <div class="challenge-copy" id="challengeStatus" hidden></div>
         <div class="challenge-quota" id="challengeQuota">Изазови 0/3</div>
         <div class="challenge-actions">
@@ -227,6 +223,33 @@
       </article>
     </div>
 
+    <div class="profile-modal" id="profileModal" hidden>
+      <article class="profile-card" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+        <button class="profile-close" id="profileCloseButton" type="button" aria-label="Затвори">×</button>
+        <h2 id="profileTitle">Профил</h2>
+        <button class="profile-avatar-large" id="profileAvatarButton" type="button" aria-label="Изабери аватар">
+          <span class="profile-avatar" id="profileModalAvatar">И</span>
+        </button>
+        <div class="profile-name-row">
+          <div class="profile-player-name" id="profileModalName">Играч</div>
+          <button class="profile-edit-button" id="profileEditButton" type="button">Измени</button>
+        </div>
+        <div class="profile-edit-row" id="profileEditRow" hidden>
+          <input id="profileNameInput" type="text" maxlength="18" autocomplete="off" aria-label="Име играча">
+          <button id="profileSaveNameButton" type="button">Сачувај</button>
+          <button id="profileCancelNameButton" type="button">Откажи</button>
+        </div>
+        <div class="profile-avatar-menu" id="profileAvatarMenu" hidden>
+          <div class="profile-avatar-tabs" role="tablist" aria-label="Тип аватара">
+            <button class="active" id="profileMaleTab" type="button" data-avatar-tab="male">Мушко</button>
+            <button id="profileFemaleTab" type="button" data-avatar-tab="female">Женско</button>
+          </div>
+          <div class="profile-avatar-grid" id="profileAvatarGrid"></div>
+        </div>
+        <p class="profile-message" id="profileMessage"></p>
+      </article>
+    </div>
+
     <div class="hall-modal" id="hallModal" hidden>
       <article class="hall-modal-card" role="dialog" aria-modal="true" aria-labelledby="hallModalTitle">
         <button class="hall-modal-close" id="hallModalClose" type="button" aria-label="Затвори">×</button>
@@ -237,6 +260,6 @@
       </article>
     </div>
 
-  <script src="app.js?v=172"></script>
+  <script src="app.js?v=174"></script>
   </body>
 </html>

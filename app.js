@@ -7200,6 +7200,8 @@ const NORMAL_PROGRESS_KEY = "petko-normal-progress-v1";
 const CHALLENGE_PROGRESS_KEY = "petko-challenge-progress-v1";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const PLAYER_RENAME_COUNT_KEY = "petko-player-rename-count-v1";
+const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
+const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
@@ -7207,6 +7209,16 @@ const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
+const PROFILE_AVATARS = [
+  { id: "male-1", group: "male", label: "М1" },
+  { id: "male-2", group: "male", label: "М2" },
+  { id: "male-3", group: "male", label: "М3" },
+  { id: "male-4", group: "male", label: "М4" },
+  { id: "female-1", group: "female", label: "Ж1" },
+  { id: "female-2", group: "female", label: "Ж2" },
+  { id: "female-3", group: "female", label: "Ж3" },
+  { id: "female-4", group: "female", label: "Ж4" }
+];
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
   anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
@@ -8863,10 +8875,23 @@ const wordModalWord = document.querySelector("#wordModalWord");
 const wordModalText = document.querySelector("#wordModalText");
 const wordReviewText = document.querySelector("#wordReviewText");
 const wordModalActions = document.querySelector("#wordModalActions");
+const profileModal = document.querySelector("#profileModal");
+const profileCloseButton = document.querySelector("#profileCloseButton");
+const profileAvatarButton = document.querySelector("#profileAvatarButton");
+const profileModalAvatar = document.querySelector("#profileModalAvatar");
+const profileModalName = document.querySelector("#profileModalName");
+const profileEditButton = document.querySelector("#profileEditButton");
+const profileEditRow = document.querySelector("#profileEditRow");
+const profileNameInput = document.querySelector("#profileNameInput");
+const profileSaveNameButton = document.querySelector("#profileSaveNameButton");
+const profileCancelNameButton = document.querySelector("#profileCancelNameButton");
+const profileAvatarMenu = document.querySelector("#profileAvatarMenu");
+const profileAvatarGrid = document.querySelector("#profileAvatarGrid");
+const profileMessage = document.querySelector("#profileMessage");
+const profileAvatarTabs = [...document.querySelectorAll("[data-avatar-tab]")];
 const challengePanelEl = document.querySelector("#challengePanel");
 const challengeStatusEl = document.querySelector("#challengeStatus");
 const challengePlayerNameEl = document.querySelector("#challengePlayerName");
-const editChallengeNameButton = document.querySelector("#editChallengeNameButton");
 const challengeQuotaEl = document.querySelector("#challengeQuota");
 const challengePlayerSelect = document.querySelector("#challengePlayerSelect");
 const challengePlayerButton = document.querySelector("#challengePlayerButton");
@@ -9288,6 +9313,7 @@ function markQuietGuessForPetko() {
 function hidePetkoSplash() {
   if (petkoSplash) petkoSplash.hidden = true;
   playPetkoMoment("start", { force: true });
+  showProfileHintOnce();
 }
 
 function fridayLabel() {
@@ -10804,6 +10830,28 @@ function playerInitial(name) {
   return clean.slice(0, 1).toUpperCase();
 }
 
+function loadProfileAvatarId() {
+  const id = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
+  return PROFILE_AVATARS.some((avatar) => avatar.id === id) ? id : PROFILE_AVATARS[0].id;
+}
+
+function currentProfileAvatar() {
+  return PROFILE_AVATARS.find((avatar) => avatar.id === loadProfileAvatarId()) || PROFILE_AVATARS[0];
+}
+
+function renderAvatarText(target, fallbackName = "") {
+  if (!target) return;
+  const avatar = currentProfileAvatar();
+  target.textContent = avatar?.label || playerInitial(fallbackName || loadPlayerName());
+}
+
+function saveProfileAvatar(id) {
+  if (!PROFILE_AVATARS.some((avatar) => avatar.id === id)) return;
+  localStorage.setItem(PROFILE_AVATAR_KEY, id);
+  updateStatusProfile();
+  renderProfileModal();
+}
+
 function updateTopScoreProfile(totalScore) {
   if (annualTopScoreEl) {
     annualTopScoreEl.textContent = formatScore(totalScore ?? 0);
@@ -10820,10 +10868,104 @@ function updateStatusProfile() {
   statusProfileButton.hidden = !showProfile;
   if (!showProfile) return;
   const name = loadPlayerName() || "Играч";
-  if (statusProfileAvatar) statusProfileAvatar.textContent = playerInitial(name);
+  renderAvatarText(statusProfileAvatar, name);
   if (statusProfileName) statusProfileName.textContent = name;
   statusProfileButton.setAttribute("aria-label", `Профил играча ${name}`);
   statusProfileButton.title = "Профил играча";
+}
+
+function setProfileMessage(text = "") {
+  if (profileMessage) profileMessage.textContent = text;
+}
+
+function setProfileEditMode(editing) {
+  if (profileEditRow) profileEditRow.hidden = !editing;
+  if (profileEditButton) profileEditButton.hidden = editing;
+  if (profileNameInput && editing) {
+    profileNameInput.value = loadPlayerName() || "";
+    window.setTimeout(() => profileNameInput.focus(), 0);
+  }
+}
+
+function renderProfileAvatarGrid(group = "male") {
+  if (!profileAvatarGrid) return;
+  profileAvatarGrid.innerHTML = "";
+  profileAvatarTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.avatarTab === group));
+  PROFILE_AVATARS.filter((avatar) => avatar.group === group).forEach((avatar) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "profile-avatar-option";
+    button.classList.toggle("active", avatar.id === loadProfileAvatarId());
+    button.textContent = avatar.label;
+    button.addEventListener("click", () => {
+      saveProfileAvatar(avatar.id);
+      setProfileMessage("Аватар је промењен.");
+    });
+    profileAvatarGrid.append(button);
+  });
+}
+
+function renderProfileModal() {
+  const name = loadPlayerName() || "Играч";
+  renderAvatarText(profileModalAvatar, name);
+  if (profileModalName) profileModalName.textContent = name;
+  if (profileNameInput) profileNameInput.value = name;
+  const activeGroup = profileAvatarTabs.find((tab) => tab.classList.contains("active"))?.dataset.avatarTab || "male";
+  renderProfileAvatarGrid(activeGroup);
+}
+
+function openProfileModal() {
+  if (!profileModal) return;
+  renderProfileModal();
+  setProfileEditMode(false);
+  if (profileAvatarMenu) profileAvatarMenu.hidden = true;
+  setProfileMessage("");
+  profileModal.hidden = false;
+}
+
+function closeProfileModal() {
+  if (profileModal) profileModal.hidden = true;
+}
+
+function showProfileHintOnce() {
+  if (!statusProfileButton || localStorage.getItem(PROFILE_HINT_SEEN_KEY) === "1") return;
+  localStorage.setItem(PROFILE_HINT_SEEN_KEY, "1");
+  window.setTimeout(() => {
+    if (gameType === "competitive" || statusProfileButton.hidden) return;
+    statusProfileButton.classList.add("profile-hint");
+    showPetkoMood("think", "Овде уреди профил: име и аватар.", 3000, { force: true, sideShift: -22 });
+    window.setTimeout(() => statusProfileButton.classList.remove("profile-hint"), 3100);
+  }, 900);
+}
+
+async function saveProfileNameChange() {
+  const current = loadPlayerName() || "";
+  const used = loadRenameCount();
+  if (used >= 3) {
+    setProfileMessage("Име можеш променити највише 3 пута.");
+    return;
+  }
+  const next = normalizePlayerName(profileNameInput?.value || "");
+  if (!next || sameChallengeName(next, current)) {
+    setProfileEditMode(false);
+    renderProfileModal();
+    return;
+  }
+  if (await playerNameTaken(next)) {
+    setProfileMessage(`Надимак "${next}" већ постоји. Пробај други назив.`);
+    return;
+  }
+  const previous = current;
+  savePlayerName(next);
+  saveRenameCount(used + 1);
+  updateChallengePlayerName();
+  await renamePlayerEverywhere(previous, next);
+  renderProfileModal();
+  setProfileEditMode(false);
+  setProfileMessage(`Име је промењено у ${next}.`);
+  if (gameType === "challenge") renderChallengePanel(`Име је промењено у ${next}.`);
+  refreshChallengePanel();
+  refreshOnlineLeaderboard();
 }
 
 async function patchSupabaseRows(path, body) {
@@ -12770,19 +12912,61 @@ if (createChallengeButton) {
   });
 }
 
-if (editChallengeNameButton) {
-  editChallengeNameButton.addEventListener("click", () => {
-    editChallengePlayerName().catch(() => renderChallengePanel("Промена имена није успела."));
+if (statusProfileButton) {
+  statusProfileButton.addEventListener("click", () => {
+    openProfileModal();
   });
 }
 
-if (statusProfileButton) {
-  statusProfileButton.addEventListener("click", () => {
-    editChallengePlayerName()
-      .then(() => updateStatusProfile())
-      .catch(() => {
-        if (gameType === "challenge") renderChallengePanel("Промена имена није успела.");
-      });
+if (profileCloseButton) {
+  profileCloseButton.addEventListener("click", closeProfileModal);
+}
+
+if (profileModal) {
+  profileModal.addEventListener("click", (event) => {
+    if (event.target === profileModal) closeProfileModal();
+  });
+}
+
+if (profileAvatarButton) {
+  profileAvatarButton.addEventListener("click", () => {
+    if (!profileAvatarMenu) return;
+    profileAvatarMenu.hidden = !profileAvatarMenu.hidden;
+    renderProfileAvatarGrid(profileAvatarTabs.find((tab) => tab.classList.contains("active"))?.dataset.avatarTab || "male");
+  });
+}
+
+profileAvatarTabs.forEach((tab) => {
+  tab.addEventListener("click", () => renderProfileAvatarGrid(tab.dataset.avatarTab || "male"));
+});
+
+if (profileEditButton) {
+  profileEditButton.addEventListener("click", () => {
+    setProfileMessage("");
+    setProfileEditMode(true);
+  });
+}
+
+if (profileCancelNameButton) {
+  profileCancelNameButton.addEventListener("click", () => {
+    setProfileEditMode(false);
+    renderProfileModal();
+    setProfileMessage("");
+  });
+}
+
+if (profileSaveNameButton) {
+  profileSaveNameButton.addEventListener("click", () => {
+    saveProfileNameChange().catch(() => setProfileMessage("Промена имена тренутно није успела."));
+  });
+}
+
+if (profileNameInput) {
+  profileNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      saveProfileNameChange().catch(() => setProfileMessage("Промена имена тренутно није успела."));
+    }
   });
 }
 
@@ -13023,7 +13207,20 @@ if (exitButton) {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") setHelpOpen(false);
+  if (event.key !== "Escape") return;
+  if (profileModal && !profileModal.hidden) {
+    closeProfileModal();
+    return;
+  }
+  if (wordModal && !wordModal.hidden) {
+    closeWordModal();
+    return;
+  }
+  if (hallModal && !hallModal.hidden) {
+    closeHallModal();
+    return;
+  }
+  setHelpOpen(false);
 });
 
 window.addEventListener("beforeunload", () => {
