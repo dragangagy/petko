@@ -104,21 +104,28 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.creator_device is not null
-    and new.opponent is not null
+  if new.opponent is not null
     and btrim(new.opponent) <> ''
     and lower(btrim(new.opponent)) not in (lower('Нови корисник'), lower('Чека се'))
-    and exists (
-    select 1
+    and (
+    select count(*)
     from public.challenges
-    where creator_device = new.creator_device
-      and day = new.day
-      and lower(btrim(opponent)) = lower(btrim(new.opponent))
+    where day = new.day
+      and (
+        (
+          lower(btrim(creator)) = lower(btrim(new.creator))
+          and lower(btrim(opponent)) = lower(btrim(new.opponent))
+        )
+        or (
+          lower(btrim(creator)) = lower(btrim(new.opponent))
+          and lower(btrim(opponent)) = lower(btrim(new.creator))
+        )
+      )
       and (
         status <> 'pending'
         or created_at > now() - interval '6 hours'
       )
-  ) then
+  ) >= 3 then
     raise exception 'same opponent already challenged today';
   end if;
 
@@ -138,7 +145,7 @@ begin
         status <> 'pending'
         or created_at > now() - interval '6 hours'
       )
-  ) >= 3 then
+  ) >= 5 then
     raise exception 'daily challenge limit reached';
   end if;
   return new;

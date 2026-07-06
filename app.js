@@ -7187,7 +7187,8 @@ const COMPETITIVE_FAIL_PENALTY = -2;
 const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
-const CHALLENGE_DAILY_LIMIT = 3;
+const CHALLENGE_DAILY_LIMIT = 5;
+const CHALLENGE_PAIR_DAILY_LIMIT = 3;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
@@ -7210,14 +7211,18 @@ const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const PROFILE_AVATARS = [
-  { id: "male-1", group: "male", label: "М1" },
-  { id: "male-2", group: "male", label: "М2" },
-  { id: "male-3", group: "male", label: "М3" },
-  { id: "male-4", group: "male", label: "М4" },
-  { id: "female-1", group: "female", label: "Ж1" },
-  { id: "female-2", group: "female", label: "Ж2" },
-  { id: "female-3", group: "female", label: "Ж3" },
-  { id: "female-4", group: "female", label: "Ж4" }
+  ...Array.from({ length: 19 }, (_, index) => ({
+    id: `male-${index + 1}`,
+    group: "male",
+    label: `М${index + 1}`,
+    src: `avatar/M${index + 1}.png`
+  })),
+  ...Array.from({ length: 19 }, (_, index) => ({
+    id: `female-${index + 1}`,
+    group: "female",
+    label: `Ж${index + 1}`,
+    src: `avatar/Z${index + 1}.png`
+  }))
 ];
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
@@ -9157,7 +9162,7 @@ const PETKO_MOODS = {
   extreme: ["extrime1.png", "extrime2.png", "extrime3.png"]
 };
 
-const PETKO_MOOD_DURATION = 3000;
+const PETKO_MOOD_DURATION = 4000;
 
 const PETKO_MOMENTS = {
   start: [
@@ -9294,9 +9299,15 @@ function showPetkoMood(mood = "hello", text = "Здраво!", duration = 1800, 
   petkoMood.classList.add("showing");
   clearTimeout(petkoMoodTimer);
   petkoMoodTimer = setTimeout(() => {
-    petkoMood.hidden = true;
-    document.body.dataset.petkoMood = "false";
+    hidePetkoMood();
   }, visibleDuration);
+}
+
+function hidePetkoMood() {
+  if (!petkoMood) return;
+  clearTimeout(petkoMoodTimer);
+  petkoMood.hidden = true;
+  document.body.dataset.petkoMood = "false";
 }
 
 function maybeShowPetkoMood(mood, text, duration = 1600, options = {}) {
@@ -9894,6 +9905,20 @@ function dailyChallengeCount(rows = []) {
   return rows.filter(challengeCountsForDailyLimit).length;
 }
 
+function challengePairCountToday(rows = [], first, second) {
+  if (!cleanChallengeName(first) || !cleanChallengeName(second)) return 0;
+  return rows.filter((row) => {
+    if (String(row.day || "").slice(0, 10) !== todayId()) return false;
+    if (!challengeCountsForDailyLimit(row)) return false;
+    const creator = row.creator || "";
+    const opponent = row.opponent || "";
+    return (
+      (sameChallengeName(creator, first) && sameChallengeName(opponent, second)) ||
+      (sameChallengeName(creator, second) && sameChallengeName(opponent, first))
+    );
+  }).length;
+}
+
 function sentChallengeRowsFromHistory(rows = []) {
   return rows.filter((row) =>
     row.creator_device === deviceId() &&
@@ -9912,10 +9937,10 @@ async function fetchSentChallengesToday() {
   const local = loadSentChallengeRowsToday().filter(challengeCountsForDailyLimit);
   if (!supabaseConfigured()) return local;
   const query = [
-    "select=code,day,status,opponent,opponent_device,accepted_at,created_at",
+    "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at",
     `creator_device=eq.${encodeURIComponent(deviceId())}`,
     `day=eq.${encodeURIComponent(todayId())}`,
-    "limit=10"
+    "limit=20"
   ].join("&");
   const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
     headers: supabaseHeaders()
@@ -10298,6 +10323,27 @@ function challengeWinnerName(row) {
   return "Чека се";
 }
 
+function challengeAvatarElement(name) {
+  const avatar = document.createElement("span");
+  avatar.className = "profile-avatar challenge-player-avatar";
+  if (sameChallengeName(name, loadPlayerName())) {
+    renderAvatarText(avatar, name);
+  } else {
+    avatar.textContent = playerInitial(name || "И");
+  }
+  return avatar;
+}
+
+function challengeNameWithAvatar(name) {
+  const item = document.createElement("span");
+  item.className = "challenge-name-with-avatar";
+  item.append(challengeAvatarElement(name));
+  const label = document.createElement("span");
+  label.textContent = name;
+  item.append(label);
+  return item;
+}
+
 function challengeCard(row, rows = []) {
   const card = document.createElement("article");
   card.className = `challenge-card ${playedChallenge(row) ? "result" : "invite"} ${challengeCardState(row)}`;
@@ -10310,19 +10356,28 @@ function challengeCard(row, rows = []) {
   if (pair) {
     const pairEl = document.createElement("div");
     pairEl.className = "challenge-card-pair";
-    pairEl.textContent = `Међусобно: ${challengePairText(pair, creator, opponent)}`;
+    pairEl.append(
+      document.createTextNode("Међусобно: "),
+      challengeNameWithAvatar(creator),
+      document.createTextNode(` ${pair.creatorWins} : ${pair.opponentWins} `),
+      challengeNameWithAvatar(opponent)
+    );
     card.append(pairEl);
   }
   const title = document.createElement("div");
   title.className = "challenge-card-title";
   if (playedChallenge(row)) {
-    title.textContent = `${creator} → ${opponent}`;
+    title.append(challengeNameWithAvatar(creator), document.createTextNode(" → "), challengeNameWithAvatar(opponent));
   } else if (challengeIsActive(row)) {
-    title.textContent = `Изазов је прихваћен: ${creator} → ${opponent}`;
+    title.append(document.createTextNode("Изазов је прихваћен: "), challengeNameWithAvatar(creator), document.createTextNode(" → "), challengeNameWithAvatar(opponent));
   } else if (role === "creator") {
-    title.textContent = openInvite ? "Позван нови корисник" : `Упутили сте изазов: ${opponent}`;
+    if (openInvite) {
+      title.textContent = "Позван нови корисник";
+    } else {
+      title.append(document.createTextNode("Упутили сте изазов: "), challengeNameWithAvatar(opponent));
+    }
   } else {
-    title.textContent = `${creator} вас је позвао на изазов`;
+    title.append(challengeNameWithAvatar(creator), document.createTextNode(" вас је позвао на изазов"));
   }
   const winner = document.createElement("div");
   winner.className = "challenge-card-winner";
@@ -10517,11 +10572,16 @@ async function createChallenge() {
   updateChallengeQuota(sentToday);
   const sentCount = dailyChallengeCount(sentToday);
   if (!shareAfterCreate && sentCount >= CHALLENGE_DAILY_LIMIT) {
-    renderChallengePanel("Данас сте већ послали 3 изазова.");
+    renderChallengePanel(`Данас сте већ послали ${CHALLENGE_DAILY_LIMIT} изазова.`);
     return;
   }
-  if (!shareAfterCreate && sentToday.some((row) => challengeCountsForDailyLimit(row) && sameChallengeName(row.opponent, opponent))) {
-    renderChallengePanel("Ову особу сте већ изазвали данас.");
+  let pairRows = sentToday;
+  if (!shareAfterCreate) {
+    const history = await fetchChallengeHistory().catch(() => []);
+    if (Array.isArray(history) && history.length) pairRows = history;
+  }
+  if (!shareAfterCreate && challengePairCountToday(pairRows, nickname, opponent) >= CHALLENGE_PAIR_DAILY_LIMIT) {
+    renderChallengePanel(`Између ${nickname} и ${opponent} данас могу највише ${CHALLENGE_PAIR_DAILY_LIMIT} изазова.`);
     return;
   }
   const code = challengeCode();
@@ -10578,10 +10638,17 @@ async function createChallenge() {
 async function supabaseErrorMessage(response, fallback) {
   try {
     const data = await response.json();
+    const message = String(data?.message || "");
     if (data?.code === "PGRST205" || /Could not find the table/i.test(data?.message || "")) {
       return "У Supabase-у није направљена табела challenges. Покрени SQL из supabase-schema.sql.";
     }
-    return data?.message || fallback;
+    if (/same opponent already challenged today/i.test(message)) {
+      return `Између ова два играча данас могу највише ${CHALLENGE_PAIR_DAILY_LIMIT} изазова.`;
+    }
+    if (/daily challenge limit reached/i.test(message)) {
+      return `Данас можете послати највише ${CHALLENGE_DAILY_LIMIT} изазова.`;
+    }
+    return message || fallback;
   } catch {
     return fallback;
   }
@@ -10846,6 +10913,16 @@ function currentProfileAvatar() {
 function renderAvatarText(target, fallbackName = "") {
   if (!target) return;
   const avatar = currentProfileAvatar();
+  target.innerHTML = "";
+  target.classList.toggle("has-image", Boolean(avatar?.src));
+  if (avatar?.src) {
+    const image = document.createElement("img");
+    image.src = avatar.src;
+    image.alt = avatar.label || "Аватар";
+    image.loading = "lazy";
+    target.append(image);
+    return;
+  }
   target.textContent = avatar?.label || playerInitial(fallbackName || loadPlayerName());
 }
 
@@ -10900,7 +10977,15 @@ function renderProfileAvatarGrid(group = "male") {
     button.type = "button";
     button.className = "profile-avatar-option";
     button.classList.toggle("active", avatar.id === loadProfileAvatarId());
-    button.textContent = avatar.label;
+    if (avatar.src) {
+      const image = document.createElement("img");
+      image.src = avatar.src;
+      image.alt = avatar.label;
+      image.loading = "lazy";
+      button.append(image);
+    } else {
+      button.textContent = avatar.label;
+    }
     button.addEventListener("click", () => {
       saveProfileAvatar(avatar.id);
       setProfileMessage("Аватар је промењен.");
@@ -13343,6 +13428,10 @@ if (petkoSplash) {
     if (event.target === petkoSplash) hidePetkoSplash();
   });
 }
+
+document.addEventListener("pointerdown", () => {
+  if (document.body.dataset.petkoMood === "true") hidePetkoMood();
+});
 
 if (helpCloseButton) {
   helpCloseButton.addEventListener("click", () => setHelpOpen(false));
