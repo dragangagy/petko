@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache-v182";
+const CACHE_NAME = "petko-cache-v183";
 
 const ASSETS = [
   "./",
@@ -12,6 +12,7 @@ const ASSETS = [
   "./app-icon.png",
   "./petko-logo.png",
   "./petak-za-petka-logo.png",
+  "./vs.png",
   "./petko-splash.png",
   "./petak-splash.png",
   "./petko-mood-hello.png",

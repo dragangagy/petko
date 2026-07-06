@@ -390,6 +390,105 @@ body[data-word-modal-open="true"] .petko-mood span {
   object-fit: cover;
 }
 
+.challenge-vs {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(239, 68, 68, 0.16), transparent 34%),
+    radial-gradient(circle at 18% 20%, rgba(56, 189, 248, 0.12), transparent 28%),
+    #02040a;
+}
+
+.challenge-vs[hidden] {
+  display: none;
+}
+
+.challenge-vs-card {
+  position: relative;
+  width: min(560px, 94vw);
+  height: min(560px, 74vh);
+  min-height: 360px;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.42), rgba(2, 6, 23, 0.92)),
+    radial-gradient(circle at 50% 50%, rgba(250, 204, 21, 0.12), transparent 45%);
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.22), 0 28px 90px rgba(0, 0, 0, 0.8);
+}
+
+.challenge-vs-player {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  color: #ffffff;
+  font-size: clamp(17px, 5vw, 28px);
+  font-weight: 950;
+  text-align: center;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.95);
+}
+
+.challenge-vs-left {
+  top: 8%;
+  left: 5%;
+  animation: challengeVsLeft 3s ease both;
+}
+
+.challenge-vs-right {
+  right: 5%;
+  bottom: 8%;
+  animation: challengeVsRight 3s ease both;
+}
+
+.challenge-vs-avatar {
+  width: clamp(116px, 34vw, 190px);
+  height: clamp(116px, 34vw, 190px);
+  border-radius: 28px;
+  border: 2px solid rgba(250, 204, 21, 0.74);
+  font-size: clamp(44px, 15vw, 82px);
+  box-shadow:
+    0 0 28px rgba(250, 204, 21, 0.34),
+    0 18px 34px rgba(0, 0, 0, 0.72);
+}
+
+.challenge-vs-bolt {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  height: min(92%, 560px);
+  max-width: 62%;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 18px rgba(248, 113, 113, 0.9)) drop-shadow(0 0 34px rgba(250, 204, 21, 0.44));
+  animation: challengeVsBolt 3s ease both;
+  pointer-events: none;
+}
+
+@keyframes challengeVsLeft {
+  0% { opacity: 0; transform: translate(-34px, -18px) scale(0.84); }
+  18%, 82% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-14px, -8px) scale(1.04); }
+}
+
+@keyframes challengeVsRight {
+  0% { opacity: 0; transform: translate(34px, 18px) scale(0.84); }
+  18%, 82% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(14px, 8px) scale(1.04); }
+}
+
+@keyframes challengeVsBolt {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  22%, 72% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.12); }
+}
+
 .profile-name {
   min-width: 0;
   max-width: 100%;

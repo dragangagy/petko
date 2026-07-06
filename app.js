@@ -7191,6 +7191,7 @@ const CHALLENGE_DAILY_LIMIT = 5;
 const CHALLENGE_PAIR_DAILY_LIMIT = 3;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
+const CHALLENGE_VS_MS = 3000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -8911,6 +8912,11 @@ const acceptChallengeButton = document.querySelector("#acceptChallengeButton");
 const checkChallengeButton = document.querySelector("#checkChallengeButton");
 const challengeCodeTools = document.querySelector(".challenge-code-tools");
 const challengeHistoryEl = document.querySelector("#challengeHistory");
+const challengeVsOverlay = document.querySelector("#challengeVsOverlay");
+const challengeVsLeftAvatar = document.querySelector("#challengeVsLeftAvatar");
+const challengeVsLeftName = document.querySelector("#challengeVsLeftName");
+const challengeVsRightAvatar = document.querySelector("#challengeVsRightAvatar");
+const challengeVsRightName = document.querySelector("#challengeVsRightName");
 const hallPanelEl = document.querySelector("#hallPanel");
 const hallCarouselEl = document.querySelector("#hallCarousel");
 const hallGridEl = document.querySelector("#hallGrid");
@@ -10693,16 +10699,39 @@ function exitChallengeToLobby() {
   refreshChallengeLobby().catch(() => {});
 }
 
-function startChallengeGame(row, role) {
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function playChallengeVs(row) {
+  if (!challengeVsOverlay || !row) return;
+  const creator = row.creator || "Играч 1";
+  const opponent = row.opponent || loadPlayerName() || "Играч 2";
+  if (challengeVsLeftName) challengeVsLeftName.textContent = creator;
+  if (challengeVsRightName) challengeVsRightName.textContent = opponent;
+  renderAvatarForName(challengeVsLeftAvatar, creator);
+  renderAvatarForName(challengeVsRightAvatar, opponent);
+  challengeVsOverlay.hidden = false;
+  challengeVsOverlay.classList.remove("active");
+  void challengeVsOverlay.offsetWidth;
+  challengeVsOverlay.classList.add("active");
+  await wait(CHALLENGE_VS_MS);
+  challengeVsOverlay.hidden = true;
+  challengeVsOverlay.classList.remove("active");
+}
+
+async function startChallengeGame(row, role) {
   if (!row || !Array.isArray(row.words) || row.words.length !== CHALLENGE_WORDS) {
     renderChallengePanel("Изазов није исправан.");
     return;
   }
   const savedProgress = loadChallengeProgress(row.code);
   if (savedProgress) {
+    await playChallengeVs(row);
     restoreChallengeProgress(savedProgress);
     return;
   }
+  await playChallengeVs(row);
   gameType = "challenge";
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || loadPlayerName() || "Играч 2";
@@ -10754,6 +10783,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
   }
   const progress = loadChallengeProgress(code);
   if (playNow && progress?.active?.code && progress.active.code.toUpperCase() === code) {
+    await playChallengeVs(progress.active);
     restoreChallengeProgress(progress);
     return;
   }
@@ -10772,7 +10802,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
       await renderChallengeResult(row, 0);
       return;
     }
-    startChallengeGame(row, "creator");
+    await startChallengeGame(row, "creator");
     return;
   }
   if (row.status === "pending" && sameChallengeName(row.creator, loadPlayerName())) {
@@ -10812,7 +10842,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
     await refreshChallengeLobby().catch(() => {});
     return;
   }
-  startChallengeGame(accepted || row, "opponent");
+  await startChallengeGame(accepted || row, "opponent");
 }
 
 async function finishChallenge(status) {
@@ -10908,6 +10938,32 @@ function loadProfileAvatarId() {
 
 function currentProfileAvatar() {
   return PROFILE_AVATARS.find((avatar) => avatar.id === loadProfileAvatarId()) || PROFILE_AVATARS[0];
+}
+
+function deterministicProfileAvatar(name = "") {
+  const clean = normalizePlayerName(name) || "petko";
+  let hash = 0;
+  [...clean].forEach((letter) => {
+    hash = ((hash << 5) - hash) + letter.charCodeAt(0);
+    hash |= 0;
+  });
+  return PROFILE_AVATARS[Math.abs(hash) % PROFILE_AVATARS.length] || PROFILE_AVATARS[0];
+}
+
+function renderAvatarForName(target, name = "", options = {}) {
+  if (!target) return;
+  const avatar = options.current || sameChallengeName(name, loadPlayerName()) ? currentProfileAvatar() : deterministicProfileAvatar(name);
+  target.innerHTML = "";
+  target.classList.toggle("has-image", Boolean(avatar?.src));
+  if (avatar?.src) {
+    const image = document.createElement("img");
+    image.src = avatar.src;
+    image.alt = avatar.label || "Avatar";
+    image.loading = "lazy";
+    target.append(image);
+    return;
+  }
+  target.textContent = avatar?.label || playerInitial(name || loadPlayerName());
 }
 
 function renderAvatarText(target, fallbackName = "") {
