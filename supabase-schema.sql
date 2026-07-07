@@ -29,11 +29,15 @@ create table if not exists public.players (
   created_at timestamptz not null default now(),
   last_seen timestamptz not null default now(),
   nickname text not null,
-  device_id text
+  device_id text,
+  avatar_id text
 );
 
 create unique index if not exists players_nickname_unique
 on public.players (lower(btrim(nickname)));
+
+alter table public.players
+add column if not exists avatar_id text;
 
 alter table public.players enable row level security;
 
@@ -49,6 +53,14 @@ create policy "players_insert"
 on public.players
 for insert
 to anon
+with check (true);
+
+drop policy if exists "players_update" on public.players;
+create policy "players_update"
+on public.players
+for update
+to anon
+using (true)
 with check (true);
 
 create table if not exists public.challenges (

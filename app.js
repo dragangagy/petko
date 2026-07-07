@@ -1706,56 +1706,27 @@ const WORDS = [
   "кварт",
   "квару",
   "квизу",
-  "квина",
-  "квине",
-  "квинс",
   "квоте",
   "квоту",
-  "кевин",
-  "кеико",
-  "кеитх",
-  "кејдз",
-  "кејла",
-  "кејли",
-  "кејна",
-  "кејне",
-  "кејси",
-  "кејти",
   "кекса",
   "кексе",
-  "келер",
-  "келси",
-  "кенди",
-  "кенет",
-  "кензи",
-  "кенси",
-  "кенту",
   "кењаш",
   "кепец",
-  "керен",
-  "керол",
   "кесом",
-  "кецап",
   "кечап",
   "кешом",
   "кијам",
   "килав",
-  "кингс",
   "кинез",
   "кином",
   "кинте",
   "кинти",
   "кинту",
   "киоск",
-  "киран",
-  "кирби",
-  "кирка",
   "кисна",
   "кисне",
   "кисни",
-  "кисом",
   "китом",
-  "кицму",
   "кичма",
   "кичме",
   "кичму",
@@ -1766,28 +1737,20 @@ const WORDS = [
   "клада",
   "кладе",
   "клади",
-  "клајв",
-  "клајд",
-  "клајн",
   "клана",
   "клану",
   "клања",
   "клање",
-  "кларк",
   "класа",
   "класе",
   "класи",
   "класу",
   "клаун",
-  "клаус",
-  "клеин",
-  "клери",
   "клизи",
   "клима",
   "климе",
   "клими",
   "климу",
-  "клинт",
   "клиња",
   "клињо",
   "клише",
@@ -1800,7 +1763,6 @@ const WORDS = [
   "клопу",
   "клуба",
   "клубу",
-  "клуни",
   "клупа",
   "клупе",
   "клупи",
@@ -1809,7 +1771,6 @@ const WORDS = [
   "кнеже",
   "кнеза",
   "кнезе",
-  "книгу",
   "књига",
   "књиге",
   "књигу",
@@ -1822,10 +1783,6 @@ const WORDS = [
   "кожни",
   "кожну",
   "кожом",
-  "козна",
-  "козне",
-  "козни",
-  "козну",
   "козом",
   "којег",
   "којем",
@@ -1838,11 +1795,7 @@ const WORDS = [
   "кокош",
   "колац",
   "колач",
-  "колед",
-  "колет",
   "колеџ",
-  "колин",
-  "колко",
   "кољач",
   "комад",
   "комби",
@@ -6541,6 +6494,7 @@ const PROFILE_AVATARS = [
     src: `avatar/Z${index + 1}.png`
   }))
 ];
+const PLAYER_AVATAR_CACHE = new Map();
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
   anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
@@ -8253,43 +8207,106 @@ const WORD_INFO = {
   "кашља": "Облик глагола кашљати; избацује ваздух из плућа наглим звуком.",
   "кашље": "Облик глагола кашљати; он или она кашље.",
   "квака": "Дршка на вратима која служи за отварање.",
+  "кваке": "Облик речи квака; дршке на вратима за отварање.",
+  "кваку": "Облик речи квака; дршку на вратима.",
   "квара": "Облик речи квар; неисправност или оштећење.",
   "кваре": "Облик глагола кварити; чине нешто неисправним или лошијим.",
+  "квари": "Облик глагола кварити; чини нешто неисправним или лошијим.",
+  "кварт": "Део града, насеље или градска четврт.",
+  "квару": "Облик речи квар; неисправности или оштећењу.",
+  "квизу": "Облик речи квиз; игри питања и одговора.",
   "квоте": "Множина или падежни облик речи квота; одређени део, мера или ограничење.",
+  "квоту": "Облик речи квота; одређену количину, удео или ограничење.",
   "кекса": "Облик речи кекс; суви слатки колач.",
   "кексе": "Множина или падежни облик речи кекс.",
+  "кењаш": "Вулгаран разговорни облик; говориш глупости или вршиш нужду.",
+  "кепец": "Погрдан назив за веома ниску особу.",
+  "кесом": "Облик речи кеса; врећицом или паковањем.",
+  "кечап": "Густи сос од парадајза и зачина.",
+  "кешом": "Облик речи кеш; готовим новцем.",
   "кијам": "Облик глагола кијати: ја кијам.",
   "килав": "Слаб, млитав или недовољно снажан; може значити и тром.",
+  "кинез": "Кинез; припадник кинеског народа.",
+  "кином": "Облик речи кино; биоскопом или филмском представом.",
   "кинте": "Разговорни израз за новац.",
+  "кинти": "Жаргонски облик речи кинта; новцу.",
+  "кинту": "Жаргонски облик речи кинта; новац.",
+  "киоск": "Мала продајна кућица или штанд.",
+  "кисна": "Која је кишна, влажна или повезана са кишом.",
+  "кисне": "Облик речи кисан; кишне или влажне.",
+  "кисни": "Који је кишан или влажан.",
+  "китом": "Облик речи кит; великом морском животињом.",
   "кичма": "Стуб костију у леђима који носи тело и штити нерве.",
   "кичме": "Множина или падежни облик речи кичма.",
+  "кичму": "Облик речи кичма; стуб костију у леђима који носи тело.",
+  "кишна": "Која је повезана са кишом или је пуна кише.",
+  "кишне": "Облик речи кишни; које су повезане са кишом.",
+  "кишни": "Који се односи на кишу или доноси кишу.",
+  "кишом": "Облик речи киша; падавином у облику капи воде.",
   "клада": "Комад одсеченог стабла; у клађењу и уплата на исход.",
   "кладе": "Множина или облик глагола кладити се.",
+  "клади": "Облик глагола кладити се; ставља улог на исход.",
+  "клана": "Облик речи клан; затворене групе људи повезане интересом.",
+  "клану": "Облик речи клан; групи људи повезаној интересом или пореклом.",
   "клања": "Облик глагола клањати; савија се из поштовања или молитве.",
   "клање": "Убијање животиње ради меса; може означавати и крвав сукоб.",
   "класа": "Разред, група или ниво квалитета.",
   "класе": "Множина или падежни облик речи класа.",
+  "класи": "Облик речи класа; групи истог реда, разреда или квалитета.",
+  "класу": "Класа; група истог реда, разреда или квалитета.",
+  "клаун": "Комичар са маском и костимом који забавља публику.",
+  "клизи": "Облик глагола клизити; помера се глатко преко површине.",
   "клима": "Временске прилике једног подручја; може бити и уређај за хлађење.",
   "климе": "Множина или падежни облик речи клима.",
+  "клими": "Облик речи клима; временским условима или уређају за хлађење.",
+  "климу": "Клима; временски услови неког краја или уређај за хлађење.",
   "клиња": "Разговорни назив за дечака или младог момка.",
   "клињо": "Вокатив речи клиња; разговорно обраћање дечаку.",
   "клише": "Израз, сцена или идеја која се превише понавља.",
+  "кловн": "Комични забављач у шареном костиму и маски.",
+  "клона": "Облик речи клон; генетски или вештачки истоветан примерак.",
+  "клони": "Облик глагола клонити се; избегава или се склања.",
+  "клоњу": "Жаргонски назив за тоалет.",
   "клопа": "Разговорни назив за храну.",
   "клопе": "Множина или падежни облик речи клопа.",
+  "клопу": "Жаргонски назив за храну.",
   "клуба": "Облик речи клуб; удружење, место окупљања или спортска организација.",
+  "клубу": "Облик речи клуб; удружењу, месту окупљања или спортској екипи.",
   "клупа": "Седиште за више особа; школски сто за ученике.",
   "клупе": "Множина или падежни облик речи клупа.",
+  "клупи": "Облик речи клупа; седишту за више особа.",
+  "клупу": "Клупа; дугачко седиште за више особа.",
   "кључа": "Облик речи кључ или глагола кључати; средство за откључавање или врење.",
   "кнеже": "Вокатив речи кнез; обраћање племићу или владару.",
   "кнеза": "Облик речи кнез; племић или владар.",
   "кнезе": "Множина или вокатив речи кнез.",
   "књига": "Писано или штампано дело са страницама.",
   "књиге": "Множина или падежни облик речи књига.",
+  "књигу": "Књига; штампано или писано дело са страницама.",
+  "књизи": "Облик речи књига; писаном или штампаном делу.",
   "кобра": "Отровна змија која може да рашири вратни део.",
   "ковач": "Занатлија који кује и обрађује метал.",
+  "когод": "Било ко; ма која особа.",
+  "кожна": "Која је од коже или се односи на кожу.",
+  "кожне": "Облик речи кожни; које су од коже или се односе на кожу.",
+  "кожни": "Који је од коже или се односи на кожу.",
+  "кожну": "Облик речи кожни; ону која је од коже или се односи на кожу.",
+  "кожом": "Облик речи кожа; спољашњим покривачем тела.",
+  "козом": "Облик речи коза; домаћом животињом која даје млеко.",
+  "којег": "Облик заменице који; кога или којег.",
+  "којем": "Облик заменице који; коме или којем.",
+  "којим": "Облик заменице који; којим средством или којим предметом.",
+  "којих": "Облик заменице који; којих особа или ствари.",
+  "којој": "Облик заменице који; којој особи или ствари.",
+  "којом": "Облик заменице који; којом особом, ствари или појавом.",
+  "којот": "Дивља животиња слична вуку, пореклом из Северне Америке.",
+  "кокос": "Плод кокосове палме са тврдом љуском и белим језгром.",
+  "кокош": "Домаћа птица која носи јаја.",
   "колац": "Заоштрени дрвени штап или стуб.",
   "колач": "Слатко печено јело или посластица.",
+  "колеџ": "Виша школа или образовна установа.",
   "кољач": "Онај који коље; реч грубог и тешког значења.",
+  "комад": "Део нечега; један одвојен предмет или фрагмент.",
   "компа": "Разговорни назив за пријатеља или друштво.",
   "конац": "Танка нит за шивење или везивање.",
   "конце": "Множина или падежни облик речи конац.",
@@ -10760,14 +10777,9 @@ function challengeWinnerName(row) {
 function challengeAvatarElement(name) {
   const avatar = document.createElement("span");
   avatar.className = "profile-avatar challenge-player-avatar";
-  if (sameChallengeName(name, loadPlayerName())) {
-    renderAvatarText(avatar, name);
-  } else {
-    avatar.textContent = playerInitial(name || "И");
-  }
+  renderAvatarForName(avatar, name, { current: sameChallengeName(name, loadPlayerName()) });
   return avatar;
 }
-
 function challengeNameWithAvatar(name) {
   const item = document.createElement("span");
   item.className = "challenge-name-with-avatar";
@@ -11364,8 +11376,31 @@ function loadProfileAvatarId() {
   return PROFILE_AVATARS.some((avatar) => avatar.id === id) ? id : PROFILE_AVATARS[0].id;
 }
 
+function profileAvatarById(id) {
+  return PROFILE_AVATARS.find((avatar) => avatar.id === id) || null;
+}
+
 function currentProfileAvatar() {
-  return PROFILE_AVATARS.find((avatar) => avatar.id === loadProfileAvatarId()) || PROFILE_AVATARS[0];
+  return profileAvatarById(loadProfileAvatarId()) || PROFILE_AVATARS[0];
+}
+
+function normalizeProfileAvatarId(id) {
+  return profileAvatarById(id)?.id || PROFILE_AVATARS[0].id;
+}
+
+function playerAvatarCacheKey(name) {
+  return normalizePlayerName(name).toLowerCase();
+}
+
+function cachePlayerAvatar(row = {}) {
+  const key = playerAvatarCacheKey(row.nickname);
+  const avatar = profileAvatarById(row.avatar_id);
+  if (key && avatar) PLAYER_AVATAR_CACHE.set(key, avatar.id);
+}
+
+function cachedProfileAvatar(name = "") {
+  const id = PLAYER_AVATAR_CACHE.get(playerAvatarCacheKey(name));
+  return profileAvatarById(id);
 }
 
 function deterministicProfileAvatar(name = "") {
@@ -11380,7 +11415,12 @@ function deterministicProfileAvatar(name = "") {
 
 function renderAvatarForName(target, name = "", options = {}) {
   if (!target) return;
-  const avatar = options.current || sameChallengeName(name, loadPlayerName()) ? currentProfileAvatar() : deterministicProfileAvatar(name);
+  let avatar = options.avatar || null;
+  if (!avatar) {
+    avatar = options.current || sameChallengeName(name, loadPlayerName())
+      ? currentProfileAvatar()
+      : cachedProfileAvatar(name) || deterministicProfileAvatar(name);
+  }
   target.innerHTML = "";
   target.classList.toggle("has-image", Boolean(avatar?.src));
   if (avatar?.src) {
@@ -11411,10 +11451,29 @@ function renderAvatarText(target, fallbackName = "") {
 }
 
 function saveProfileAvatar(id) {
-  if (!PROFILE_AVATARS.some((avatar) => avatar.id === id)) return;
-  localStorage.setItem(PROFILE_AVATAR_KEY, id);
+  const cleanId = normalizeProfileAvatarId(id);
+  localStorage.setItem(PROFILE_AVATAR_KEY, cleanId);
+  const player = loadPlayerName();
+  if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), cleanId);
   updateStatusProfile();
   renderProfileModal();
+  syncProfileAvatarToSupabase(cleanId).catch(() => false);
+}
+
+async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
+  if (!supabaseConfigured()) return false;
+  const cleanId = normalizeProfileAvatarId(id);
+  const name = normalizePlayerName(loadPlayerName() || "");
+  const jobs = [];
+  if (deviceId()) {
+    jobs.push(patchSupabaseRows(`${playersTable()}?device_id=eq.${encodeURIComponent(deviceId())}`, { avatar_id: cleanId }));
+  }
+  if (name) {
+    jobs.push(patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, { avatar_id: cleanId }));
+  }
+  if (!jobs.length) return false;
+  await Promise.allSettled(jobs);
+  return true;
 }
 
 function updateTopScoreProfile(totalScore) {
@@ -11626,7 +11685,7 @@ async function editChallengePlayerName() {
 async function fetchPlayerRows() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=nickname,created_at,device_id",
+    "select=nickname,created_at,device_id,avatar_id",
     "order=nickname.asc",
     "limit=1000"
   ].join("&");
@@ -11635,7 +11694,9 @@ async function fetchPlayerRows() {
   });
   if (!response.ok) return null;
   const rows = await response.json();
-  return Array.isArray(rows) ? rows : [];
+  if (!Array.isArray(rows)) return [];
+  rows.forEach(cachePlayerAvatar);
+  return rows;
 }
 
 async function registerPlayerName(name) {
@@ -11646,7 +11707,8 @@ async function registerPlayerName(name) {
     headers: supabaseHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify({
       nickname: clean,
-      device_id: deviceId()
+      device_id: deviceId(),
+      avatar_id: loadProfileAvatarId()
     })
   });
   if (response.ok) return true;
@@ -11662,7 +11724,10 @@ async function syncCurrentPlayerDevice() {
   if (registered === true) return true;
   if (registered === false) {
     const encodedName = encodeURIComponent(name);
-    return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, { device_id: deviceId() });
+    return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, {
+      device_id: deviceId(),
+      avatar_id: loadProfileAvatarId()
+    });
   }
   return false;
 }
@@ -13798,7 +13863,7 @@ async function recoverExistingPlayerProfile(name) {
 async function fetchPlayerByDeviceId(targetDeviceId) {
   if (!supabaseConfigured() || !targetDeviceId) return null;
   const query = [
-    "select=nickname,device_id",
+    "select=nickname,device_id,avatar_id",
     `device_id=eq.${encodeURIComponent(targetDeviceId)}`,
     "limit=1"
   ].join("&");
@@ -13807,6 +13872,7 @@ async function fetchPlayerByDeviceId(targetDeviceId) {
   });
   if (!response.ok) return null;
   const rows = await response.json();
+  if (Array.isArray(rows)) rows.forEach(cachePlayerAvatar);
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
@@ -13827,6 +13893,10 @@ async function connectProfileByCode() {
     return;
   }
   localStorage.setItem(DEVICE_ID_KEY, targetDeviceId);
+  if (profileAvatarById(row.avatar_id)) {
+    localStorage.setItem(PROFILE_AVATAR_KEY, normalizeProfileAvatarId(row.avatar_id));
+    PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(nickname), normalizeProfileAvatarId(row.avatar_id));
+  }
   savePlayerName(nickname);
   updateChallengePlayerName();
   const onlineRows = await fetchOnlineLeaderboard().catch(() => []);
