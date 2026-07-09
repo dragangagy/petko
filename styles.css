@@ -411,9 +411,9 @@ body[data-word-modal-open="true"] .petko-mood span {
 
 .challenge-vs-card {
   position: relative;
-  width: min(560px, 94vw);
-  height: min(560px, 74vh);
-  min-height: 360px;
+  width: min(720px, 98vw);
+  height: min(720px, 82vh);
+  min-height: 440px;
   overflow: hidden;
   border-radius: 0;
   background: transparent;
@@ -434,24 +434,24 @@ body[data-word-modal-open="true"] .petko-mood span {
 }
 
 .challenge-vs-left {
-  top: 8%;
-  left: 5%;
+  top: 0;
+  left: -3%;
   animation: challengeVsLeft 3s ease both;
 }
 
 .challenge-vs-right {
-  right: 5%;
-  bottom: 8%;
+  right: -3%;
+  bottom: 0;
   animation: challengeVsRight 3s ease both;
 }
 
 .challenge-vs-avatar {
-  width: clamp(116px, 34vw, 190px);
-  height: clamp(116px, 34vw, 190px);
+  width: clamp(230px, 62vw, 390px);
+  height: clamp(230px, 62vw, 390px);
   border-radius: 0;
   border: 0;
   background: transparent;
-  font-size: clamp(44px, 15vw, 82px);
+  font-size: clamp(82px, 27vw, 160px);
   box-shadow:
     0 0 28px rgba(250, 204, 21, 0.18),
     0 18px 34px rgba(0, 0, 0, 0.54);
@@ -462,8 +462,8 @@ body[data-word-modal-open="true"] .petko-mood span {
   z-index: 2;
   top: 50%;
   left: 50%;
-  height: min(92%, 560px);
-  max-width: 62%;
+  height: min(98%, 680px);
+  max-width: 72%;
   object-fit: contain;
   transform: translate(-50%, -50%);
   filter: drop-shadow(0 0 18px rgba(248, 113, 113, 0.9)) drop-shadow(0 0 34px rgba(250, 204, 21, 0.44));
@@ -691,8 +691,8 @@ body[data-game-type="normal"] .status-panel p {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
-  gap: 3px;
-  padding: 5px 6px 6px;
+  gap: 1px;
+  padding: 3px 4px 5px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -706,17 +706,17 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .status-profile-button .profile-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 13px;
-  font-size: 24px;
+  width: min(66px, 100%);
+  height: min(66px, calc(100% - 16px));
+  border-radius: 14px;
+  font-size: 28px;
 }
 
 .status-profile-button .profile-name {
   width: 100%;
-  min-height: 14px;
+  min-height: 12px;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 950;
   line-height: 1.05;
   text-align: center;
@@ -955,11 +955,11 @@ body[data-game-type="normal"] .status-panel p {
 .profile-card {
   position: relative;
   width: min(360px, 92vw);
-  min-height: min(520px, calc(100vh - 36px));
+  min-height: min(560px, calc(100vh - 36px));
   display: grid;
-  grid-template-rows: auto minmax(190px, 1fr) auto auto auto auto;
+  grid-template-rows: auto minmax(250px, 1fr) auto auto auto auto;
   justify-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 18px;
   border: 1px solid rgba(56, 189, 248, 0.34);
   border-radius: 14px;
@@ -990,8 +990,8 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .profile-avatar-large {
-  width: min(250px, 74vw);
-  height: clamp(190px, 42vh, 290px);
+  width: min(320px, 82vw);
+  height: clamp(250px, 50vh, 370px);
   display: grid;
   place-items: center;
   border: 0;
@@ -1001,18 +1001,18 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .profile-avatar-large .profile-avatar {
-  width: min(230px, 68vw);
-  height: min(230px, 68vw);
+  width: min(310px, 78vw);
+  height: min(310px, 78vw);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  font-size: clamp(42px, 15vw, 76px);
+  font-size: clamp(58px, 20vw, 110px);
 }
 
 .profile-name-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: end;
   gap: 10px;
   width: 100%;
 }
@@ -1039,6 +1039,23 @@ body[data-game-type="normal"] .status-panel p {
   font-weight: 900;
 }
 
+.profile-link-toggle {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.34);
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.profile-link-toggle[aria-expanded="true"] {
+  border-color: rgba(56, 189, 248, 0.42);
+  color: var(--cyan);
+}
+
 .profile-link-code {
   width: 100%;
   display: grid;
@@ -1049,6 +1066,10 @@ body[data-game-type="normal"] .status-panel p {
   border: 1px solid rgba(56, 189, 248, 0.22);
   border-radius: 10px;
   background: rgba(30, 41, 59, 0.58);
+}
+
+.profile-link-code[hidden] {
+  display: none;
 }
 
 .profile-link-code span {
