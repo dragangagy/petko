@@ -11600,7 +11600,7 @@ async function fetchChallenge(code) {
   });
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није доступан."));
   const rows = await response.json();
-  return Array.isArray(rows) ? rows[0] : null;
+  return Array.isArray(rows) && rows[0] ? hydrateChallengeRow(rows[0]) : null;
 }
 
 async function updateChallenge(code, patch) {
@@ -11692,6 +11692,31 @@ function challengePairText(pair, creator, opponent) {
 
 function challengeGameOpen() {
   return gameType === "challenge" && !done && targets.length === CHALLENGE_WORDS;
+}
+
+function normalizeChallengeWords(words) {
+  let source = words;
+  if (typeof source === "string") {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(source)) return [];
+  return source.map((word) => normalize(word)).filter((word) => word.length === WORD_LENGTH);
+}
+
+function sameChallengeWords(first = [], second = []) {
+  const left = normalizeChallengeWords(first);
+  const right = normalizeChallengeWords(second);
+  return left.length === right.length && left.every((word, index) => word === right[index]);
+}
+
+function hydrateChallengeRow(row) {
+  if (!row || typeof row !== "object") return null;
+  if (row.words === undefined) return row;
+  return { ...row, words: normalizeChallengeWords(row.words) };
 }
 
 function challengeRowLabel(row, role) {
@@ -12107,6 +12132,7 @@ async function createChallenge() {
     creator: nickname,
     creator_device: deviceId(),
     opponent: shareAfterCreate ? "" : opponent,
+    words,
     created_at: createdAt
   };
   markChallengeSentToday(opponent, localChallengeRow);
@@ -12203,21 +12229,27 @@ async function playChallengeVs(row) {
 }
 
 async function startChallengeGame(row, role) {
-  if (!row || !Array.isArray(row.words) || row.words.length !== CHALLENGE_WORDS) {
-    renderChallengePanel("Изазов није исправан.");
+  const serverRow = hydrateChallengeRow(row);
+  if (!serverRow || !Array.isArray(serverRow.words) || serverRow.words.length !== CHALLENGE_WORDS) {
+    renderChallengePanel("\u0418\u0437\u0430\u0437\u043e\u0432 \u043d\u0438\u0458\u0435 \u0438\u0441\u043f\u0440\u0430\u0432\u0430\u043d.");
     return;
   }
-  const savedProgress = loadChallengeProgress(row.code);
-  if (savedProgress) {
-    await playChallengeVs(row);
-    restoreChallengeProgress(savedProgress);
+  const creator = serverRow.creator || "\u0418\u0433\u0440\u0430\u0447 1";
+  const opponent = serverRow.opponent || loadPlayerName() || "\u0418\u0433\u0440\u0430\u0447 2";
+  const savedProgress = loadChallengeProgress(serverRow.code);
+  if (savedProgress && sameChallengeWords(savedProgress.targets, serverRow.words)) {
+    await playChallengeVs(serverRow);
+    restoreChallengeProgress({
+      ...savedProgress,
+      active: { ...(savedProgress.active || {}), code: serverRow.code, role, creator, opponent },
+      targets: serverRow.words
+    });
     return;
   }
-  await playChallengeVs(row);
+  if (savedProgress) clearChallengeProgress(serverRow.code);
+  await playChallengeVs(serverRow);
   gameType = "challenge";
-  const creator = row.creator || "Играч 1";
-  const opponent = row.opponent || loadPlayerName() || "Играч 2";
-  activeChallenge = { code: row.code, role, creator, opponent };
+  activeChallenge = { code: serverRow.code, role, creator, opponent };
   saveActiveChallenge(activeChallenge);
   clearPendingChallengeCode();
   if (challengeCodeInput) challengeCodeInput.value = "";
@@ -12225,7 +12257,7 @@ async function startChallengeGame(row, role) {
   competitiveRunActive = false;
   mode = CHALLENGE_WORDS;
   score = 0;
-  targets = row.words;
+  targets = serverRow.words;
   solvedAt = Array(targets.length).fill(null);
   guesses = [];
   current = "";
@@ -12241,32 +12273,25 @@ async function startChallengeGame(row, role) {
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
   nextLevelButton.hidden = true;
-  modeLabelEl.textContent = "Изазов";
-  messageEl.textContent = "Изазов прихваћен: 6 табли, 11 покушаја.";
-  renderChallengePanel(`Играш: ${creator} против ${opponent}.`);
+  modeLabelEl.textContent = "\u0418\u0437\u0430\u0437\u043e\u0432";
+  messageEl.textContent = "\u0418\u0437\u0430\u0437\u043e\u0432 \u043f\u0440\u0438\u0445\u0432\u0430\u045b\u0435\u043d: 6 \u0442\u0430\u0431\u043b\u0438, 11 \u043f\u043e\u043a\u0443\u0448\u0430\u0458\u0430.";
+  renderChallengePanel(`\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}.`);
   fetchChallengeHistory()
     .then((rows) => {
       const pair = challengePairScore(rows, creator, opponent);
-      messageEl.textContent = `Играш: ${creator} против ${opponent}. Међусобно: ${challengePairText(pair, creator, opponent)}.`;
-      renderChallengePanel(`Играш: ${creator} против ${opponent}. Међусобно: ${challengePairText(pair, creator, opponent)}.`);
+      messageEl.textContent = `\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}. \u041c\u0435\u0452\u0443\u0441\u043e\u0431\u043d\u043e: ${challengePairText(pair, creator, opponent)}.`;
+      renderChallengePanel(`\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}. \u041c\u0435\u0452\u0443\u0441\u043e\u0431\u043d\u043e: ${challengePairText(pair, creator, opponent)}.`);
     })
     .catch(() => {});
   renderSolutionsPanel(false);
   render();
   saveChallengeProgress();
 }
-
 async function acceptChallenge(codeInput = "", options = {}) {
   const playNow = options.play !== false;
   const code = String(codeInput || challengeCodeInput?.value || "").trim().toUpperCase();
   if (!code) {
     renderChallengePanel("Унеси код изазова.");
-    return;
-  }
-  const progress = loadChallengeProgress(code);
-  if (playNow && progress?.active?.code && progress.active.code.toUpperCase() === code) {
-    await playChallengeVs(progress.active);
-    restoreChallengeProgress(progress);
     return;
   }
   const row = await fetchChallenge(code);
@@ -13000,7 +13025,7 @@ function loadChallengeProgress(code = activeChallenge?.code) {
 }
 
 function saveChallengeProgress() {
-  if (gameType !== "challenge" || done || !activeChallenge?.code || !targets.length) return;
+  if (gameType !== "challenge" || done || !activeChallenge?.code || targets.length !== CHALLENGE_WORDS) return;
   const progress = {
     status: "in_progress",
     active: activeChallenge,
@@ -15134,3 +15159,4 @@ if (initialNormalStats.started || initialNormalStats.finished) {
 fetchChallengeHistory()
   .then(updateChallengeBadge)
   .catch(() => {});
+
