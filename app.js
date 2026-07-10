@@ -5103,6 +5103,7 @@ const CHALLENGE_PAIR_DAILY_LIMIT = 3;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
+const CHALLENGE_SYNC_INTERVAL_MS = 3500;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -10353,6 +10354,8 @@ let activeChallenge = null;
 let hallMedals = [];
 let hallMedalIndex = 0;
 let hallTouchStartX = 0;
+let challengeSyncBusy = false;
+let challengeSyncSnapshot = "";
 
 function normalize(text) {
   const latin = {
@@ -11876,14 +11879,108 @@ async function refreshChallengeHistoryCards() {
   renderChallengeHistoryCards(rows);
 }
 
+function challengeSyncRowSnapshot(row = {}) {
+  return [
+    row.code,
+    row.status,
+    row.accepted_at,
+    row.creator,
+    row.creator_device,
+    row.opponent,
+    row.opponent_device,
+    row.creator_score,
+    row.opponent_score,
+    row.creator_solved,
+    row.opponent_solved,
+    row.creator_attempts,
+    row.opponent_attempts,
+    row.creator_played_at,
+    row.opponent_played_at,
+    row.created_at
+  ].map((value) => value ?? "").join("|");
+}
+
+function challengeSyncSnapshotFor(rows = []) {
+  return rows
+    .map(challengeSyncRowSnapshot)
+    .sort()
+    .join("\n");
+}
+
+function shouldPollChallengeSync() {
+  if (!supabaseConfigured()) return false;
+  if (document.visibilityState === "hidden") return false;
+  if (gameType === "challenge") return true;
+  if (loadActiveChallenge()?.code) return true;
+  if (loadPendingChallengeCode()) return true;
+  return loadSentChallengeRowsToday().some(challengeSentEntryActive);
+}
+
+function mergeActiveChallengeRow(row) {
+  if (!row?.code) return;
+  const active = loadActiveChallenge();
+  if (!active || normalizeChallengeCode(active.code) !== normalizeChallengeCode(row.code)) return;
+  const role = active.role || challengeRole(row);
+  const next = {
+    ...active,
+    role,
+    creator: row.creator || active.creator,
+    opponent: row.opponent || active.opponent
+  };
+  activeChallenge = next;
+  saveActiveChallenge(next);
+}
+
+async function syncActiveChallengeResult(rows = []) {
+  const active = activeChallenge || loadActiveChallenge();
+  const code = normalizeChallengeCode(active?.code);
+  if (!code) return;
+  const row = rows.find((item) => normalizeChallengeCode(item.code) === code) || await fetchChallenge(code).catch(() => null);
+  if (!row) return;
+  mergeActiveChallengeRow(row);
+  const role = active?.role || challengeRole(row);
+  const localPlayed = role ? challengeAlreadyPlayed(row, role) : false;
+  const localFinished = done && targets.length > 0 && solvedAt.filter(Boolean).length === targets.length;
+  const localScore = done ? challengeScoreValue(localFinished ? "finished" : "failed") : 0;
+  if (playedChallenge(row) || (gameType === "challenge" && done && localPlayed)) {
+    await renderChallengeResult(row, localScore);
+  }
+}
+
+async function syncChallengeState({ force = false } = {}) {
+  if (!shouldPollChallengeSync() && !force) return;
+  if (challengeSyncBusy) return;
+  challengeSyncBusy = true;
+  try {
+    const [players, rows] = await Promise.all([
+      gameType === "challenge" && !challengeGameOpen()
+        ? fetchChallengePlayers().catch(() => [])
+        : Promise.resolve(null),
+      fetchChallengeHistory().catch(() => [])
+    ]);
+    const finalRows = await finalizeExpiredChallenges(rows);
+    const snapshot = challengeSyncSnapshotFor(finalRows);
+    const changed = force || snapshot !== challengeSyncSnapshot;
+    if (changed) {
+      challengeSyncSnapshot = snapshot;
+      if (Array.isArray(players)) renderChallengePlayers(players);
+      renderChallengeHistoryCards(finalRows);
+    } else {
+      updateChallengeBadge(finalRows);
+      updateChallengeQuota(sentChallengeRowsFromHistory(finalRows));
+    }
+    await syncActiveChallengeResult(finalRows);
+  } finally {
+    challengeSyncBusy = false;
+  }
+}
+
+function refreshChallengePanel() {
+  syncChallengeState({ force: true }).catch(() => {});
+}
+
 async function refreshChallengeLobby() {
-  const [players, rows] = await Promise.all([
-    fetchChallengePlayers().catch(() => []),
-    fetchChallengeHistory().catch(() => [])
-  ]);
-  const finalRows = await finalizeExpiredChallenges(rows);
-  renderChallengePlayers(players);
-  renderChallengeHistoryCards(finalRows);
+  await syncChallengeState({ force: true });
 }
 
 async function renderChallengeResult(row, localScore) {
@@ -12251,7 +12348,9 @@ async function finishChallenge(status) {
       [`${prefix}_solved`]: solvedCount,
       [`${prefix}_played_at`]: new Date().toISOString()
     });
-    await fetchChallenge(activeChallenge.code);
+    const row = await fetchChallenge(activeChallenge.code);
+    await renderChallengeResult(row, resultScore);
+    refreshChallengePanel();
   } catch {
     renderChallengePanel("Резултат је локалан; online упис није прошао.");
   }
@@ -14996,15 +15095,21 @@ document.addEventListener("visibilitychange", () => {
     saveCompetitiveProgress();
     saveNormalProgress();
     saveChallengeProgress();
+  } else {
+    syncChallengeState({ force: true }).catch(() => {});
   }
+});
+window.addEventListener("focus", () => {
+  syncChallengeState({ force: true }).catch(() => {});
+});
+window.addEventListener("online", () => {
+  syncChallengeState({ force: true }).catch(() => {});
 });
 setInterval(updateCompetitiveCountdown, 1000);
 setInterval(notifyDailyEvents, 600000);
 setInterval(() => {
-  if (gameType === "challenge" && !challengeGameOpen() && supabaseConfigured()) {
-    refreshChallengeLobby().catch(() => {});
-  }
-}, 30000);
+  syncChallengeState().catch(() => {});
+}, CHALLENGE_SYNC_INTERVAL_MS);
 
 const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
 if (incomingChallengeCode) {
