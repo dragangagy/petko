@@ -109,6 +109,13 @@ to anon
 using (true)
 with check (true);
 
+drop policy if exists "challenges_delete" on public.challenges;
+create policy "challenges_delete"
+on public.challenges
+for delete
+to anon
+using (true);
+
 create or replace function public.enforce_challenge_daily_limits()
 returns trigger
 language plpgsql
@@ -116,31 +123,6 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.opponent is not null
-    and btrim(new.opponent) <> ''
-    and lower(btrim(new.opponent)) not in (lower('Нови корисник'), lower('Чека се'))
-    and (
-    select count(*)
-    from public.challenges
-    where day = new.day
-      and (
-        (
-          lower(btrim(creator)) = lower(btrim(new.creator))
-          and lower(btrim(opponent)) = lower(btrim(new.opponent))
-        )
-        or (
-          lower(btrim(creator)) = lower(btrim(new.opponent))
-          and lower(btrim(opponent)) = lower(btrim(new.creator))
-        )
-      )
-      and (
-        status <> 'pending'
-        or created_at > now() - interval '6 hours'
-      )
-  ) >= 3 then
-    raise exception 'same opponent already challenged today';
-  end if;
-
   if new.creator_device is not null
     and new.opponent is not null
     and btrim(new.opponent) <> ''
@@ -153,17 +135,17 @@ begin
       and opponent is not null
       and btrim(opponent) <> ''
       and lower(btrim(opponent)) not in (lower('Нови корисник'), lower('Чека се'))
+      and status <> 'cancelled'
       and (
         status <> 'pending'
         or created_at > now() - interval '6 hours'
       )
-  ) >= 5 then
+  ) >= 9 then
     raise exception 'daily challenge limit reached';
   end if;
   return new;
 end;
 $$;
-
 drop trigger if exists challenges_daily_limit_trigger on public.challenges;
 create trigger challenges_daily_limit_trigger
 before insert on public.challenges
@@ -266,3 +248,4 @@ where candidate.nickname is not null
     from public.players existing
     where lower(btrim(existing.nickname)) = lower(candidate.nickname)
   );
+

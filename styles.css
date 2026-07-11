@@ -689,10 +689,10 @@ body[data-game-type="normal"] .status-panel p {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) min-content;
   place-items: center;
-  gap: 1px;
-  padding: 3px 4px 5px;
+  gap: 0;
+  padding: 2px 4px 3px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -706,19 +706,27 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .status-profile-button .profile-avatar {
-  width: min(66px, 100%);
-  height: min(66px, calc(100% - 16px));
+  overflow: visible;
+  align-self: end;
+  width: min(52px, 100%);
+  height: min(52px, calc(100% - 12px));
   border-radius: 14px;
   font-size: 28px;
 }
 
+.status-profile-button .profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .status-profile-button .profile-name {
   width: 100%;
-  min-height: 12px;
+  min-height: 9px;
   overflow: hidden;
-  font-size: 10px;
-  font-weight: 950;
-  line-height: 1.05;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -955,9 +963,9 @@ body[data-game-type="normal"] .status-panel p {
 .profile-card {
   position: relative;
   width: min(360px, 92vw);
-  min-height: min(560px, calc(100vh - 36px));
+  min-height: min(500px, calc(100vh - 36px));
   display: grid;
-  grid-template-rows: auto minmax(250px, 1fr) auto auto auto auto;
+  grid-template-rows: auto auto auto auto auto auto auto;
   justify-items: center;
   gap: 10px;
   padding: 18px;
@@ -990,8 +998,8 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .profile-avatar-large {
-  width: min(320px, 82vw);
-  height: clamp(250px, 50vh, 370px);
+  width: min(170px, 48vw);
+  height: min(170px, 30vh);
   display: grid;
   place-items: center;
   border: 0;
@@ -1001,12 +1009,21 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .profile-avatar-large .profile-avatar {
-  width: min(310px, 78vw);
-  height: min(310px, 78vw);
+  overflow: visible;
+  width: min(165px, 46vw);
+  height: min(165px, 46vw);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   font-size: clamp(58px, 20vw, 110px);
+}
+
+.profile-avatar-hint {
+  margin: -4px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 850;
+  text-align: center;
 }
 
 .profile-name-row {
@@ -1642,6 +1659,24 @@ body[data-game-type="challenge"][data-challenge-finished="true"] .keyboard {
   border-style: dashed;
 }
 
+.challenge-cancel-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(248, 113, 113, 0.64);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f87171;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1;
+}
+
 .challenge-card.invite::before {
   content: "";
   position: absolute;
@@ -1651,6 +1686,7 @@ body[data-game-type="challenge"][data-challenge-finished="true"] .keyboard {
 }
 
 .challenge-card.invite.pending {
+  padding-right: 36px;
   border-color: rgba(255, 215, 0, 0.62);
   background: linear-gradient(135deg, rgba(255, 215, 0, 0.24), rgba(30, 24, 6, 0.7) 44%, rgba(15, 23, 42, 0.8));
   box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.12), 0 0 15px rgba(255, 215, 0, 0.12);

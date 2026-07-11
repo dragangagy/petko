@@ -5098,8 +5098,8 @@ const COMPETITIVE_FAIL_PENALTY = -2;
 const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
-const CHALLENGE_DAILY_LIMIT = 5;
-const CHALLENGE_PAIR_DAILY_LIMIT = 3;
+const CHALLENGE_BASE_DAILY_LIMIT = 1;
+const CHALLENGE_MAX_DAILY_LIMIT = 9;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
@@ -10726,7 +10726,6 @@ function markQuietGuessForPetko() {
 
 function hidePetkoSplash() {
   if (petkoSplash) petkoSplash.hidden = true;
-  playPetkoMoment("start", { force: true });
   showProfileHintOnce();
 }
 
@@ -11156,6 +11155,7 @@ function selfChallengeRow(row) {
 }
 
 function challengeCardVisible(row) {
+  if (row?.status === "cancelled") return false;
   if (challengePendingExpired(row)) return false;
   if (selfChallengeRow(row)) return false;
   if (playedChallenge(row)) return challengePlayedToday(row);
@@ -11273,6 +11273,20 @@ function markChallengeSentToday(opponent, row = null) {
   localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({ entries }));
 }
 
+function removeSentChallenge(code) {
+  const cleanCode = normalizeChallengeCode(code);
+  if (!cleanCode) return;
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_SENT_KEY) || "null");
+    const entries = Array.isArray(data?.entries) ? data.entries : [];
+    localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({
+      entries: entries.filter((entry) => normalizeChallengeCode(entry?.code) !== cleanCode)
+    }));
+  } catch {
+    localStorage.removeItem(CHALLENGE_SENT_KEY);
+  }
+}
+
 function cleanChallengeName(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
@@ -11287,6 +11301,7 @@ function isOpenChallengeOpponent(value) {
 }
 
 function challengeCountsForDailyLimit(row) {
+  if (row?.status === "cancelled") return false;
   return !isOpenChallengeOpponent(row?.opponent) && !selfChallengeRow(row) && !challengePendingExpired(row);
 }
 
@@ -11296,6 +11311,7 @@ function challengeSentEntryActive(entry) {
   const pendingUntil = created + CHALLENGE_PENDING_MS;
   const activeUntil = created + CHALLENGE_ACTIVE_MS;
   const status = entry?.status || "pending";
+  if (status === "cancelled") return false;
   if (status === "accepted" || status === "played") return Date.now() < activeUntil;
   return Date.now() < pendingUntil;
 }
@@ -11304,18 +11320,22 @@ function dailyChallengeCount(rows = []) {
   return rows.filter(challengeCountsForDailyLimit).length;
 }
 
-function challengePairCountToday(rows = [], first, second) {
-  if (!cleanChallengeName(first) || !cleanChallengeName(second)) return 0;
-  return rows.filter((row) => {
-    if (String(row.day || "").slice(0, 10) !== todayId()) return false;
-    if (!challengeCountsForDailyLimit(row)) return false;
-    const creator = row.creator || "";
-    const opponent = row.opponent || "";
-    return (
-      (sameChallengeName(creator, first) && sameChallengeName(opponent, second)) ||
-      (sameChallengeName(creator, second) && sameChallengeName(opponent, first))
-    );
-  }).length;
+function todayCompetitiveCompletedLevels() {
+  const today = todayId();
+  const fromRun = gameType === "competitive" ? Number(competitiveCompleted) || 0 : 0;
+  const fromLock = loadTodayLock();
+  const lockCompleted = fromLock?.date === today ? Number(fromLock.completed) || 0 : 0;
+  const fromResult = loadResults().find((result) => result?.date === today);
+  const resultCompleted = Number(fromResult?.completed) || 0;
+  return Math.max(0, fromRun, lockCompleted, resultCompleted);
+}
+
+function challengeDailyLimit() {
+  const completed = todayCompetitiveCompletedLevels();
+  const levelBonus = COMPETITIVE_LEVELS
+    .slice(0, completed)
+    .reduce((sum, value) => sum + value, 0);
+  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus);
 }
 
 function sentChallengeRowsFromHistory(rows = []) {
@@ -11329,7 +11349,8 @@ function sentChallengeRowsFromHistory(rows = []) {
 function updateChallengeQuota(rows = null) {
   if (!challengeQuotaEl) return;
   const count = Array.isArray(rows) ? dailyChallengeCount(rows) : dailyChallengeCount(loadSentChallengeRowsToday());
-  challengeQuotaEl.textContent = `Изазови ${Math.min(count, CHALLENGE_DAILY_LIMIT)}/${CHALLENGE_DAILY_LIMIT}`;
+  const limit = challengeDailyLimit();
+  challengeQuotaEl.textContent = `\u0418\u0437\u0430\u0437\u043e\u0432\u0438 ${Math.min(count, limit)}/${limit}`;
 }
 
 async function fetchSentChallengesToday() {
@@ -11612,6 +11633,28 @@ async function updateChallenge(code, patch) {
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
 }
 
+async function deleteChallenge(code) {
+  const response = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(code)}`), {
+    method: "DELETE",
+    headers: supabaseHeaders({ Prefer: "return=minimal" })
+  });
+  if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није обрисан."));
+}
+
+async function cancelPendingChallenge(row) {
+  if (!row?.code) return;
+  if (row.status !== "pending" || row.opponent_device || row.accepted_at || challengeRole(row) !== "creator") return;
+  try {
+    await deleteChallenge(row.code);
+  } catch {
+    await updateChallenge(row.code, { status: "cancelled" });
+  }
+  removeSentChallenge(row.code);
+  clearPendingChallengeCode();
+  renderChallengePanel("Изазов је отказан.");
+  await refreshChallengeLobby().catch(() => {});
+}
+
 async function finalizeExpiredChallenges(rows = []) {
   const patchedRows = [];
   for (const row of rows) {
@@ -11770,6 +11813,16 @@ function challengeCard(row, rows = []) {
   const opponent = row.opponent || "Чека се";
   const openInvite = isOpenChallengeOpponent(opponent);
   const role = challengeRole(row);
+  const canCancel = role === "creator" && row.status === "pending" && !row.opponent_device && !row.accepted_at;
+  if (canCancel) {
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "challenge-cancel-button";
+    cancel.setAttribute("aria-label", "\u041e\u0434\u0443\u0441\u0442\u0430\u043d\u0438 \u043e\u0434 \u0438\u0437\u0430\u0437\u043e\u0432\u0430");
+    cancel.textContent = "\u00d7";
+    cancel.addEventListener("click", () => cancelPendingChallenge(row).catch(() => renderChallengePanel("\u041e\u0434\u0443\u0441\u0442\u0430\u0458\u0430\u045a\u0435 \u043e\u0434 \u0438\u0437\u0430\u0437\u043e\u0432\u0430 \u043d\u0438\u0458\u0435 \u0443\u0441\u043f\u0435\u043b\u043e.")));
+    card.append(cancel);
+  }
   const otherPlayer = role === "creator" ? (openInvite ? "нови корисник" : opponent) : creator;
   const pair = openInvite || opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
   if (pair) {
@@ -12084,17 +12137,9 @@ async function createChallenge() {
   const sentToday = await fetchSentChallengesToday().catch(() => loadSentChallengeRowsToday());
   updateChallengeQuota(sentToday);
   const sentCount = dailyChallengeCount(sentToday);
-  if (!shareAfterCreate && sentCount >= CHALLENGE_DAILY_LIMIT) {
-    renderChallengePanel(`Данас сте већ послали ${CHALLENGE_DAILY_LIMIT} изазова.`);
-    return;
-  }
-  let pairRows = sentToday;
-  if (!shareAfterCreate) {
-    const history = await fetchChallengeHistory().catch(() => []);
-    if (Array.isArray(history) && history.length) pairRows = history;
-  }
-  if (!shareAfterCreate && challengePairCountToday(pairRows, nickname, opponent) >= CHALLENGE_PAIR_DAILY_LIMIT) {
-    renderChallengePanel(`Између ${nickname} и ${opponent} данас могу највише ${CHALLENGE_PAIR_DAILY_LIMIT} изазова.`);
+  const dailyLimit = challengeDailyLimit();
+  if (!shareAfterCreate && sentCount >= dailyLimit) {
+    renderChallengePanel(`Данас сте већ послали ${dailyLimit} изазова.`);
     return;
   }
   const code = challengeCode();
@@ -12157,10 +12202,10 @@ async function supabaseErrorMessage(response, fallback) {
       return "У Supabase-у није направљена табела challenges. Покрени SQL из supabase-schema.sql.";
     }
     if (/same opponent already challenged today/i.test(message)) {
-      return `Између ова два играча данас могу највише ${CHALLENGE_PAIR_DAILY_LIMIT} изазова.`;
+      return "Supabase SQL још има старо ограничење за истог противника. Покрени нови supabase-schema.sql.";
     }
     if (/daily challenge limit reached/i.test(message)) {
-      return `Данас можете послати највише ${CHALLENGE_DAILY_LIMIT} изазова.`;
+      return `Данас можете послати највише ${challengeDailyLimit()} изазова.`;
     }
     return message || fallback;
   } catch {
@@ -13675,6 +13720,7 @@ function submitGuess() {
     petkoMoodQuietGuesses = 0;
     if (gameType === "competitive") {
       competitiveCompleted = Math.max(competitiveCompleted, competitiveLevelIndex + 1);
+      updateChallengeQuota();
       applyLevelAward();
       renderSolutionsPanel(true);
       const isFinalLevel = competitiveLevelIndex === COMPETITIVE_LEVELS.length - 1;
@@ -14488,6 +14534,7 @@ function finishCompetitive(status) {
   recordFridayCompetitiveBonus(result);
   saveTodayLock(result);
   upsertTodayResult(result);
+  updateChallengeQuota();
   submitOnlineResult(result)
     .then((sent) => {
       if (sent) refreshOnlineLeaderboard();
@@ -15159,4 +15206,5 @@ if (initialNormalStats.started || initialNormalStats.finished) {
 fetchChallengeHistory()
   .then(updateChallengeBadge)
   .catch(() => {});
+
 
