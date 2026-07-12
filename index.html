@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=103">
     <link rel="icon" href="app-icon.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon.png">
-  <link rel="stylesheet" href="styles.css?v=186">
+  <link rel="stylesheet" href="styles.css?v=201">
   </head>
   <body>
     <div class="petko-splash" id="petkoSplash" role="dialog" aria-label="Петко" aria-modal="true">
@@ -79,14 +79,16 @@
 
       <section class="challenge-panel" id="challengePanel" hidden aria-live="polite">
         <div class="challenge-copy" id="challengeStatus" hidden></div>
-        <div class="challenge-quota" id="challengeQuota">Изазови 0/3</div>
         <div class="challenge-actions">
-          <div class="challenge-player-picker" id="challengePlayerPicker">
-            <button class="challenge-player-select" id="challengePlayerButton" type="button" aria-expanded="false">Изазови Петка</button>
-            <div class="challenge-player-menu" id="challengePlayerMenu" hidden></div>
-            <input id="challengePlayerSelect" type="hidden" value="">
-          </div>
+          <div class="challenge-quota" id="challengeQuota">Изазови 0/1</div>
+          <div class="challenge-hint"><span>Кликни на Изазов</span><span>да изазовеш Петка</span></div>
           <button id="createChallengeButton" type="button">Изазови</button>
+          <div class="challenge-extra-note">Одиграј такмичарски део за још дозвољених изазова</div>
+        </div>
+        <div class="challenge-player-picker" id="challengePlayerPicker" hidden>
+          <button class="challenge-player-select" id="challengePlayerButton" type="button" aria-expanded="false">Изазови Петка</button>
+          <div class="challenge-player-menu" id="challengePlayerMenu" hidden></div>
+          <input id="challengePlayerSelect" type="hidden" value="">
         </div>
         <div class="challenge-code-tools challenge-card invite pending" hidden>
           <div class="challenge-code-label">Позив за новог корисника</div>
@@ -129,6 +131,11 @@
       </section>
 
       <section class="solutions-panel" id="solutionsPanel" hidden aria-label="Решења"></section>
+
+      <section class="idle-petko" aria-hidden="true">
+        <img class="idle-petko-competitive" src="22.png" alt="">
+        <img class="idle-petko-challenge" src="18.png" alt="">
+      </section>
 
       <section class="boards" id="boards" aria-label="Табла игре"></section>
 
@@ -215,13 +222,26 @@
           <summary>Изазов</summary>
           <ul>
             <li>Изазов има 6 табли и укупно 11 покушаја.</li>
-            <li>Дневно можеш послати највише 3 изазова.</li>
-            <li>Исту особу можеш изазвати само једном дневно.</li>
+            <li>На почетку дана имаш 1 дозвољен изазов.</li>
+            <li>Такмичарски део отвара додатне изазове: сваки пређени ниво додаје још 1, највише до 9.</li>
+            <li>Број изазова се приказује као искоришћено / дозвољено, на пример 0/1 или 3/9.</li>
+            <li>Кад изазовеш противника, позив чека прихватање и приказује се као жута картица.</li>
+            <li>Ако противник не прихвати позив у року од 6 сати, позив истиче и враћа ти се то место за нови изазов.</li>
+            <li>Кад је изазов прихваћен, картица постаје зелена и може да се настави у року од 24 сата.</li>
             <li>Примање изазова је неограничено.</li>
-            <li>После поноћи добијаш 3 нова слања, а неискоришћена слања се не преносе.</li>
-            <li>Послат изазов који није прихваћен истиче после 6 сати и враћа место у 3/3. Прихваћени изазов важи 24h.</li>
-            <li>Одиграни скор на картици је дневни приказ и нестаје после поноћи.</li>
+            <li>Одиграни резултати изазова виде се као плаве картице и чисте се после поноћи.</li>
             <li>Изазов се игра тек кад противник прихвати код или линк.</li>
+          </ul>
+        </details>
+        <details class="help-section">
+          <summary>Профил</summary>
+          <ul>
+            <li>Профил се отвара кликом на мали прозор са аватаром у горњем делу игре.</li>
+            <li>У профилу можеш да промениш име играча и аватар.</li>
+            <li>Клик на слику аватара отвара избор аватара.</li>
+            <li>Код за повезивање служи да исти профил користиш на више уређаја.</li>
+            <li>Када повежеш профил, резултати, изазови и медаље се везују за истог играча.</li>
+            <li>Име може да се промени ограничен број пута, да би листе и изазови остали прегледни.</li>
           </ul>
         </details>
       </article>
@@ -273,6 +293,17 @@
       </article>
     </div>
 
+    <div class="challenge-picker-modal" id="challengePickerModal" hidden>
+      <article class="challenge-picker-card" role="dialog" aria-modal="true" aria-labelledby="challengePickerTitle">
+        <button class="challenge-picker-close" id="challengePickerClose" type="button" aria-label="Затвори">×</button>
+        <h2 id="challengePickerTitle">Изабери противника</h2>
+        <input class="challenge-picker-search" id="challengePickerSearch" type="search" autocomplete="off" placeholder="Претрага">
+        <div class="challenge-picker-stats" id="challengePickerStats">Изабери играча за међусобни скор.</div>
+        <div class="challenge-picker-grid" id="challengePickerGrid"></div>
+        <button class="challenge-picker-submit" id="challengePickerSubmit" type="button" disabled>Изазови</button>
+      </article>
+    </div>
+
     <div class="hall-modal" id="hallModal" hidden>
       <article class="hall-modal-card" role="dialog" aria-modal="true" aria-labelledby="hallModalTitle">
         <button class="hall-modal-close" id="hallModalClose" type="button" aria-label="Затвори">×</button>
@@ -283,6 +314,6 @@
       </article>
     </div>
 
-  <script src="app.js?v=233"></script>
+  <script src="app.js?v=240"></script>
   </body>
 </html>
