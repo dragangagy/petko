@@ -11413,10 +11413,25 @@ function todayCompetitiveCompletedLevels() {
 
 function challengeDailyLimit() {
   const completed = todayCompetitiveCompletedLevels();
-  const levelBonus = COMPETITIVE_LEVELS
-    .slice(0, completed)
-    .reduce((sum, value) => sum + value, 0);
+  const levelBonus = Math.max(0, Math.min(completed, COMPETITIVE_LEVELS.length));
   return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus);
+}
+
+function completedCompetitiveLevelIndex() {
+  return Math.max(0, Math.min(Number(competitiveCompleted) || 0, COMPETITIVE_LEVELS.length) - 1);
+}
+
+function canAdvanceCompetitiveLevel() {
+  return gameType === "competitive" &&
+    done &&
+    competitiveCompleted > competitiveLevelIndex &&
+    competitiveLevelIndex < COMPETITIVE_LEVELS.length - 1;
+}
+
+function updateCompetitiveNextButton() {
+  if (gameType !== "competitive" || !nextLevelButton) return;
+  nextLevelButton.textContent = "Даље";
+  nextLevelButton.hidden = !canAdvanceCompetitiveLevel();
 }
 
 function sentChallengeRowsFromHistory(rows = []) {
@@ -12320,7 +12335,7 @@ async function shareChallenge(code) {
   await navigator.clipboard.writeText(text);
 }
 
-async function createChallenge() {
+async function createChallenge(selectedOpponent = null) {
   renderChallengePanel("Шаљем изазов...");
   if (!supabaseConfigured()) {
     renderChallengePanel("За изазове мора бити активан Supabase.");
@@ -12328,7 +12343,8 @@ async function createChallenge() {
   }
   const nickname = await savePlayerNameUnique(loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || window.prompt("Унеси надимак за изазов:", "") || "");
   if (!nickname) return;
-  let opponent = cleanChallengeName(challengePlayerSelect?.value || "");
+  const selectedChallengeOpponent = selectedOpponent ?? challengePickerSelected;
+  let opponent = cleanChallengeName(selectedChallengeOpponent || challengePlayerSelect?.value || "");
   const shareAfterCreate = opponent === "__new__";
   if (opponent === "__new__") {
     opponent = "";
@@ -13306,6 +13322,10 @@ function restoreCompetitiveProgress(progress) {
   competitiveLevelIndex = progress.competitiveLevelIndex || 0;
   competitiveStarted = progress.competitiveStarted || 1;
   competitiveCompleted = progress.competitiveCompleted || 0;
+  if (done && competitiveCompleted > 0 && competitiveCompleted < COMPETITIVE_LEVELS.length) {
+    competitiveLevelIndex = Math.min(competitiveLevelIndex, completedCompetitiveLevelIndex());
+    mode = COMPETITIVE_LEVELS[competitiveLevelIndex];
+  }
   score = progress.score || 0;
   targets = Array.isArray(progress.targets) ? progress.targets : [];
   competitiveWordsPlayed = Array.isArray(progress.competitiveWordsPlayed) ? progress.competitiveWordsPlayed : [];
@@ -13330,8 +13350,7 @@ function restoreCompetitiveProgress(progress) {
   boardsEl.classList.toggle("level-8", mode === 8);
   typeButtons.forEach((button) => button.classList.toggle("active", button.dataset.type === gameType));
   updateModeButtons();
-  nextLevelButton.hidden = !(done && competitiveCompleted > competitiveLevelIndex && competitiveLevelIndex < COMPETITIVE_LEVELS.length - 1);
-  nextLevelButton.textContent = "Даље";
+  updateCompetitiveNextButton();
   modeLabelEl.textContent = "";
   messageEl.textContent = done && !nextLevelButton.hidden
     ? levelAwardMessage()
@@ -13937,7 +13956,7 @@ function submitGuess() {
       applyLevelAward();
       renderSolutionsPanel(true);
       const isFinalLevel = competitiveLevelIndex === COMPETITIVE_LEVELS.length - 1;
-      nextLevelButton.hidden = isFinalLevel;
+      updateCompetitiveNextButton();
       messageEl.textContent = isFinalLevel
         ? finalMessage("finished")
         : levelAwardMessage();
@@ -14893,7 +14912,10 @@ nextLevelButton.addEventListener("click", () => {
     return;
   }
   if (competitiveLevelIndex >= COMPETITIVE_LEVELS.length - 1) return;
-  competitiveLevelIndex += 1;
+  competitiveLevelIndex = Math.min(
+    Math.max(competitiveLevelIndex + 1, competitiveCompleted),
+    COMPETITIVE_LEVELS.length - 1
+  );
   if (awardPopEl) awardPopEl.hidden = true;
   bonusFlashRows = new Set();
   startGame("competitive");
@@ -14907,7 +14929,8 @@ if (shareButton) {
 }
 
 if (createChallengeButton) {
-  createChallengeButton.addEventListener("click", () => {
+  createChallengeButton.addEventListener("click", (event) => {
+    event.preventDefault();
     openChallengePicker().catch((error) => renderChallengePanel(error?.message || "Отварање избора противника није успело."));
   });
 }
@@ -15028,8 +15051,9 @@ if (challengePickerSearch) {
 if (challengePickerSubmit) {
   challengePickerSubmit.addEventListener("click", () => {
     if (!challengePickerSelected) return;
+    const selectedOpponent = challengePickerSelected;
     challengePickerSubmit.disabled = true;
-    createChallenge()
+    createChallenge(selectedOpponent)
       .then(closeChallengePicker)
       .catch((error) => renderChallengePanel(error?.message || "Слање изазова није успело."))
       .finally(() => {
