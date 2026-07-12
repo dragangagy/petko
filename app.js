@@ -12190,8 +12190,7 @@ function renderChallengeHistoryCards(rows = []) {
     .slice(0, 12);
   const resultRows = visibleRows
     .filter(playedChallenge)
-    .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""))
-    .slice(0, 8);
+    .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""));
   document.body.dataset.challengeCards = (inviteRows.length || resultRows.length) ? "true" : "false";
   [...inviteRows, ...resultRows].forEach((row) => challengeHistoryEl.append(challengeCard(row, rows)));
 }
