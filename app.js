@@ -5135,7 +5135,7 @@ const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
 const CHALLENGE_BASE_DAILY_LIMIT = 1;
-const CHALLENGE_MAX_DAILY_LIMIT = 9;
+const CHALLENGE_MAX_DAILY_LIMIT = 16;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
@@ -11429,7 +11429,9 @@ function todayCompetitiveCompletedLevels() {
 
 function challengeDailyLimit() {
   const completed = todayCompetitiveCompletedLevels();
-  const levelBonus = Math.max(0, Math.min(completed, COMPETITIVE_LEVELS.length));
+  const levelBonus = COMPETITIVE_LEVELS
+    .slice(0, Math.max(0, Math.min(completed, COMPETITIVE_LEVELS.length)))
+    .reduce((sum, level) => sum + level, 0);
   return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus);
 }
 

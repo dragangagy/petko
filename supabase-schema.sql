@@ -140,7 +140,7 @@ begin
         status <> 'pending'
         or created_at > now() - interval '6 hours'
       )
-  ) >= 9 then
+  ) >= 16 then
     raise exception 'daily challenge limit reached';
   end if;
   return new;
