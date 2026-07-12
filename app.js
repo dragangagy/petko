@@ -10380,6 +10380,7 @@ const challengePickerClose = document.querySelector("#challengePickerClose");
 const challengePickerSearch = document.querySelector("#challengePickerSearch");
 const challengePickerStats = document.querySelector("#challengePickerStats");
 const challengePickerGrid = document.querySelector("#challengePickerGrid");
+const challengePickerMessage = document.querySelector("#challengePickerMessage");
 const challengePickerSubmit = document.querySelector("#challengePickerSubmit");
 const challengeVsOverlay = document.querySelector("#challengeVsOverlay");
 const challengeVsLeftAvatar = document.querySelector("#challengeVsLeftAvatar");
@@ -10432,6 +10433,7 @@ let activeChallenge = null;
 let challengePickerPlayers = [];
 let challengePickerRows = [];
 let challengePickerSelected = "";
+let challengePickerBusy = false;
 let hallMedals = [];
 let hallMedalIndex = 0;
 let hallTouchStartX = 0;
@@ -11299,8 +11301,13 @@ function loadSentChallengeRowsToday() {
         .map((entry) => ({
           code: entry.code || "",
           day: entry.day || todayId(),
+          creator: entry.creator || loadPlayerName() || "Играч",
+          creator_device: entry.creator_device || deviceId(),
           opponent: entry.opponent || "",
+          opponent_device: entry.opponent_device || "",
+          accepted_at: entry.accepted_at || "",
           status: entry.status || "pending",
+          words: Array.isArray(entry.words) ? entry.words : [],
           created_at: entry.created_at || entry.sentAt || new Date().toISOString(),
           sentAt: entry.sentAt || entry.created_at || new Date().toISOString()
         }));
@@ -11308,6 +11315,8 @@ function loadSentChallengeRowsToday() {
     if (data?.date === todayId() && Array.isArray(data.opponents)) {
       return data.opponents.map((opponent) => ({
         day: todayId(),
+        creator: loadPlayerName() || "Играч",
+        creator_device: deviceId(),
         opponent,
         status: "pending",
         created_at: new Date().toISOString(),
@@ -11318,6 +11327,8 @@ function loadSentChallengeRowsToday() {
     if (localStorage.getItem(CHALLENGE_SENT_KEY) === todayId()) {
       return [{
         day: todayId(),
+        creator: loadPlayerName() || "Играч",
+        creator_device: deviceId(),
         opponent: "legacy",
         status: "pending",
         created_at: new Date().toISOString(),
@@ -11346,8 +11357,13 @@ function markChallengeSentToday(opponent, row = null) {
   entries.push({
     code: row?.code || "",
     day: row?.day || todayId(),
+    creator: row?.creator || loadPlayerName() || "Играч",
+    creator_device: row?.creator_device || deviceId(),
     opponent: opponent || "",
+    opponent_device: row?.opponent_device || "",
+    accepted_at: row?.accepted_at || "",
     status: row?.status || "pending",
+    words: Array.isArray(row?.words) ? row.words : [],
     created_at: row?.created_at || new Date().toISOString(),
     sentAt: new Date().toISOString()
   });
@@ -11656,15 +11672,19 @@ function renderChallengePickerGrid() {
 function closeChallengePicker() {
   if (challengePickerModal) challengePickerModal.hidden = true;
   if (challengePlayerButton) challengePlayerButton.setAttribute("aria-expanded", "false");
+  challengePickerBusy = false;
+  if (challengePickerMessage) challengePickerMessage.textContent = "";
 }
 
 async function openChallengePicker() {
   if (!challengePickerModal) return;
   challengePickerModal.hidden = false;
+  challengePickerBusy = false;
   challengePickerSelected = "";
   if (challengePlayerSelect) challengePlayerSelect.value = "";
   if (challengePlayerButton) challengePlayerButton.textContent = "Изазови Петка";
   if (challengePickerSubmit) challengePickerSubmit.disabled = true;
+  if (challengePickerMessage) challengePickerMessage.textContent = "";
   if (challengePickerSearch) challengePickerSearch.value = "";
   renderChallengePickerStats(challengePickerSelected);
   try {
@@ -12207,6 +12227,21 @@ function challengeSyncSnapshotFor(rows = []) {
     .join("\n");
 }
 
+function mergeLocalChallengeRows(rows = []) {
+  const byCode = new Map();
+  rows.forEach((row) => {
+    const code = normalizeChallengeCode(row?.code);
+    if (code) byCode.set(code, row);
+  });
+  loadSentChallengeRowsToday()
+    .filter((row) => row.code && challengeCardVisible(row))
+    .forEach((row) => {
+      const code = normalizeChallengeCode(row.code);
+      if (!byCode.has(code)) byCode.set(code, row);
+    });
+  return [...byCode.values()];
+}
+
 function shouldPollChallengeSync() {
   if (!supabaseConfigured()) return false;
   if (document.visibilityState === "hidden") return false;
@@ -12258,7 +12293,7 @@ async function syncChallengeState({ force = false } = {}) {
         : Promise.resolve(null),
       fetchChallengeHistory().catch(() => [])
     ]);
-    const finalRows = await finalizeExpiredChallenges(rows);
+    const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows));
     const snapshot = challengeSyncSnapshotFor(finalRows);
     const changed = force || snapshot !== challengeSyncSnapshot;
     if (changed) {
@@ -12339,10 +12374,16 @@ async function createChallenge(selectedOpponent = null) {
   renderChallengePanel("Шаљем изазов...");
   if (!supabaseConfigured()) {
     renderChallengePanel("За изазове мора бити активан Supabase.");
-    return;
+    return false;
   }
-  const nickname = await savePlayerNameUnique(loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || window.prompt("Унеси надимак за изазов:", "") || "");
-  if (!nickname) return;
+  const profileName = loadPlayerName() || (playerNameInput ? playerNameInput.value : "");
+  if (!profileName) {
+    renderChallengePanel("Уреди профил и упиши име пре слања изазова.");
+    openProfileModal();
+    return false;
+  }
+  const nickname = await savePlayerNameUnique(profileName);
+  if (!nickname) return false;
   const selectedChallengeOpponent = selectedOpponent ?? challengePickerSelected;
   let opponent = cleanChallengeName(selectedChallengeOpponent || challengePlayerSelect?.value || "");
   const shareAfterCreate = opponent === "__new__";
@@ -12351,11 +12392,11 @@ async function createChallenge(selectedOpponent = null) {
   }
   if (!opponent && !shareAfterCreate) {
     renderChallengePanel("Изабери учесника или унеси новог корисника.");
-    return;
+    return false;
   }
   if (sameChallengeName(nickname, opponent)) {
     renderChallengePanel("Не можеш изазвати самог себе.");
-    return;
+    return false;
   }
   const sentToday = await fetchSentChallengesToday().catch(() => loadSentChallengeRowsToday());
   updateChallengeQuota(sentToday);
@@ -12363,7 +12404,7 @@ async function createChallenge(selectedOpponent = null) {
   const dailyLimit = challengeDailyLimit();
   if (!shareAfterCreate && sentCount >= dailyLimit) {
     renderChallengePanel(`Данас сте већ послали ${dailyLimit} изазова.`);
-    return;
+    return false;
   }
   const code = challengeCode();
   const words = chooseTargets(CHALLENGE_WORDS);
@@ -12385,12 +12426,12 @@ async function createChallenge(selectedOpponent = null) {
   } catch {
     updateChallengeQuota(sentToday);
     renderChallengePanel("Слање изазова није успело. Покушај поново.");
-    return;
+    return false;
   }
   if (!response.ok) {
     updateChallengeQuota(sentToday);
     renderChallengePanel(await supabaseErrorMessage(response, "Изазов није направљен."));
-    return;
+    return false;
   }
   const createdAt = new Date().toISOString();
   const localChallengeRow = {
@@ -12411,10 +12452,12 @@ async function createChallenge(selectedOpponent = null) {
     ? `Позивница ${code} је спремна. Пошаљи линк новом кориснику.`
     : `Изазов ${code} за ${opponent} је послат. Картица је жута док не прихвати.`);
   renderChallengeHistoryCards([localChallengeRow]);
+  refreshChallengeLobby().catch(() => {});
   fetchChallengePlayers().then(renderChallengePlayers).catch(() => {});
   if (shareAfterCreate) {
     shareChallenge(code).catch(() => renderChallengePanel(`Позивница ${code} је направљена. Отвори жуту картицу и пошаљи линк.`));
   }
+  return true;
 }
 
 async function supabaseErrorMessage(response, fallback) {
@@ -12589,10 +12632,8 @@ async function acceptChallenge(codeInput = "", options = {}) {
   if (row.status === "pending") {
     let requestedName = cleanChallengeName(options.name || loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || "");
     if (!requestedName) {
-      requestedName = cleanChallengeName(window.prompt("Унеси име или надимак за игру:", "") || "");
-    }
-    if (!requestedName) {
-      renderChallengePanel("Унеси име или надимак за игру.");
+      renderChallengePanel("Уреди профил и упиши име пре прихватања изазова.");
+      openProfileModal();
       return;
     }
     if (await playerNameTaken(requestedName)) {
@@ -13008,23 +13049,9 @@ async function editChallengePlayerName() {
     renderChallengePanel("Име можеш променити највише 3 пута.");
     return;
   }
-  const next = normalizePlayerName(window.prompt("Унеси ново име или надимак:", current) || "");
-  if (!next || sameChallengeName(next, current)) {
-    updateChallengePlayerName();
-    return;
-  }
-  if (await playerNameTaken(next)) {
-    renderChallengePanel(`Надимак "${next}" већ постоји. Пробај други назив.`);
-    return;
-  }
-  const previous = current;
-  savePlayerName(next);
-  saveRenameCount(used + 1);
-  updateChallengePlayerName();
-  await renamePlayerEverywhere(previous, next);
-  renderChallengePanel(`Име је промењено у ${next}.`);
-  refreshChallengePanel();
-  refreshOnlineLeaderboard();
+  openProfileModal();
+  setProfileEditMode(true);
+  if (profileNameInput) profileNameInput.value = current;
 }
 
 async function fetchPlayerRows() {
@@ -13121,8 +13148,7 @@ async function savePlayerNameUnique(value) {
 function ensurePlayerName() {
   const saved = loadPlayerName();
   if (saved) return saved;
-  const entered = window.prompt("Унеси надимак за ранг листу:", "") || "";
-  return savePlayerName(entered);
+  return savePlayerName("Играч");
 }
 
 function deviceId() {
@@ -13179,6 +13205,10 @@ function todayLock() {
 
   const existing = loadResults().find((result) => result.date === todayId() && isFinalResult(result));
   return existing || null;
+}
+
+function loadTodayLock() {
+  return todayLock();
 }
 
 function saveTodayLock(patch) {
@@ -15048,18 +15078,37 @@ if (challengePickerSearch) {
   challengePickerSearch.addEventListener("input", renderChallengePickerGrid);
 }
 
+async function submitChallengePicker(event) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  if (!challengePickerSelected || challengePickerBusy) return;
+  challengePickerBusy = true;
+  const selectedOpponent = challengePickerSelected;
+  if (challengePickerMessage) challengePickerMessage.textContent = "Шаљем изазов...";
+  if (challengePickerSubmit) challengePickerSubmit.disabled = true;
+  try {
+    const created = await createChallenge(selectedOpponent);
+    if (created) {
+      closeChallengePicker();
+    } else {
+      if (challengePickerMessage) challengePickerMessage.textContent = challengeStatusEl?.textContent || "Изазов није послат.";
+    }
+  } catch (error) {
+    const message = error?.message || "Слање изазова није успело.";
+    if (challengePickerMessage) challengePickerMessage.textContent = message;
+    closeChallengePicker();
+    renderChallengePanel(message);
+  } finally {
+    challengePickerBusy = false;
+    if (challengePickerModal?.hidden === false && challengePickerSubmit) {
+      challengePickerSubmit.disabled = !challengePickerSelected;
+    }
+  }
+}
+
 if (challengePickerSubmit) {
-  challengePickerSubmit.addEventListener("click", () => {
-    if (!challengePickerSelected) return;
-    const selectedOpponent = challengePickerSelected;
-    challengePickerSubmit.disabled = true;
-    createChallenge(selectedOpponent)
-      .then(closeChallengePicker)
-      .catch((error) => renderChallengePanel(error?.message || "Слање изазова није успело."))
-      .finally(() => {
-        if (challengePickerModal?.hidden === false) challengePickerSubmit.disabled = !challengePickerSelected;
-      });
-  });
+  challengePickerSubmit.addEventListener("click", submitChallengePicker);
+  challengePickerSubmit.addEventListener("pointerup", submitChallengePicker);
 }
 
 if (acceptChallengeButton) {

@@ -1907,6 +1907,15 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   white-space: nowrap;
 }
 
+.challenge-picker-message {
+  min-height: 16px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+}
+
 .challenge-picker-submit {
   height: 38px;
   border: 1px solid rgba(255, 215, 0, 0.48);
