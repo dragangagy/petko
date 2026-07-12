@@ -1500,12 +1500,22 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .app-shell
   padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
 
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .app-shell {
+  height: auto;
+  min-height: 100svh;
+  overflow-y: auto;
+}
+
 body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko,
 body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .idle-petko {
   display: grid;
   flex: 1 1 auto;
   height: auto;
   min-height: 0;
+}
+
+body[data-game-type="challenge"][data-challenge-cards="true"] .idle-petko {
+  display: none;
 }
 
 body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-competitive,
