@@ -14749,6 +14749,7 @@ async function renderHallOfFame() {
       ...localLectorRows
     ]);
     const playerRows = leaderboard.map((row) => row);
+    const totalScoreLeaders = playerRows.filter((row) => Number(row.attempts) >= 5);
     const rawScores = rows.map((row) => ({
       nickname: (row.nickname || "Играч").trim() || "Играч",
       score: Number(row.score) || 0,
@@ -14762,7 +14763,7 @@ async function renderHallOfFame() {
       medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt"),
       medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt"),
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at"),
-      medalEntry("Највећи укупан резултат", playerRows, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt"),
+      medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt"),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt"),
       medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt"),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt"),
