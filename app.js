@@ -5179,6 +5179,7 @@ const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
   table: "scores",
   challengeTable: "challenges",
+  challengeStatsTable: "challenge_stats",
   normalStatsTable: "normal_stats",
   lectorStatsTable: "lector_stats",
   playersTable: "players",
@@ -10432,6 +10433,7 @@ let scoreBurstToken = 0;
 let activeChallenge = null;
 let challengePickerPlayers = [];
 let challengePickerRows = [];
+let challengeStatsRows = [];
 let challengePickerSelected = "";
 let challengePickerBusy = false;
 let hallMedals = [];
@@ -10959,6 +10961,10 @@ function supabaseHeaders(extra = {}) {
 
 function challengeTable() {
   return SUPABASE_CONFIG.challengeTable || "challenges";
+}
+
+function challengeStatsTable() {
+  return SUPABASE_CONFIG.challengeStatsTable || "challenge_stats";
 }
 
 function normalStatsTable() {
@@ -11582,7 +11588,35 @@ function challengePickerItems() {
   ];
 }
 
+function challengePairAggregate(first, second, rows = challengeStatsRows) {
+  if (!first || !second || !Array.isArray(rows) || !rows.length) return null;
+  const row = rows.find((item) => (
+    (sameChallengeName(item.player_a, first) && sameChallengeName(item.player_b, second)) ||
+    (sameChallengeName(item.player_a, second) && sameChallengeName(item.player_b, first))
+  ));
+  if (!row) return null;
+  const firstIsA = sameChallengeName(row.player_a, first);
+  const aWins = Number(row.player_a_wins) || 0;
+  const bWins = Number(row.player_b_wins) || 0;
+  const draws = Number(row.draws) || 0;
+  const aSent = Number(row.player_a_sent) || 0;
+  const bSent = Number(row.player_b_sent) || 0;
+  return {
+    pair: {
+      creator: firstIsA ? aWins : bWins,
+      opponent: firstIsA ? bWins : aWins,
+      tie: draws
+    },
+    directed: {
+      first: firstIsA ? aSent : bSent,
+      second: firstIsA ? bSent : aSent
+    }
+  };
+}
+
 function challengeDirectedCounts(rows = [], first, second) {
+  const aggregate = challengePairAggregate(first, second);
+  if (aggregate) return aggregate.directed;
   return rows.reduce((counts, row) => {
     if (sameChallengeName(row.creator, first) && sameChallengeName(row.opponent, second)) counts.first += 1;
     if (sameChallengeName(row.creator, second) && sameChallengeName(row.opponent, first)) counts.second += 1;
@@ -11690,16 +11724,19 @@ async function openChallengePicker() {
   if (challengePickerSearch) challengePickerSearch.value = "";
   renderChallengePickerStats(challengePickerSelected);
   try {
-    const [players, rows] = await Promise.all([
+    const [players, rows, statsRows] = await Promise.all([
       fetchChallengePlayers().catch(() => []),
-      fetchChallengeHistory().catch(() => [])
+      fetchChallengeHistory().catch(() => []),
+      fetchChallengeStatsRows().catch(() => [])
     ]);
     challengePickerPlayers = Array.isArray(players) ? players : [];
     challengePickerRows = Array.isArray(rows) ? rows : [];
+    challengeStatsRows = Array.isArray(statsRows) ? statsRows : [];
     renderChallengePlayers(challengePickerPlayers);
   } catch {
     challengePickerPlayers = [];
     challengePickerRows = [];
+    challengeStatsRows = [];
   }
   renderChallengePickerGrid();
   window.setTimeout(() => challengePickerSearch?.focus(), 0);
@@ -11942,6 +11979,21 @@ async function fetchChallengeHistory() {
   return Array.isArray(rows) ? rows : [];
 }
 
+async function fetchChallengeStatsRows() {
+  if (!supabaseConfigured()) return [];
+  const query = [
+    "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
+    "order=last_played_at.desc.nullslast",
+    "limit=1000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
 function playedChallenge(row) {
   return challengePlayedAt(row, "creator") && challengePlayedAt(row, "opponent");
 }
@@ -11955,6 +12007,8 @@ function challengeWinner(row) {
 }
 
 function challengePairScore(rows, creator, opponent) {
+  const aggregate = challengePairAggregate(creator, opponent);
+  if (aggregate) return aggregate.pair;
   const score = { creator: 0, opponent: 0, tie: 0 };
   rows.forEach((row) => {
     const sameOrder = row.creator === creator && row.opponent === opponent;
@@ -12197,7 +12251,11 @@ function renderChallengeHistoryCards(rows = []) {
 
 async function refreshChallengeHistoryCards() {
   if (!challengeHistoryEl || !supabaseConfigured()) return;
-  const rows = await fetchChallengeHistory();
+  const [rows, statsRows] = await Promise.all([
+    fetchChallengeHistory(),
+    fetchChallengeStatsRows().catch(() => [])
+  ]);
+  if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
   renderChallengeHistoryCards(rows);
 }
 
@@ -12289,12 +12347,14 @@ async function syncChallengeState({ force = false } = {}) {
   if (challengeSyncBusy) return;
   challengeSyncBusy = true;
   try {
-    const [players, rows] = await Promise.all([
+    const [players, rows, statsRows] = await Promise.all([
       gameType === "challenge" && !challengeGameOpen()
         ? fetchChallengePlayers().catch(() => [])
         : Promise.resolve(null),
-      fetchChallengeHistory().catch(() => [])
+      fetchChallengeHistory().catch(() => []),
+      fetchChallengeStatsRows().catch(() => [])
     ]);
+    if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows));
     const snapshot = challengeSyncSnapshotFor(finalRows);
     const changed = force || snapshot !== challengeSyncSnapshot;
@@ -12329,7 +12389,11 @@ async function renderChallengeResult(row, localScore) {
   const opponent = row.opponent || "Играч 2";
   const creatorScore = Number(row.creator_score);
   const opponentScore = Number(row.opponent_score);
-  const history = await fetchChallengeHistory();
+  const [history, statsRows] = await Promise.all([
+    fetchChallengeHistory(),
+    fetchChallengeStatsRows().catch(() => [])
+  ]);
+  if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
   const pair = challengePairScore(history, creator, opponent);
   if (!playedChallenge(row)) {
     const waitingFor = challengePlayedAt(row, "creator") ? opponent : creator;
@@ -12591,8 +12655,12 @@ async function startChallengeGame(row, role) {
   modeLabelEl.textContent = "\u0418\u0437\u0430\u0437\u043e\u0432";
   messageEl.textContent = "\u0418\u0437\u0430\u0437\u043e\u0432 \u043f\u0440\u0438\u0445\u0432\u0430\u045b\u0435\u043d: 6 \u0442\u0430\u0431\u043b\u0438, 11 \u043f\u043e\u043a\u0443\u0448\u0430\u0458\u0430.";
   renderChallengePanel(`\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}.`);
-  fetchChallengeHistory()
-    .then((rows) => {
+  Promise.all([
+    fetchChallengeHistory(),
+    fetchChallengeStatsRows().catch(() => [])
+  ])
+    .then(([rows, statsRows]) => {
+      if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
       const pair = challengePairScore(rows, creator, opponent);
       messageEl.textContent = `\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}. \u041c\u0435\u0452\u0443\u0441\u043e\u0431\u043d\u043e: ${challengePairText(pair, creator, opponent)}.`;
       renderChallengePanel(`\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}. \u041c\u0435\u0452\u0443\u0441\u043e\u0431\u043d\u043e: ${challengePairText(pair, creator, opponent)}.`);
@@ -13000,6 +13068,16 @@ async function patchSupabaseRows(path, body) {
   return response.ok;
 }
 
+async function callSupabaseRpc(functionName, body = {}) {
+  if (!supabaseConfigured()) return false;
+  const response = await fetch(supabaseUrl(`rpc/${functionName}`), {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify(body)
+  });
+  return response.ok;
+}
+
 function renameInChallengeObject(item, oldName, newName) {
   if (!item || typeof item !== "object") return item;
   if (sameChallengeName(item.creator, oldName)) item.creator = newName;
@@ -13040,7 +13118,8 @@ async function renamePlayerEverywhere(oldName, newName) {
     patchSupabaseRows(`${lectorStatsTable()}?nickname=eq.${oldFilter}`, { nickname: newName }),
     patchSupabaseRows(`${wordReportsTable()}?nickname=eq.${oldFilter}`, { nickname: newName }),
     patchSupabaseRows(`${challengeTable()}?creator=eq.${oldFilter}`, { creator: newName }),
-    patchSupabaseRows(`${challengeTable()}?opponent=eq.${oldFilter}`, { opponent: newName })
+    patchSupabaseRows(`${challengeTable()}?opponent=eq.${oldFilter}`, { opponent: newName }),
+    callSupabaseRpc("rename_challenge_stats_player", { old_name: oldName, new_name: newName })
   ]);
 }
 
@@ -15511,8 +15590,14 @@ const initialNormalStats = loadNormalStats();
 if (initialNormalStats.started || initialNormalStats.finished) {
   submitNormalStats(initialNormalStats).catch(() => {});
 }
-fetchChallengeHistory()
-  .then(updateChallengeBadge)
+Promise.all([
+  fetchChallengeHistory(),
+  fetchChallengeStatsRows().catch(() => [])
+])
+  .then(([rows, statsRows]) => {
+    if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
+    updateChallengeBadge(rows);
+  })
   .catch(() => {});
 
 
