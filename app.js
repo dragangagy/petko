@@ -14445,18 +14445,34 @@ function aggregatePlayerRows(rows) {
 }
 
 function normalSuccessRows(rows) {
-  return rows
-    .map((row) => {
-      const started = Number(row.started) || 0;
-      const finished = Number(row.finished) || 0;
-      return {
-        nickname: (row.nickname || "Играч").trim() || "Играч",
-        started,
-        finished,
-        successRate: started ? (finished / started) * 100 : 0,
-        successRateAt: row.updated_at || ""
-      };
-    })
+  const byName = new Map();
+  rows.forEach((row) => {
+    const nickname = (row.nickname || "Играч").trim() || "Играч";
+    const key = nickname.toLocaleLowerCase("sr");
+    const started = Number(row.started) || 0;
+    const finished = Number(row.finished) || 0;
+    const updatedAt = row.updated_at || "";
+    const current = byName.get(key) || {
+      nickname,
+      started: 0,
+      finished: 0,
+      successRate: 0,
+      successRateAt: ""
+    };
+    current.started += started;
+    current.finished += finished;
+    if (!current.successRateAt || updatedAt > current.successRateAt) {
+      current.nickname = nickname;
+      current.successRateAt = updatedAt;
+    }
+    byName.set(key, current);
+  });
+
+  return [...byName.values()]
+    .map((row) => ({
+      ...row,
+      successRate: row.started ? (row.finished / row.started) * 100 : 0
+    }))
     .filter((row) => row.started >= 10);
 }
 
