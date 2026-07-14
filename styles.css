@@ -180,7 +180,7 @@ button {
 
 .petko-mood {
   position: fixed;
-  left: calc(50% + var(--petko-center-shift, 0px));
+  left: 50%;
   bottom: calc(42px + env(safe-area-inset-bottom));
   z-index: 70;
   width: min(calc(100vw - 28px), 360px);
@@ -214,6 +214,7 @@ button {
   object-fit: contain;
   object-position: center;
   border-radius: 18px;
+  transform: translateX(var(--petko-center-shift, 0px));
   filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.46)) drop-shadow(0 0 20px rgba(255, 215, 0, 0.24));
 }
 
