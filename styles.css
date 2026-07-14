@@ -2354,9 +2354,9 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 .hall-modal-card {
   position: relative;
   width: min(100%, 420px);
-  max-height: min(82svh, 620px);
+  max-height: min(94svh, 680px);
   overflow: hidden;
-  padding: 18px;
+  padding: 14px;
   border: 1px solid rgba(56, 189, 248, 0.34);
   border-radius: 14px;
   background:
@@ -2402,9 +2402,9 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .hall-modal-card h2 {
-  margin: 0 42px 6px 0;
+  margin: 0 42px 4px 0;
   color: var(--gold);
-  font-size: 21px;
+  font-size: 19px;
   line-height: 1.12;
 }
 
@@ -2416,19 +2416,19 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .hall-top-list {
   display: grid;
-  gap: 7px;
-  margin: 14px 0 0;
+  gap: 5px;
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .hall-top-list li {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 7px 9px;
+  gap: 6px;
+  min-height: 31px;
+  padding: 4px 7px;
   border: 1px solid rgba(56, 189, 248, 0.18);
   border-radius: 10px;
   background: rgba(2, 8, 23, 0.46);
@@ -2443,14 +2443,14 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .hall-rank {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   display: grid;
   place-items: center;
   border-radius: 8px;
   background: rgba(255, 215, 0, 0.16);
   color: var(--gold);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 950;
 }
 
@@ -2458,7 +2458,7 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2466,28 +2466,28 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .hall-score {
   color: var(--cyan);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 950;
   white-space: nowrap;
 }
 
 .hall-formula {
-  margin-top: 13px;
-  padding: 10px 11px;
+  margin-top: 8px;
+  padding: 7px 8px;
   border: 1px solid rgba(255, 215, 0, 0.22);
   border-radius: 10px;
   background: rgba(2, 8, 23, 0.5);
   color: rgba(255, 255, 255, 0.88);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
-  line-height: 1.35;
+  line-height: 1.24;
 }
 
 .hall-formula strong {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: var(--gold);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 950;
 }
 

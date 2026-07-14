@@ -14784,7 +14784,7 @@ async function renderHallOfFame() {
     }));
 
     const medals = [
-      medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија по истом надимку. У листу улазе играчи са најмање 10 започетих обичних партија."),
+      medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија. У листу улазе играчи са најмање 10 започетих обичних партија."),
       medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt", "Броји се свака победа у одиграном изазову. Нерешени изазови не улазе као победа."),
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
