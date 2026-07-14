@@ -2395,7 +2395,8 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .hall-modal-card h2,
 .hall-modal-holder,
-.hall-top-list {
+.hall-top-list,
+.hall-formula {
   position: relative;
   z-index: 1;
 }
@@ -2468,6 +2469,26 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   font-size: 13px;
   font-weight: 950;
   white-space: nowrap;
+}
+
+.hall-formula {
+  margin-top: 13px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 215, 0, 0.22);
+  border-radius: 10px;
+  background: rgba(2, 8, 23, 0.5);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.hall-formula strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 950;
 }
 
 body[data-game-type="hall"] .boards,

@@ -10415,6 +10415,7 @@ const hallModalTitle = document.querySelector("#hallModalTitle");
 const hallModalImage = document.querySelector("#hallModalImage");
 const hallModalHolder = document.querySelector("#hallModalHolder");
 const hallTopList = document.querySelector("#hallTopList");
+const hallFormula = document.querySelector("#hallFormula");
 const hallModalClose = document.querySelector("#hallModalClose");
 const shareButton = document.querySelector("#shareButton");
 const exitButton = document.querySelector("#exitButton");
@@ -14613,7 +14614,7 @@ function topMedalRows(items, valueFn) {
     .slice(0, 10);
 }
 
-function medalEntry(title, items, valueFn, suffix = "", image = "", dateKey = "") {
+function medalEntry(title, items, valueFn, suffix = "", image = "", dateKey = "", formula = "") {
   const top = topMedalRows(items, valueFn);
   return {
     title,
@@ -14621,6 +14622,7 @@ function medalEntry(title, items, valueFn, suffix = "", image = "", dateKey = ""
     suffix,
     image,
     dateKey,
+    formula,
     top
   };
 }
@@ -14639,7 +14641,7 @@ function hallMedalDate(result, dateKey) {
 
 function openHallModal(medalData) {
   if (!hallModal || !hallTopList || !medalData) return;
-  const { title, top = [], suffix = "", image = "" } = medalData;
+  const { title, top = [], suffix = "", image = "", formula = "" } = medalData;
   if (hallModalTitle) hallModalTitle.textContent = title;
   if (hallModalHolder) {
     hallModalHolder.textContent = top.length ? `TOP 10 · ${top.length} учесника` : "Још нема резултата";
@@ -14669,6 +14671,10 @@ function openHallModal(medalData) {
       row.append(rank, name, score);
       hallTopList.append(row);
     });
+  }
+  if (hallFormula) {
+    hallFormula.innerHTML = formula ? `<strong>Начин рачунања</strong>${formula}` : "";
+    hallFormula.hidden = !formula;
   }
   hallModal.hidden = false;
 }
@@ -14778,16 +14784,16 @@ async function renderHallOfFame() {
     }));
 
     const medals = [
-      medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt"),
-      medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt"),
-      medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at"),
-      medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt"),
-      medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt"),
-      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt"),
-      medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt"),
-      medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt"),
-      medalEntry("Најјачи изазов скор", challengeLeaders, (row) => row.best, " поена", "medal-challenge-score.png", "bestAt"),
-      medalEntry("Лектор", lectorLeaders, (row) => row.total, " пријава", "medal-lector.png", "lastAt")
+      medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија по истом надимку. У листу улазе играчи са најмање 10 започетих обичних партија."),
+      medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt", "Броји се свака победа у одиграном изазову. Нерешени изазови не улазе као победа."),
+      medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана."),
+      medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
+      medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
+      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене обичне партије / започете обичне партије × 100. Улазе играчи са најмање 10 започетих партија."),
+      medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
+      medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt", "Броји се број различитих дана у којима је играч имао такмичарски резултат."),
+      medalEntry("Најјачи изазов скор", challengeLeaders, (row) => row.best, " поена", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у једном изазову."),
+      medalEntry("Лектор", lectorLeaders, (row) => row.total, " пријава", "medal-lector.png", "lastAt", "Сабирају се прихваћене пријаве речи за додавање и за избацивање из базе.")
     ];
 
     hallGridEl.innerHTML = "";
