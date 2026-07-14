@@ -5144,7 +5144,7 @@ const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
 const CHALLENGE_BASE_DAILY_LIMIT = 1;
-const CHALLENGE_MAX_DAILY_LIMIT = 16;
+const CHALLENGE_MAX_DAILY_LIMIT = 1000;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
@@ -5164,6 +5164,7 @@ const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
+const NORMAL_CHALLENGE_BONUS_KEY = "petko-normal-challenge-bonus-v1";
 const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
@@ -5189,6 +5190,7 @@ const SUPABASE_CONFIG = {
   table: "scores",
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
+  challengeScoreStatsTable: "challenge_score_stats",
   normalStatsTable: "normal_stats",
   lectorStatsTable: "lector_stats",
   playersTable: "players",
@@ -10869,6 +10871,49 @@ function recordFridayCompetitiveBonus(result) {
   saveFridayBonus(data);
 }
 
+function emptyNormalChallengeBonus() {
+  return { date: todayId(), streak: 0, bonus: 0 };
+}
+
+function loadNormalChallengeBonus() {
+  try {
+    const data = { ...emptyNormalChallengeBonus(), ...JSON.parse(localStorage.getItem(NORMAL_CHALLENGE_BONUS_KEY) || "{}") };
+    if (data.date !== todayId()) return emptyNormalChallengeBonus();
+    data.streak = Math.max(0, Number(data.streak) || 0);
+    data.bonus = Math.max(0, Number(data.bonus) || 0);
+    return data;
+  } catch {
+    return emptyNormalChallengeBonus();
+  }
+}
+
+function saveNormalChallengeBonus(data) {
+  localStorage.setItem(NORMAL_CHALLENGE_BONUS_KEY, JSON.stringify({ ...data, date: todayId() }));
+}
+
+function recordNormalChallengeWin() {
+  const data = loadNormalChallengeBonus();
+  data.streak += 1;
+  let text = `Обичан низ ${data.streak}/5 за додатни изазов.`;
+  if (data.streak >= 5) {
+    data.bonus += 1;
+    data.streak = 0;
+    text = "Обичан низ 5/5: +1 дозвољени изазов.";
+  }
+  saveNormalChallengeBonus(data);
+  updateChallengeQuota();
+  renderNormalStats();
+  return text;
+}
+
+function resetNormalChallengeStreak() {
+  const data = loadNormalChallengeBonus();
+  if (!data.streak) return;
+  data.streak = 0;
+  saveNormalChallengeBonus(data);
+  renderNormalStats();
+}
+
 function loadNormalStats() {
   try {
     return { started: 0, finished: 0, ...JSON.parse(localStorage.getItem(NORMAL_STATS_KEY) || "{}") };
@@ -10923,10 +10968,12 @@ function renderNormalStats() {
   if (!normalStatsEl) return;
   const stats = loadNormalStats();
   const friday = loadFridayBonus();
+  const normalChallenge = loadNormalChallengeBonus();
   const fridayText = isPetkoFriday()
     ? ` · Петак ${friday.normalStreak}/5 · бонус +${formatScore(friday.normalBonus)}`
     : "";
-  normalStatsEl.textContent = `Обичан скор: започето ${stats.started} · завршено ${stats.finished}${fridayText}`;
+  const challengeText = ` · изазов низ ${normalChallenge.streak}/5 · +${formatScore(normalChallenge.bonus)} изаз.`;
+  normalStatsEl.textContent = `Обичан скор: започето ${stats.started} · завршено ${stats.finished}${fridayText}${challengeText}`;
 }
 
 function msUntilTomorrow() {
@@ -10984,6 +11031,10 @@ function challengeTable() {
 
 function challengeStatsTable() {
   return SUPABASE_CONFIG.challengeStatsTable || "challenge_stats";
+}
+
+function challengeScoreStatsTable() {
+  return SUPABASE_CONFIG.challengeScoreStatsTable || "challenge_score_stats";
 }
 
 function normalStatsTable() {
@@ -11457,7 +11508,8 @@ function challengeDailyLimit() {
   const levelBonus = COMPETITIVE_LEVELS
     .slice(0, Math.max(0, Math.min(completed, COMPETITIVE_LEVELS.length)))
     .reduce((sum, level) => sum + level, 0);
-  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus);
+  const normalBonus = loadNormalChallengeBonus().bonus;
+  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus);
 }
 
 function completedCompetitiveLevelIndex() {
@@ -12006,6 +12058,21 @@ async function fetchChallengeStatsRows() {
     "limit=1000"
   ].join("&");
   const response = await fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function fetchChallengeScoreStatsRows() {
+  if (!supabaseConfigured()) return [];
+  const query = [
+    "select=nickname,best_score,best_score_count,last_at",
+    "order=best_score.desc,best_score_count.desc,last_at.desc.nullslast",
+    "limit=1000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${challengeScoreStatsTable()}?${query}`), {
     headers: supabaseHeaders()
   });
   if (!response.ok) return [];
@@ -14101,9 +14168,11 @@ function submitGuess() {
       finishChallenge("finished");
     } else {
       bumpNormalFinished();
+      const challengeText = recordNormalChallengeWin();
       const fridayText = recordFridayNormalWin();
-      messageEl.textContent = fridayText || "Погођено!";
-      playPetkoMoment(fridayText ? "fridayWin" : "normalWin", { text: fridayText || "", force: true });
+      const normalWinText = [fridayText, challengeText].filter(Boolean).join(" ");
+      messageEl.textContent = normalWinText || "Погођено!";
+      playPetkoMoment(fridayText ? "fridayWin" : "normalWin", { text: normalWinText || "", force: true });
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
@@ -14125,6 +14194,7 @@ function submitGuess() {
       messageEl.textContent = `Реч је била: ${displayWords(targets)}`;
       playPetkoMoment("normalMiss", { force: true });
       resetFridayNormalStreak();
+      resetNormalChallengeStreak();
       clearNormalProgress();
       nextLevelButton.textContent = "Следећа";
       nextLevelButton.hidden = false;
@@ -14514,6 +14584,28 @@ function aggregateLeaderboard(rows) {
     .slice(0, 100);
 }
 
+function bestDailyScoreRows(rows) {
+  const byName = new Map();
+  rows.forEach((row) => {
+    const nickname = (row.nickname || "Играч").trim() || "Играч";
+    const key = nickname.toLocaleLowerCase("sr");
+    const scoreValue = Number(row.score) || 0;
+    const createdAt = row.created_at || "";
+    const current = byName.get(key);
+    if (!current || scoreValue > current.score || (scoreValue === current.score && createdAt > current.created_at)) {
+      byName.set(key, {
+        nickname,
+        score: scoreValue,
+        attempts: Number(row.attempts) || 0,
+        wins: Number(row.wins) || 0,
+        streak: Number(row.streak) || 0,
+        created_at: createdAt
+      });
+    }
+  });
+  return [...byName.values()];
+}
+
 function bestBy(items, valueFn) {
   let best = null;
   let bestValue = -Infinity;
@@ -14525,6 +14617,56 @@ function bestBy(items, valueFn) {
     }
   });
   return best && bestValue > 0 ? { item: best, value: bestValue } : null;
+}
+
+function challengeResultCountsForMedal(row) {
+  const winner = challengeWinner(row);
+  if (winner !== "creator" && winner !== "opponent") return null;
+  const loser = winner === "creator" ? "opponent" : "creator";
+  const loserSolved = Number(row[`${loser}_solved`]) || 0;
+  const loserAttempts = Number(row[`${loser}_attempts`]) || 0;
+  const loserFinished = loserSolved >= CHALLENGE_WORDS || loserAttempts >= CHALLENGE_ATTEMPTS;
+  if (!loserFinished) return null;
+  return {
+    winnerName: winner === "creator" ? row.creator : row.opponent,
+    diff: challengeDifference(row),
+    playedAt: row[`${winner}_played_at`] || row.created_at || ""
+  };
+}
+
+function challengeStrongScoreRows(rows) {
+  const byName = new Map();
+  rows.filter(playedChallenge).forEach((row) => {
+    const result = challengeResultCountsForMedal(row);
+    if (!result || !result.diff) return;
+    const nickname = (result.winnerName || "Играч").trim() || "Играч";
+    const key = nickname.toLocaleLowerCase("sr");
+    const current = byName.get(key) || {
+      nickname,
+      best: 0,
+      bestCount: 0,
+      bestAt: ""
+    };
+    if (result.diff > current.best) {
+      current.best = result.diff;
+      current.bestCount = 1;
+      current.bestAt = result.playedAt;
+    } else if (result.diff === current.best) {
+      current.bestCount += 1;
+      if (!current.bestAt || result.playedAt > current.bestAt) current.bestAt = result.playedAt;
+    }
+    byName.set(key, current);
+  });
+  return [...byName.values()];
+}
+
+function normalizeChallengeScoreStatsRows(rows = []) {
+  return rows.map((row) => ({
+    nickname: (row.nickname || "Играч").trim() || "Играч",
+    best: Number(row.best_score) || 0,
+    bestCount: Math.max(1, Number(row.best_score_count) || 1),
+    bestAt: row.last_at || ""
+  }));
 }
 
 function challengeStats(rows) {
@@ -14577,7 +14719,7 @@ function medalCard(title, winner, value, suffix = "", image = "", onOpen = null)
     });
   }
   const holder = winner || "Још нема";
-  const shownValue = value ? `${formatScore(value)}${suffix}` : "-";
+  const shownValue = value ? `${typeof value === "string" ? value : formatScore(value)}${suffix}` : "-";
   const icon = document.createElement("div");
   icon.className = "medal-icon";
   if (image) {
@@ -14603,28 +14745,48 @@ function medalCard(title, winner, value, suffix = "", image = "", onOpen = null)
   return card;
 }
 
-function topMedalRows(items, valueFn) {
+function topMedalRows(items, valueFn, options = {}) {
   return [...items]
-    .map((item) => ({ item, value: Number(valueFn(item)) || 0 }))
+    .map((item) => {
+      const value = Number(valueFn(item)) || 0;
+      return {
+        item,
+        value,
+        sortValue: Number(options.sortFn?.(item, value)) || value,
+        displayValue: options.displayFn?.(item, value) || ""
+      };
+    })
     .filter((row) => row.value > 0)
     .sort((a, b) => {
+      if (b.sortValue !== a.sortValue) return b.sortValue - a.sortValue;
       if (b.value !== a.value) return b.value - a.value;
       return String(a.item.nickname || "").localeCompare(String(b.item.nickname || ""), "sr");
     })
     .slice(0, 10);
 }
 
-function medalEntry(title, items, valueFn, suffix = "", image = "", dateKey = "", formula = "") {
-  const top = topMedalRows(items, valueFn);
+function medalEntry(title, items, valueFn, suffix = "", image = "", dateKey = "", formula = "", options = {}) {
+  const top = topMedalRows(items, valueFn, options);
+  const firstValue = top[0]?.value || 0;
+  const firstSortValue = top[0]?.sortValue || firstValue;
+  const firstNames = top
+    .filter((row) => row.value === firstValue && row.sortValue === firstSortValue)
+    .map((row) => row.item.nickname || "Играч");
   return {
     title,
     result: top[0] || null,
+    holder: firstNames.length > 1 ? firstNames.join("/") : firstNames[0],
     suffix,
     image,
     dateKey,
     formula,
     top
   };
+}
+
+function medalDisplayValue(entry, suffix = "") {
+  if (!entry) return "-";
+  return `${entry.displayValue || formatScore(entry.value)}${suffix}`;
 }
 
 function renderHallLoading(text = "Учитавање дворане славних...") {
@@ -14667,7 +14829,7 @@ function openHallModal(medalData) {
       name.textContent = entry.item.nickname || "Играч";
       const score = document.createElement("span");
       score.className = "hall-score";
-      score.textContent = `${formatScore(entry.value)}${suffix}`;
+      score.textContent = medalDisplayValue(entry, suffix);
       row.append(rank, name, score);
       hallTopList.append(row);
     });
@@ -14689,7 +14851,7 @@ function renderHallCarousel(direction = 0) {
   if (!hallMedals.length) return;
   const medalData = hallMedals[hallMedalIndex];
   const { title, result, image, dateKey } = medalData;
-  const holder = result?.item?.nickname || "Још нема";
+  const holder = medalData.holder || result?.item?.nickname || "Још нема";
   const achievedAt = result?.value ? hallMedalDate(result, dateKey) : "датум није уписан";
   const prevButton = document.createElement("button");
   prevButton.className = "hall-arrow prev";
@@ -14746,16 +14908,21 @@ async function renderHallOfFame() {
   hallPanelEl.hidden = gameType !== "hall";
   renderHallLoading();
   try {
-    const [scoreRows, challengeRows, normalRows, lectorRows] = await Promise.all([
+    const [scoreRows, challengeRows, normalRows, lectorRows, challengeScoreRows] = await Promise.all([
       fetchOnlineLeaderboard(),
       fetchChallengeHistory(),
       fetchNormalStatsRows(),
-      fetchLectorStatsRows()
+      fetchLectorStatsRows(),
+      fetchChallengeScoreStatsRows().catch(() => [])
     ]);
     const rows = Array.isArray(scoreRows) ? scoreRows : [];
     const leaderboard = aggregateLeaderboard(rows);
     const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
     const challengeLeaders = challengeStats(challengeRowsSafe);
+    const onlineChallengeScoreRows = normalizeChallengeScoreStatsRows(Array.isArray(challengeScoreRows) ? challengeScoreRows : []);
+    const challengeStrongLeaders = onlineChallengeScoreRows.length
+      ? onlineChallengeScoreRows
+      : challengeStrongScoreRows(challengeRowsSafe);
     const normalLeaders = normalSuccessRows(Array.isArray(normalRows) ? normalRows : []);
     const localLector = loadLectorStats();
     const onlineLectorRows = Array.isArray(lectorRows) ? lectorRows : [];
@@ -14774,25 +14941,28 @@ async function renderHallOfFame() {
     ]);
     const playerRows = leaderboard.map((row) => row);
     const totalScoreLeaders = playerRows.filter((row) => Number(row.attempts) >= 5);
-    const rawScores = rows.map((row) => ({
+    const rawScores = bestDailyScoreRows(rows.map((row) => ({
       nickname: (row.nickname || "Играч").trim() || "Играч",
       score: Number(row.score) || 0,
       attempts: Number(row.attempts) || 0,
       wins: Number(row.wins) || 0,
       streak: Number(row.streak) || 0,
       created_at: row.created_at || ""
-    }));
+    })));
 
     const medals = [
       medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија. У листу улазе играчи са најмање 10 започетих обичних партија."),
       medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt", "Броји се свака победа у одиграном изазову. Нерешени изазови не улазе као победа."),
-      medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана."),
+      medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
       medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене обичне партије / започете обичне партије × 100. Улазе играчи са најмање 10 започетих партија."),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
       medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt", "Броји се број различитих дана у којима је играч имао такмичарски резултат."),
-      medalEntry("Најјачи изазов скор", challengeLeaders, (row) => row.best, " поена", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у једном изазову."),
+      medalEntry("Најјачи изазов скор", challengeStrongLeaders, (row) => row.best, "", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у валидном изазову. Ако противник преда или не одигра до краја, тај резултат не улази. Када играч више пута оствари исти најбољи скор, приказује се као 30/2, 30/3 и има предност над једним истим скором.", {
+        sortFn: (row) => (Number(row.best) || 0) * 1000 + (Number(row.bestCount) || 0),
+        displayFn: (row) => `${formatScore(row.best)}/${formatScore(row.bestCount || 1)}`
+      }),
       medalEntry("Лектор", lectorLeaders, (row) => row.total, " пријава", "medal-lector.png", "lastAt", "Сабирају се прихваћене пријаве речи за додавање и за избацивање из базе.")
     ];
 
@@ -14803,8 +14973,8 @@ async function renderHallOfFame() {
     medals.forEach((medal) => {
       hallGridEl.append(medalCard(
         medal.title,
-        medal.result?.item?.nickname,
-        medal.result?.value,
+        medal.holder || medal.result?.item?.nickname,
+        medal.result?.displayValue || medal.result?.value,
         medal.suffix,
         medal.image,
         () => openHallModal(medal)
