@@ -11551,7 +11551,7 @@ async function fetchSentChallengesToday() {
     "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at",
     `creator_device=eq.${encodeURIComponent(deviceId())}`,
     `day=eq.${encodeURIComponent(todayId())}`,
-    "limit=20"
+    "limit=1000"
   ].join("&");
   const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
     headers: supabaseHeaders()
@@ -12623,7 +12623,7 @@ async function supabaseErrorMessage(response, fallback) {
       return "Supabase SQL још има старо ограничење за истог противника. Покрени нови supabase-schema.sql.";
     }
     if (/daily challenge limit reached/i.test(message)) {
-      return `Данас можете послати највише ${challengeDailyLimit()} изазова.`;
+      return "Supabase још броји старе изазове за дневни лимит. Покрени најновији supabase-schema.sql да база броји исто као апликација.";
     }
     return message || fallback;
   } catch {

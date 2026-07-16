@@ -608,8 +608,9 @@ begin
       and lower(btrim(opponent)) not in (lower('Нови корисник'), lower('Чека се'))
       and status <> 'cancelled'
       and (
-        status <> 'pending'
-        or created_at > now() - interval '6 hours'
+        (status = 'pending' and opponent_device is null and accepted_at is null and created_at > now() - interval '6 hours')
+        or
+        (status in ('accepted', 'played') and coalesce(accepted_at, created_at) > now() - interval '24 hours')
       )
   ) >= 1000 then
     raise exception 'daily challenge limit reached';
