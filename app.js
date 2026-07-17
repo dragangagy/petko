@@ -5152,6 +5152,7 @@ const CHALLENGE_SYNC_INTERVAL_MS = 3500;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
+const CHALLENGE_CANCELLED_KEY = "petko-challenge-cancelled-v1";
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
@@ -5161,6 +5162,7 @@ const PLAYER_NAME_KEY = "petko-player-name-v1";
 const PLAYER_RENAME_COUNT_KEY = "petko-player-rename-count-v1";
 const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
 const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
+const CHALLENGE_FAVORITES_KEY = "petko-challenge-favorites-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
@@ -11313,8 +11315,33 @@ function selfChallengeRow(row) {
   return sameChallengePlayerPair(row?.creator, row?.opponent);
 }
 
+function loadCancelledChallengeCodes() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_CANCELLED_KEY) || "null");
+    if (data?.day !== todayId() || !Array.isArray(data.codes)) return [];
+    return data.codes.map((code) => String(code || "").trim().toUpperCase()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function rememberCancelledChallenge(code) {
+  const cleanCode = String(code || "").trim().toUpperCase();
+  if (!cleanCode) return;
+  const codes = loadCancelledChallengeCodes().filter((item) => item !== cleanCode);
+  codes.unshift(cleanCode);
+  localStorage.setItem(CHALLENGE_CANCELLED_KEY, JSON.stringify({ day: todayId(), codes: codes.slice(0, 80) }));
+}
+
+function locallyCancelledChallenge(rowOrCode) {
+  const code = typeof rowOrCode === "string" ? rowOrCode : rowOrCode?.code;
+  const cleanCode = String(code || "").trim().toUpperCase();
+  return Boolean(cleanCode && loadCancelledChallengeCodes().includes(cleanCode));
+}
+
 function challengeCardVisible(row) {
   if (row?.status === "cancelled") return false;
+  if (locallyCancelledChallenge(row)) return false;
   if (challengePendingExpired(row)) return false;
   if (selfChallengeRow(row)) return false;
   if (playedChallenge(row)) return challengePlayedToday(row);
@@ -11475,6 +11502,7 @@ function isOpenChallengeOpponent(value) {
 
 function challengeCountsForDailyLimit(row) {
   if (row?.status === "cancelled") return false;
+  if (locallyCancelledChallenge(row)) return false;
   return !isOpenChallengeOpponent(row?.opponent) && !selfChallengeRow(row) && !challengePendingExpired(row);
 }
 
@@ -11659,6 +11687,38 @@ function challengePickerItems() {
   ];
 }
 
+function challengeFavoriteId(name) {
+  return cleanChallengeName(name || "").toLocaleLowerCase("sr");
+}
+
+function loadChallengeFavorites() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CHALLENGE_FAVORITES_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveChallengeFavorites(ids) {
+  const unique = [...new Set((ids || []).filter(Boolean))];
+  localStorage.setItem(CHALLENGE_FAVORITES_KEY, JSON.stringify(unique.slice(0, 80)));
+}
+
+function isChallengeFavorite(name) {
+  const id = challengeFavoriteId(name);
+  return Boolean(id && loadChallengeFavorites().includes(id));
+}
+
+function toggleChallengeFavorite(name) {
+  const id = challengeFavoriteId(name);
+  if (!id) return;
+  const favorites = loadChallengeFavorites();
+  saveChallengeFavorites(favorites.includes(id)
+    ? favorites.filter((item) => item !== id)
+    : [id, ...favorites]);
+}
+
 function challengePairAggregate(first, second, rows = challengeStatsRows) {
   if (!first || !second || !Array.isArray(rows) || !rows.length) return null;
   const row = rows.find((item) => (
@@ -11755,18 +11815,53 @@ function selectChallengePickerPlayer(value) {
 function renderChallengePickerGrid() {
   if (!challengePickerGrid) return;
   const term = cleanChallengeName(challengePickerSearch?.value || "").toLocaleLowerCase("sr");
+  const favorites = loadChallengeFavorites();
+  const favoriteRank = (item) => {
+    const id = challengeFavoriteId(item.value);
+    const index = favorites.indexOf(id);
+    return index === -1 ? 9999 : index;
+  };
   challengePickerGrid.innerHTML = "";
   challengePickerItems()
     .filter((item) => !term || item.label.toLocaleLowerCase("sr").includes(term))
+    .sort((first, second) => {
+      if (first.kind === "new" && second.kind !== "new") return 1;
+      if (second.kind === "new" && first.kind !== "new") return -1;
+      const firstFavorite = favoriteRank(first);
+      const secondFavorite = favoriteRank(second);
+      if (firstFavorite !== secondFavorite) return firstFavorite - secondFavorite;
+      return first.label.localeCompare(second.label, "sr");
+    })
     .forEach((item) => {
+      const favorite = item.kind !== "new" && isChallengeFavorite(item.value);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "challenge-picker-player";
+      button.classList.toggle("favorite", favorite);
       button.dataset.value = item.value;
       button.setAttribute("aria-pressed", item.value === challengePickerSelected ? "true" : "false");
       const avatar = document.createElement("span");
       avatar.className = "profile-avatar";
       renderAvatarForName(avatar, item.label, { current: item.kind === "new" });
+      if (item.kind !== "new") {
+        const heart = document.createElement("span");
+        heart.className = "challenge-favorite-toggle";
+        heart.setAttribute("role", "button");
+        heart.setAttribute("tabindex", "0");
+        heart.setAttribute("aria-label", favorite ? "Уклони из фаворита" : "Додај у фаворите");
+        heart.textContent = favorite ? "♥" : "♡";
+        const toggle = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleChallengeFavorite(item.value);
+          renderChallengePickerGrid();
+        };
+        heart.addEventListener("click", toggle);
+        heart.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") toggle(event);
+        });
+        button.append(heart);
+      }
       const label = document.createElement("span");
       label.className = "challenge-picker-player-name";
       label.textContent = item.label;
@@ -11810,7 +11905,6 @@ async function openChallengePicker() {
     challengeStatsRows = [];
   }
   renderChallengePickerGrid();
-  window.setTimeout(() => challengePickerSearch?.focus(), 0);
 }
 
 function challengeNotificationRows(rows = []) {
@@ -11996,13 +12090,16 @@ async function deleteChallenge(code) {
 async function cancelPendingChallenge(row) {
   if (!row?.code) return;
   if (row.status !== "pending" || row.opponent_device || row.accepted_at || challengeRole(row) !== "creator") return;
+  rememberCancelledChallenge(row.code);
+  removeSentChallenge(row.code);
+  clearPendingChallengeCode();
+  updateChallengeQuota();
+  renderChallengePanel("Изазов је отказан.");
   try {
     await deleteChallenge(row.code);
   } catch {
     await updateChallenge(row.code, { status: "cancelled" });
   }
-  removeSentChallenge(row.code);
-  clearPendingChallengeCode();
   renderChallengePanel("Изазов је отказан.");
   await refreshChallengeLobby().catch(() => {});
 }
