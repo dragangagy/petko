@@ -1,4 +1,4 @@
-const WORDS = [
+let WORDS = [
   "авани",
   "аванс",
   "авети",
@@ -5112,7 +5112,7 @@ const WORDS = [
   "шушка"
 ];
 
-const WORD_SET = new Set(WORDS);
+let WORD_SET = new Set(WORDS);
 
 const KEY_ROWS = [
   [
@@ -5170,6 +5170,7 @@ const NORMAL_CHALLENGE_BONUS_KEY = "petko-normal-challenge-bonus-v1";
 const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
+const ONLINE_WORDS_KEY = "petko-online-words-v1";
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const PROFILE_AVATARS = [
   ...Array.from({ length: 19 }, (_, index) => ({
@@ -5197,7 +5198,8 @@ const SUPABASE_CONFIG = {
   lectorStatsTable: "lector_stats",
   playersTable: "players",
   wordReportsTable: "word_reports",
-  wordMeaningsTable: "word_meanings"
+  wordMeaningsTable: "word_meanings",
+  wordsTable: "words"
 };
 
 const WORD_INFO = {
@@ -11059,6 +11061,10 @@ function wordMeaningsTable() {
   return SUPABASE_CONFIG.wordMeaningsTable || "word_meanings";
 }
 
+function wordsTable() {
+  return SUPABASE_CONFIG.wordsTable || "words";
+}
+
 function emptyLectorStats() {
   return { total: 0, add: 0, remove: 0, updated_at: "" };
 }
@@ -11211,6 +11217,71 @@ async function fetchWordMeaning(word) {
   const meaning = String(rows?.[0]?.meaning || "").trim();
   if (meaning) WORD_INFO[word] = meaning;
   return meaning;
+}
+
+function normalizeOnlineWordRows(rows = []) {
+  const byWord = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const word = normalize(row?.word || row);
+    if (word.length !== WORD_LENGTH || byWord.has(word)) return;
+    byWord.set(word, {
+      word,
+      meaning: String(row?.meaning || "").trim(),
+      type: String(row?.type || "").trim()
+    });
+  });
+  return [...byWord.values()].sort((left, right) => left.word.localeCompare(right.word, "sr"));
+}
+
+function applyOnlineWords(rows = [], cache = false) {
+  const normalizedRows = normalizeOnlineWordRows(rows);
+  if (normalizedRows.length < 50) return false;
+  WORDS = normalizedRows.map((row) => row.word);
+  WORD_SET = new Set(WORDS);
+  normalizedRows.forEach((row) => {
+    if (row.meaning) WORD_INFO[row.word] = row.meaning;
+  });
+  saveWordDeck(loadWordDeck());
+  if (cache) {
+    localStorage.setItem(ONLINE_WORDS_KEY, JSON.stringify({
+      savedAt: new Date().toISOString(),
+      rows: normalizedRows
+    }));
+  }
+  return true;
+}
+
+function loadCachedOnlineWords() {
+  try {
+    const data = JSON.parse(localStorage.getItem(ONLINE_WORDS_KEY) || "null");
+    return applyOnlineWords(data?.rows || [], false);
+  } catch {
+    return false;
+  }
+}
+
+async function fetchOnlineWords() {
+  if (!supabaseConfigured()) return false;
+  const query = [
+    "select=word,meaning,type,updated_at",
+    "active=eq.true",
+    "order=word.asc",
+    "limit=10000"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${wordsTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return false;
+  const rows = await response.json();
+  return applyOnlineWords(rows, true);
+}
+
+async function loadOnlineWords() {
+  loadCachedOnlineWords();
+  await Promise.race([
+    fetchOnlineWords().catch(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(false), 2500))
+  ]);
 }
 
 function challengeCode() {
@@ -15878,9 +15949,11 @@ setInterval(() => {
   syncChallengeState().catch(() => {});
 }, CHALLENGE_SYNC_INTERVAL_MS);
 
-const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
-if (incomingChallengeCode) {
-  startGame("challenge");
+async function bootPetkoApp() {
+  await loadOnlineWords().catch(() => {});
+  const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
+  if (incomingChallengeCode) {
+    startGame("challenge");
   if (challengePlayerSelect) challengePlayerSelect.value = "__new__";
   if (challengePlayerButton) challengePlayerButton.textContent = "Нови корисник";
   if (challengeCodeInput) challengeCodeInput.value = incomingChallengeCode.toUpperCase();
@@ -15908,4 +15981,6 @@ Promise.all([
   })
   .catch(() => {});
 
+}
 
+bootPetkoApp();
