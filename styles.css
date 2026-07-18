@@ -455,7 +455,7 @@ body[data-word-modal-open="true"] .petko-mood span {
   border: 0;
   background: transparent;
   font-size: clamp(82px, 27vw, 160px);
-  opacity: 0.5;
+  opacity: 1;
   filter: brightness(0.5) contrast(1.12) saturate(0.78) drop-shadow(0 0 20px rgba(15, 23, 42, 0.95));
   box-shadow:
     0 0 34px rgba(15, 23, 42, 0.7),
