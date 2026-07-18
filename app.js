@@ -5153,6 +5153,7 @@ const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
 const CHALLENGE_CANCELLED_KEY = "petko-challenge-cancelled-v1";
+const CHALLENGE_PLAYED_KEY = "petko-challenge-played-v1";
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
@@ -11356,11 +11357,47 @@ function challengeRole(row) {
 
 function challengeAlreadyPlayed(row, role) {
   if (!role) return false;
-  return challengePlayedAt(row, role);
+  return challengePlayedAt(row, role) || localChallengePlayedAt(row, role);
 }
 
 function challengePlayedAt(row, role) {
   return Number.isFinite(Date.parse(row?.[`${role}_played_at`] || ""));
+}
+
+function loadChallengePlayedStore() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_PLAYED_KEY) || "null");
+    if (data && typeof data === "object") return data;
+  } catch {}
+  return {};
+}
+
+function saveChallengePlayedStore(store) {
+  const entries = Object.entries(store || {})
+    .filter(([, value]) => Number.isFinite(Date.parse(value?.playedAt || "")))
+    .sort((a, b) => Date.parse(b[1].playedAt) - Date.parse(a[1].playedAt))
+    .slice(0, 200);
+  localStorage.setItem(CHALLENGE_PLAYED_KEY, JSON.stringify(Object.fromEntries(entries)));
+}
+
+function challengePlayedKey(rowOrCode, role) {
+  const code = normalizeChallengeCode(typeof rowOrCode === "string" ? rowOrCode : rowOrCode?.code);
+  return code && role ? `${code}:${role}` : "";
+}
+
+function localChallengePlayedAt(rowOrCode, role) {
+  const key = challengePlayedKey(rowOrCode, role);
+  if (!key) return false;
+  const playedAt = loadChallengePlayedStore()[key]?.playedAt || "";
+  return Number.isFinite(Date.parse(playedAt));
+}
+
+function rememberChallengePlayed(rowOrCode, role) {
+  const key = challengePlayedKey(rowOrCode, role);
+  if (!key) return;
+  const store = loadChallengePlayedStore();
+  store[key] = { playedAt: new Date().toISOString() };
+  saveChallengePlayedStore(store);
 }
 
 function challengePlayedToday(row) {
@@ -12650,7 +12687,8 @@ async function renderChallengeResult(row, localScore) {
   if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
   const pair = challengePairScore(history, creator, opponent);
   if (!playedChallenge(row)) {
-    const waitingFor = challengePlayedAt(row, "creator") ? opponent : creator;
+    const creatorDone = challengeAlreadyPlayed(row, "creator");
+    const waitingFor = creatorDone ? opponent : creator;
     saveActiveChallenge({
       code: row.code,
       role: activeChallenge?.role || loadActiveChallenge()?.role || "",
@@ -12868,6 +12906,13 @@ async function startChallengeGame(row, role) {
   }
   const creator = serverRow.creator || "\u0418\u0433\u0440\u0430\u0447 1";
   const opponent = serverRow.opponent || loadPlayerName() || "\u0418\u0433\u0440\u0430\u0447 2";
+  if (challengeAlreadyPlayed(serverRow, role)) {
+    clearChallengeProgress(serverRow.code);
+    activeChallenge = { code: serverRow.code, role, creator, opponent };
+    saveActiveChallenge(activeChallenge);
+    await renderChallengeResult(serverRow, Number(serverRow?.[`${role}_score`] || 0));
+    return;
+  }
   const savedProgress = loadChallengeProgress(serverRow.code);
   if (savedProgress && sameChallengeWords(savedProgress.targets, serverRow.words)) {
     await playChallengeVs(serverRow);
@@ -13008,6 +13053,7 @@ async function finishChallenge(status) {
       [`${prefix}_solved`]: solvedCount,
       [`${prefix}_played_at`]: new Date().toISOString()
     });
+    rememberChallengePlayed(activeChallenge.code, prefix);
     const row = await fetchChallenge(activeChallenge.code);
     await renderChallengeResult(row, resultScore);
     refreshChallengePanel();
