@@ -5329,7 +5329,14 @@ const UNLOCKABLE_PROFILE_AVATARS = [
     label: "Ж37",
     src: "avatar/Z37.png",
     unlockGroup: "streak5"
-  }
+  },
+  ...[36, 38, 39, 40].map((number) => ({
+    id: `female-${number}`,
+    group: "female",
+    label: `Ж${number}`,
+    src: `avatar/Z${number}.png`,
+    unlockGroup: "streak5"
+  }))
 ];
 const PROFILE_AVATARS = [...BASE_PROFILE_AVATARS, ...UNLOCKABLE_PROFILE_AVATARS];
 const PROFILE_UNLOCK_GROUPS = {
