@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache-v216";
+const CACHE_NAME = "petko-cache-v219";
 
 const ASSETS = [
   "./",
@@ -94,6 +94,7 @@ const ASSETS = [
   "./avatar/M36.png",
   "./avatar/M37.png",
   "./avatar/M38.png",
+  "./avatar/challenge-tie.png",
   "./avatar/Z1.png",
   "./avatar/Z2.png",
   "./avatar/Z3.png",

@@ -12766,10 +12766,32 @@ function challengeWinnerName(row) {
   return "Чека се";
 }
 
+function challengeResultLine(row, role, name) {
+  const score = Number(row?.[`${role}_score`]);
+  const solved = Number(row?.[`${role}_solved`]);
+  const attempts = Number(row?.[`${role}_attempts`]);
+  const line = document.createElement("div");
+  line.className = "challenge-result-line";
+  const player = document.createElement("strong");
+  player.textContent = `${name}:`;
+  const details = document.createElement("span");
+  details.textContent = [
+    Number.isFinite(score) ? `${formatScore(score)} поена` : "0 поена",
+    Number.isFinite(solved) ? `${formatScore(solved)}/6 табли` : "0/6 табли",
+    Number.isFinite(attempts) ? `${formatScore(attempts)}/11 редова` : "0/11 редова"
+  ].join(" · ");
+  line.append(player, details);
+  return line;
+}
+
 function challengeAvatarElement(name) {
   const avatar = document.createElement("span");
   avatar.className = "profile-avatar challenge-player-avatar";
-  renderAvatarForName(avatar, name, { current: sameChallengeName(name, loadPlayerName()) });
+  const forcedAvatar = isOpenChallengeOpponent(name) ? profileAvatarById("Z40") : null;
+  renderAvatarForName(avatar, name, {
+    avatar: forcedAvatar,
+    current: sameChallengeName(name, loadPlayerName())
+  });
   return avatar;
 }
 function challengeNameWithAvatar(name) {
@@ -12801,6 +12823,56 @@ function challengeCard(row, rows = []) {
   }
   const otherPlayer = role === "creator" ? (openInvite ? "нови корисник" : opponent) : creator;
   const pair = openInvite || opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
+  if (playedChallenge(row)) {
+    const winnerRole = challengeWinner(row);
+    const winnerName = challengeWinnerName(row);
+    const main = document.createElement("div");
+    main.className = "challenge-result-main";
+    const body = document.createElement("div");
+    body.className = "challenge-result-body";
+    const versus = document.createElement("div");
+    versus.className = "challenge-result-versus";
+    versus.append(challengeNameWithAvatar(creator), document.createTextNode(" → "), challengeNameWithAvatar(opponent));
+    const outcome = document.createElement("div");
+    outcome.className = `challenge-result-outcome ${winnerRole === "tie" ? "tie" : "win"}`;
+    outcome.textContent = winnerRole === "tie"
+      ? "Нерешено"
+      : `Победио: ${winnerName} · добија ${formatScore(challengeDifference(row))}`;
+    const lines = document.createElement("div");
+    lines.className = "challenge-result-lines";
+    lines.append(
+      challengeResultLine(row, "creator", creator),
+      challengeResultLine(row, "opponent", opponent)
+    );
+    body.append(versus, outcome, lines);
+    const media = document.createElement("div");
+    media.className = `challenge-result-media ${winnerRole === "tie" ? "tie" : ""}`;
+    if (winnerRole === "tie") {
+      media.setAttribute("aria-label", "Нерешено");
+      const tieImage = document.createElement("img");
+      tieImage.src = "avatar/challenge-tie.png";
+      tieImage.alt = "Нерешено";
+      tieImage.loading = "lazy";
+      media.append(tieImage);
+    } else {
+      renderAvatarForName(media, winnerName);
+    }
+    main.append(body, media);
+    card.append(main);
+    if (pair) {
+      const pairEl = document.createElement("div");
+      pairEl.className = "challenge-card-pair challenge-result-pair";
+      pairEl.append(
+        document.createTextNode("Међусобно: "),
+        challengeNameWithAvatar(creator),
+        document.createTextNode(` ${pair.creator} : ${pair.opponent} `),
+        challengeNameWithAvatar(opponent),
+        document.createTextNode(` · нерешено ${pair.tie || 0}`)
+      );
+      card.append(pairEl);
+    }
+    return card;
+  }
   if (pair) {
     const pairEl = document.createElement("div");
     pairEl.className = "challenge-card-pair";
@@ -12820,7 +12892,7 @@ function challengeCard(row, rows = []) {
     title.append(document.createTextNode("Изазов је прихваћен: "), challengeNameWithAvatar(creator), document.createTextNode(" → "), challengeNameWithAvatar(opponent));
   } else if (role === "creator") {
     if (openInvite) {
-      title.textContent = "Позван нови корисник";
+      title.append(document.createTextNode("Позван "), challengeNameWithAvatar("Нови корисник"));
     } else {
       title.append(document.createTextNode("Упутили сте изазов: "), challengeNameWithAvatar(opponent));
     }
