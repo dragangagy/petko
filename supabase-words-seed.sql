@@ -1,4 +1,4 @@
--- Petko words seed generated from app.js
+﻿-- Petko words seed generated from app.js
 -- Run supabase-schema.sql first, then this file.
 insert into public.words (word, meaning, active) values
   ('авани', 'Множина речи аван; посуде за туцање.', true),
@@ -5116,3 +5116,4 @@ on conflict (word) do update set
   meaning = excluded.meaning,
   active = true,
   updated_at = now();
+

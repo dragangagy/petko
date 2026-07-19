@@ -5266,7 +5266,6 @@ const SUPABASE_CONFIG = {
   lectorStatsTable: "lector_stats",
   playersTable: "players",
   wordReportsTable: "word_reports",
-  wordMeaningsTable: "word_meanings",
   wordsTable: "words"
 };
 
@@ -11192,10 +11191,6 @@ function lectorStatsTable() {
   return SUPABASE_CONFIG.lectorStatsTable || "lector_stats";
 }
 
-function wordMeaningsTable() {
-  return SUPABASE_CONFIG.wordMeaningsTable || "word_meanings";
-}
-
 function wordsTable() {
   return SUPABASE_CONFIG.wordsTable || "words";
 }
@@ -11342,7 +11337,7 @@ async function fetchWordMeaning(word) {
   if (WORD_INFO[word]) return WORD_INFO[word];
   if (!supabaseConfigured()) return "";
 
-  const query = `${wordMeaningsTable()}?select=meaning&word=eq.${encodeURIComponent(word)}&limit=1`;
+  const query = `${wordsTable()}?select=meaning&word=eq.${encodeURIComponent(word)}&active=eq.true&limit=1`;
   const response = await fetch(supabaseUrl(query), {
     headers: supabaseHeaders()
   });
