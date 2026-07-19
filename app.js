@@ -5179,6 +5179,10 @@
   "шушка"
 ];
 
+const LOCAL_WORDS = [...WORDS];
+const LOCAL_WORD_SET = new Set(LOCAL_WORDS);
+const MIN_ONLINE_WORDS = Math.min(500, Math.max(50, Math.floor(LOCAL_WORDS.length * 0.5)));
+let onlineWordsReady = false;
 let WORD_SET = new Set(WORDS);
 
 const KEY_ROWS = [
@@ -10732,7 +10736,7 @@ function displayWords(words) {
 function loadUsedWords() {
   try {
     const words = JSON.parse(localStorage.getItem(USED_WORDS_KEY) || "[]");
-    return Array.isArray(words) ? words.filter((word) => WORD_SET.has(word)) : [];
+    return Array.isArray(words) ? words.filter((word) => isKnownWord(word)) : [];
   } catch {
     return [];
   }
@@ -10742,7 +10746,7 @@ function rememberUsedWords(words) {
   const limit = Math.max(1, WORDS.length);
   const seen = new Set();
   const merged = [...words, ...loadUsedWords()].filter((word) => {
-    if (!WORD_SET.has(word) || seen.has(word)) return false;
+    if (!isKnownWord(word) || seen.has(word)) return false;
     seen.add(word);
     return true;
   });
@@ -10752,7 +10756,7 @@ function rememberUsedWords(words) {
 function normalizeWordDeck(deck) {
   const seen = new Set();
   return (Array.isArray(deck) ? deck : []).filter((word) => {
-    if (!WORD_SET.has(word) || seen.has(word)) return false;
+    if (!isKnownWord(word) || seen.has(word)) return false;
     seen.add(word);
     return true;
   });
@@ -10772,7 +10776,7 @@ function saveWordDeck(deck) {
 }
 
 function freshWordDeck(exclude = []) {
-  const excluded = new Set(exclude.filter((word) => WORD_SET.has(word)));
+  const excluded = new Set(exclude.filter((word) => isKnownWord(word)));
   const preferred = WORDS.filter((word) => !excluded.has(word));
   const delayed = WORDS.filter((word) => excluded.has(word));
   return [...shuffledCopy(preferred), ...shuffledCopy(delayed)];
@@ -10787,7 +10791,7 @@ function takeWordsFromDeck(count) {
       deck = freshWordDeck([...loadUsedWords(), ...chosen]);
     }
     const next = deck.shift();
-    if (WORD_SET.has(next) && !chosen.includes(next)) {
+    if (isKnownWord(next) && !chosen.includes(next)) {
       chosen.push(next);
     }
   }
@@ -11568,11 +11572,24 @@ function normalizeOnlineWordRows(rows = []) {
   return [...byWord.values()].sort((left, right) => left.word.localeCompare(right.word, "sr"));
 }
 
+function isKnownWord(word = "") {
+  const cleanWord = normalize(word);
+  if (WORD_SET.has(cleanWord)) return true;
+  return !onlineWordsReady && LOCAL_WORD_SET.has(cleanWord);
+}
+
 function applyOnlineWords(rows = [], cache = false) {
   const normalizedRows = normalizeOnlineWordRows(rows);
-  if (normalizedRows.length < 50) return false;
+  if (normalizedRows.length < MIN_ONLINE_WORDS) {
+    onlineWordsReady = false;
+    WORDS = [...LOCAL_WORDS];
+    WORD_SET = new Set(LOCAL_WORD_SET);
+    if (cache) localStorage.removeItem(ONLINE_WORDS_KEY);
+    return false;
+  }
   WORDS = normalizedRows.map((row) => row.word);
   WORD_SET = new Set(WORDS);
+  onlineWordsReady = true;
   normalizedRows.forEach((row) => {
     if (row.meaning) WORD_INFO[row.word] = row.meaning;
   });
@@ -14727,7 +14744,7 @@ function submitGuess() {
     return;
   }
 
-  if (!WORD_SET.has(current)) {
+  if (!isKnownWord(current)) {
     const missingWord = current;
     current = "";
     messageEl.textContent = "Нема те речи.";
