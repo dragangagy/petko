@@ -11594,7 +11594,7 @@ function normalizeOnlineWordRows(rows = []) {
 function isKnownWord(word = "") {
   const cleanWord = normalize(word);
   if (WORD_SET.has(cleanWord)) return true;
-  return !onlineWordsReady && LOCAL_WORD_SET.has(cleanWord);
+  return LOCAL_WORD_SET.has(cleanWord);
 }
 
 function applyOnlineWords(rows = [], cache = false) {
@@ -11606,7 +11606,9 @@ function applyOnlineWords(rows = [], cache = false) {
     if (cache) localStorage.removeItem(ONLINE_WORDS_KEY);
     return false;
   }
-  WORDS = normalizedRows.map((row) => row.word);
+  const mergedWords = new Map(LOCAL_WORDS.map((word) => [word, word]));
+  normalizedRows.forEach((row) => mergedWords.set(row.word, row.word));
+  WORDS = [...mergedWords.values()].sort((left, right) => left.localeCompare(right, "sr"));
   WORD_SET = new Set(WORDS);
   onlineWordsReady = true;
   normalizedRows.forEach((row) => {
