@@ -5233,6 +5233,7 @@ const CHALLENGE_PROGRESS_KEY = "petko-challenge-progress-v1";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const PLAYER_RENAME_COUNT_KEY = "petko-player-rename-count-v1";
 const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
+const PROFILE_AVATAR_APPROVED_KEY = "petko-profile-avatar-approved-v1";
 const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const PROFILE_UNLOCK_SEEN_KEY = "petko-profile-unlock-seen-v1";
 const CHALLENGE_FAVORITES_KEY = "petko-challenge-favorites-v1";
@@ -13531,10 +13532,26 @@ function unlockedProfileAvatars(stats = avatarAchievementStats || emptyAvatarAch
   return PROFILE_AVATARS.filter((avatar) => isProfileAvatarUnlocked(avatar, activeStats));
 }
 
+function saveApprovedProfileAvatarId(id = "") {
+  const avatar = profileAvatarById(id);
+  if (avatar) {
+    localStorage.setItem(PROFILE_AVATAR_APPROVED_KEY, avatar.id);
+    return avatar.id;
+  }
+  localStorage.removeItem(PROFILE_AVATAR_APPROVED_KEY);
+  return "";
+}
+
+function isProfileAvatarApproved(id = "") {
+  return Boolean(id && localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY) === id);
+}
+
 function loadProfileAvatarId() {
   const id = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
   const avatar = profileAvatarById(id);
-  return avatar && isProfileAvatarUnlocked(avatar) ? avatar.id : PROFILE_AVATARS[0].id;
+  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id))
+    ? avatar.id
+    : PROFILE_AVATARS[0].id;
 }
 
 function profileAvatarById(id) {
@@ -13547,7 +13564,9 @@ function currentProfileAvatar() {
 
 function normalizeProfileAvatarId(id) {
   const avatar = profileAvatarById(id);
-  return avatar && isProfileAvatarUnlocked(avatar) ? avatar.id : PROFILE_AVATARS[0].id;
+  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id))
+    ? avatar.id
+    : PROFILE_AVATARS[0].id;
 }
 
 function playerAvatarCacheKey(name) {
@@ -13558,6 +13577,17 @@ function cachePlayerAvatar(row = {}) {
   const key = playerAvatarCacheKey(row.nickname);
   const avatar = profileAvatarById(row.avatar_id);
   if (key && avatar) PLAYER_AVATAR_CACHE.set(key, avatar.id);
+}
+
+function applySupabaseProfileAvatar(row = {}, nickname = loadPlayerName()) {
+  const avatar = profileAvatarById(row.avatar_id);
+  const cleanName = normalizePlayerName(nickname || row.nickname || "");
+  if (!avatar) return false;
+  saveApprovedProfileAvatarId(avatar.id);
+  localStorage.setItem(PROFILE_AVATAR_KEY, normalizeProfileAvatarId(avatar.id));
+  if (cleanName) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(cleanName), avatar.id);
+  updateStatusProfile();
+  return true;
 }
 
 function cachedProfileAvatar(name = "") {
@@ -13619,12 +13649,14 @@ function renderAvatarText(target, fallbackName = "") {
 
 function saveProfileAvatar(id) {
   const avatar = profileAvatarById(id);
-  if (avatar && !isProfileAvatarUnlocked(avatar)) {
+  if (avatar && !isProfileAvatarUnlocked(avatar) && !isProfileAvatarApproved(avatar.id)) {
     setProfileMessage(profileAvatarUnlockInfo(avatar)?.requirement || "Овај аватар је још закључан.");
     return;
   }
   const cleanId = normalizeProfileAvatarId(id);
   localStorage.setItem(PROFILE_AVATAR_KEY, cleanId);
+  const cleanAvatar = profileAvatarById(cleanId);
+  if (cleanAvatar && isProfileAvatarUnlocked(cleanAvatar)) saveApprovedProfileAvatarId("");
   const player = loadPlayerName();
   if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), cleanId);
   updateStatusProfile();
@@ -16298,6 +16330,38 @@ async function fetchPlayerByDeviceId(targetDeviceId) {
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
+async function fetchCurrentPlayerProfile() {
+  if (!supabaseConfigured()) return null;
+  const name = normalizePlayerName(loadPlayerName() || "");
+  const queries = [
+    [
+      "select=nickname,device_id,avatar_id",
+      `device_id=eq.${encodeURIComponent(deviceId())}`,
+      "limit=1"
+    ].join("&")
+  ];
+  if (name) {
+    queries.push([
+      "select=nickname,device_id,avatar_id",
+      `nickname=eq.${encodeURIComponent(name)}`,
+      "limit=1"
+    ].join("&"));
+  }
+  for (const query of queries) {
+    const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), {
+      headers: supabaseHeaders()
+    });
+    if (!response.ok) continue;
+    const rows = await response.json();
+    if (Array.isArray(rows) && rows.length) {
+      rows.forEach(cachePlayerAvatar);
+      applySupabaseProfileAvatar(rows[0], name || rows[0].nickname);
+      return rows[0];
+    }
+  }
+  return null;
+}
+
 async function connectProfileByCode() {
   const targetDeviceId = parseProfileConnectionCode(profileConnectInput?.value || "");
   if (!targetDeviceId) {
@@ -16316,8 +16380,7 @@ async function connectProfileByCode() {
   }
   localStorage.setItem(DEVICE_ID_KEY, targetDeviceId);
   if (profileAvatarById(row.avatar_id)) {
-    localStorage.setItem(PROFILE_AVATAR_KEY, normalizeProfileAvatarId(row.avatar_id));
-    PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(nickname), normalizeProfileAvatarId(row.avatar_id));
+    applySupabaseProfileAvatar(row, nickname);
   }
   savePlayerName(nickname);
   updateChallengePlayerName();
@@ -16336,7 +16399,8 @@ function refreshOnlineLeaderboard() {
   const nickname = loadPlayerName();
   Promise.all([
     fetchOnlineLeaderboard(),
-    fetchOnlinePlayerStats(nickname)
+    fetchOnlinePlayerStats(nickname),
+    fetchCurrentPlayerProfile().catch(() => null)
   ])
     .then(([rows, stats]) => {
       if (Array.isArray(rows)) {
