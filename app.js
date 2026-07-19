@@ -10593,6 +10593,7 @@ let activeChallenge = null;
 let challengePickerPlayers = [];
 let challengePickerRows = [];
 let challengeStatsRows = [];
+let onlineNormalStatsSummary = null;
 let challengePickerSelected = "";
 let challengePickerBusy = false;
 let hallMedals = [];
@@ -11080,12 +11081,38 @@ async function submitNormalStats(stats = loadNormalStats()) {
   return response.ok;
 }
 
+function displayNormalStats() {
+  const local = loadNormalStats();
+  if (!onlineNormalStatsSummary) return local;
+  return {
+    started: Math.max(Number(local.started) || 0, Number(onlineNormalStatsSummary.started) || 0),
+    finished: Math.max(Number(local.finished) || 0, Number(onlineNormalStatsSummary.finished) || 0)
+  };
+}
+
+async function refreshOnlineNormalStats() {
+  if (!supabaseConfigured()) return;
+  const name = loadPlayerName();
+  if (!name) return;
+  const rows = await fetchNormalStatsRows();
+  const aggregated = normalSuccessRows(rows);
+  const mine = aggregated.find((row) => sameChallengeName(row.nickname, name));
+  onlineNormalStatsSummary = mine
+    ? { started: Number(mine.started) || 0, finished: Number(mine.finished) || 0 }
+    : null;
+  renderNormalStats();
+}
+
 function bumpNormalStarted() {
   const stats = loadNormalStats();
   stats.started += 1;
   saveNormalStats(stats);
   renderNormalStats();
-  submitNormalStats(stats).catch(() => {});
+  submitNormalStats(stats)
+    .then((ok) => {
+      if (ok) refreshOnlineNormalStats().catch(() => {});
+    })
+    .catch(() => {});
 }
 
 function bumpNormalFinished() {
@@ -11093,7 +11120,11 @@ function bumpNormalFinished() {
   stats.finished += 1;
   saveNormalStats(stats);
   renderNormalStats();
-  submitNormalStats(stats).catch(() => {});
+  submitNormalStats(stats)
+    .then((ok) => {
+      if (ok) refreshOnlineNormalStats().catch(() => {});
+    })
+    .catch(() => {});
 }
 
 function markNormalStarted() {
@@ -11104,14 +11135,14 @@ function markNormalStarted() {
 
 function renderNormalStats() {
   if (!normalStatsEl) return;
-  const stats = loadNormalStats();
+  const stats = displayNormalStats();
   const friday = loadFridayBonus();
   const normalChallenge = loadNormalChallengeBonus();
   const fridayText = isPetkoFriday()
     ? ` · Петак ${friday.normalStreak}/5 · бонус +${formatScore(friday.normalBonus)}`
     : "";
   const challengeText = ` · изазов низ ${normalChallenge.streak}/5 · +${formatScore(normalChallenge.bonus)} изаз.`;
-  normalStatsEl.textContent = `Обичан скор: започето ${stats.started} · завршено ${stats.finished}${fridayText}${challengeText}`;
+  normalStatsEl.textContent = `Обичан скор: од ${formatScore(stats.started)} одиграних ${formatScore(stats.finished)} добијених${fridayText}${challengeText}`;
 }
 
 function msUntilTomorrow() {
@@ -16179,6 +16210,7 @@ const initialNormalStats = loadNormalStats();
 if (initialNormalStats.started || initialNormalStats.finished) {
   submitNormalStats(initialNormalStats).catch(() => {});
 }
+refreshOnlineNormalStats().catch(() => {});
 Promise.all([
   fetchChallengeHistory(),
   fetchChallengeStatsRows().catch(() => [])
