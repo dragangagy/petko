@@ -1,6 +1,18 @@
--- Petko: restore strongest challenge score medal rule.
--- Run this in Supabase SQL Editor if challenge-score-min-loser-games.sql
--- was previously executed. It removes the "loser must have 10 games" rule.
+-- Petko: strongest challenge score medal rule.
+-- Run this in Supabase SQL Editor.
+-- It affects only challenge_score_stats / "Najaci izazov skor".
+-- It does not affect "Najvise dobijenih izazova", which stays in challenge_stats.
+
+create or replace function public.challenge_player_total_games(player_name text)
+returns integer
+language sql
+stable
+as $$
+  select coalesce(sum(total_games), 0)::integer
+  from public.challenge_stats
+  where lower(btrim(player_a)) = lower(btrim(coalesce(player_name, '')))
+     or lower(btrim(player_b)) = lower(btrim(coalesce(player_name, '')))
+$$;
 
 create or replace function public.record_challenge_score_stats()
 returns trigger
@@ -12,6 +24,7 @@ declare
   winner_name text;
   winner_score integer;
   loser_role text;
+  loser_name text;
   loser_solved integer;
   loser_attempts integer;
   diff_value integer;
@@ -38,10 +51,12 @@ begin
     winner_name := btrim(new.creator);
     winner_score := coalesce(new.creator_score, 0);
     loser_role := 'opponent';
+    loser_name := btrim(new.opponent);
   else
     winner_name := btrim(new.opponent);
     winner_score := coalesce(new.opponent_score, 0);
     loser_role := 'creator';
+    loser_name := btrim(new.creator);
   end if;
 
   if loser_role = 'creator' then
@@ -53,6 +68,10 @@ begin
   end if;
 
   if loser_solved < 6 and loser_attempts < 11 then
+    return new;
+  end if;
+
+  if public.challenge_player_total_games(loser_name) < 10 then
     return new;
   end if;
 
@@ -90,5 +109,3 @@ drop trigger if exists challenges_score_stats_trigger on public.challenges;
 create trigger challenges_score_stats_trigger
 after update on public.challenges
 for each row execute function public.record_challenge_score_stats();
-
-drop function if exists public.challenge_player_total_games(text);
