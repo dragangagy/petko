@@ -5230,6 +5230,7 @@ const PLAYER_NAME_KEY = "petko-player-name-v1";
 const PLAYER_RENAME_COUNT_KEY = "petko-player-rename-count-v1";
 const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
 const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
+const PROFILE_UNLOCK_SEEN_KEY = "petko-profile-unlock-seen-v1";
 const CHALLENGE_FAVORITES_KEY = "petko-challenge-favorites-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
@@ -5240,7 +5241,7 @@ const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
 const ONLINE_WORDS_KEY = "petko-online-words-v1";
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
-const PROFILE_AVATARS = [
+const BASE_PROFILE_AVATARS = [
   ...Array.from({ length: 19 }, (_, index) => ({
     id: `male-${index + 1}`,
     group: "male",
@@ -5254,6 +5255,80 @@ const PROFILE_AVATARS = [
     src: `avatar/Z${index + 1}.png`
   }))
 ];
+const UNLOCKABLE_PROFILE_AVATARS = [
+  ...Array.from({ length: 5 }, (_, index) => ({
+    id: `male-${index + 21}`,
+    group: "male",
+    label: `М${index + 21}`,
+    src: `avatar/M${index + 21}.png`,
+    unlockGroup: "normal100"
+  })),
+  ...Array.from({ length: 5 }, (_, index) => ({
+    id: `male-${index + 26}`,
+    group: "male",
+    label: `М${index + 26}`,
+    src: `avatar/M${index + 26}.png`,
+    unlockGroup: "tournament50"
+  })),
+  ...Array.from({ length: 5 }, (_, index) => ({
+    id: `male-${index + 31}`,
+    group: "male",
+    label: `М${index + 31}`,
+    src: `avatar/M${index + 31}.png`,
+    unlockGroup: "challengeWins50"
+  })),
+  {
+    id: "male-36",
+    group: "male",
+    label: "М36",
+    src: "avatar/M36.png",
+    unlockGroup: "streak10"
+  },
+  ...Array.from({ length: 5 }, (_, index) => ({
+    id: `female-${index + 21}`,
+    group: "female",
+    label: `Ж${index + 21}`,
+    src: `avatar/Z${index + 21}.png`,
+    unlockGroup: "normal100"
+  })),
+  ...Array.from({ length: 4 }, (_, index) => ({
+    id: `female-${index + 26}`,
+    group: "female",
+    label: `Ж${index + 26}`,
+    src: `avatar/Z${index + 26}.png`,
+    unlockGroup: "tournament50"
+  })),
+  ...Array.from({ length: 6 }, (_, index) => ({
+    id: `female-${index + 30}`,
+    group: "female",
+    label: `Ж${index + 30}`,
+    src: `avatar/Z${index + 30}.png`,
+    unlockGroup: "challengeWins50"
+  }))
+];
+const PROFILE_AVATARS = [...BASE_PROFILE_AVATARS, ...UNLOCKABLE_PROFILE_AVATARS];
+const PROFILE_UNLOCK_GROUPS = {
+  normal100: {
+    title: "100 дневних партија",
+    requirement: "Одиграј 100 обичних дневних партија.",
+    unlocked: (stats) => stats.normalStarted >= 100
+  },
+  tournament50: {
+    title: "50 турнира",
+    requirement: "Одиграј 50 такмичарских турнира.",
+    unlocked: (stats) => stats.tournaments >= 50
+  },
+  challengeWins50: {
+    title: "50 изазов победа",
+    requirement: "Освој 50 победа у изазовима.",
+    unlocked: (stats) => stats.challengeWins >= 50
+  },
+  streak10: {
+    title: "Низ 10",
+    requirement: "Направи најдужи низ 10 у такмичарском делу.",
+    unlocked: (stats) => stats.bestStreak >= 10
+  }
+};
 const PLAYER_AVATAR_CACHE = new Map();
 const SUPABASE_CONFIG = {
   url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
@@ -10519,6 +10594,7 @@ const profileConnectInput = document.querySelector("#profileConnectInput");
 const profileConnectButton = document.querySelector("#profileConnectButton");
 const profileAvatarMenu = document.querySelector("#profileAvatarMenu");
 const profileAvatarGrid = document.querySelector("#profileAvatarGrid");
+const profileAvatarUnlockNote = document.querySelector("#profileAvatarUnlockNote");
 const profileMessage = document.querySelector("#profileMessage");
 const profileAvatarTabs = [...document.querySelectorAll("[data-avatar-tab]")];
 const challengePanelEl = document.querySelector("#challengePanel");
@@ -10594,6 +10670,7 @@ let challengePickerPlayers = [];
 let challengePickerRows = [];
 let challengeStatsRows = [];
 let onlineNormalStatsSummary = null;
+let avatarAchievementStats = null;
 let challengePickerSelected = "";
 let challengePickerBusy = false;
 let hallMedals = [];
@@ -11103,6 +11180,97 @@ async function refreshOnlineNormalStats() {
   renderNormalStats();
 }
 
+function loadSeenUnlockedAvatars() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(PROFILE_UNLOCK_SEEN_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSeenUnlockedAvatars(ids = []) {
+  localStorage.setItem(PROFILE_UNLOCK_SEEN_KEY, JSON.stringify([...new Set(ids)]));
+}
+
+async function refreshAvatarAchievements(options = {}) {
+  const name = loadPlayerName();
+  const stats = emptyAvatarAchievementStats();
+  if (supabaseConfigured() && name) {
+    const [normalRows, scoreRows, challengeRows] = await Promise.all([
+      fetchNormalStatsRows().catch(() => []),
+      fetchOnlineLeaderboard().catch(() => []),
+      fetchChallengeStatsRows().catch(() => [])
+    ]);
+    const normalMine = normalSuccessRows(normalRows).find((row) => sameChallengeName(row.nickname, name));
+    const tournamentMine = aggregateLeaderboard(scoreRows).find((row) => sameChallengeName(row.nickname, name));
+    const challengeMine = normalizeChallengeWinStatsRows(challengeRows).find((row) => sameChallengeName(row.nickname, name));
+    if (normalMine) {
+      stats.normalStarted = Math.max(stats.normalStarted, Number(normalMine.started) || 0);
+    }
+    if (tournamentMine) {
+      stats.tournaments = Math.max(stats.tournaments, Number(tournamentMine.playedDays || tournamentMine.attempts) || 0);
+      stats.bestStreak = Math.max(stats.bestStreak, Number(tournamentMine.streak) || 0);
+    }
+    if (challengeMine) {
+      stats.challengeWins = Math.max(stats.challengeWins, Number(challengeMine.wins) || 0);
+    }
+  }
+
+  const previousUnlocked = new Set(unlockedProfileAvatars(avatarAchievementStats).map((avatar) => avatar.id));
+  avatarAchievementStats = stats;
+  const unlocked = unlockedProfileAvatars(stats);
+  const seen = loadSeenUnlockedAvatars();
+  const newlyUnlocked = unlocked.filter((avatar) => avatar.unlockGroup && !seen.has(avatar.id) && !previousUnlocked.has(avatar.id));
+  saveSeenUnlockedAvatars([...seen, ...unlocked.filter((avatar) => avatar.unlockGroup).map((avatar) => avatar.id)]);
+  if (profileModal && !profileModal.hidden) renderProfileModal();
+  if (options.popup && newlyUnlocked.length) showAvatarUnlockPopup(newlyUnlocked);
+}
+
+function showAvatarUnlockPopup(avatars = []) {
+  if (!avatars.length) return;
+  const overlay = document.createElement("div");
+  overlay.className = "avatar-unlock-modal";
+  const card = document.createElement("article");
+  card.className = "avatar-unlock-card";
+  const title = document.createElement("h2");
+  title.textContent = "Нови аватари су откључани";
+  const text = document.createElement("p");
+  text.textContent = "Изабери нови стикер кликом на њега.";
+  const grid = document.createElement("div");
+  grid.className = "avatar-unlock-grid";
+  avatars.forEach((avatar) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "profile-avatar-option";
+    if (avatar.src) {
+      const image = document.createElement("img");
+      image.src = avatar.src;
+      image.alt = avatar.label;
+      image.loading = "lazy";
+      image.addEventListener("error", () => {
+        image.remove();
+        button.append(document.createTextNode(avatar.label));
+      }, { once: true });
+      button.append(image);
+    } else {
+      button.textContent = avatar.label;
+    }
+    button.addEventListener("click", () => {
+      saveProfileAvatar(avatar.id);
+      overlay.remove();
+    });
+    grid.append(button);
+  });
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "avatar-unlock-close";
+  close.textContent = "Касније";
+  close.addEventListener("click", () => overlay.remove());
+  card.append(title, text, grid, close);
+  overlay.append(card);
+  document.body.append(overlay);
+}
+
 function bumpNormalStarted() {
   const stats = loadNormalStats();
   stats.started += 1;
@@ -11110,7 +11278,10 @@ function bumpNormalStarted() {
   renderNormalStats();
   submitNormalStats(stats)
     .then((ok) => {
-      if (ok) refreshOnlineNormalStats().catch(() => {});
+      if (ok) {
+        refreshOnlineNormalStats().catch(() => {});
+        refreshAvatarAchievements({ popup: true }).catch(() => {});
+      }
     })
     .catch(() => {});
 }
@@ -11122,7 +11293,10 @@ function bumpNormalFinished() {
   renderNormalStats();
   submitNormalStats(stats)
     .then((ok) => {
-      if (ok) refreshOnlineNormalStats().catch(() => {});
+      if (ok) {
+        refreshOnlineNormalStats().catch(() => {});
+        refreshAvatarAchievements({ popup: true }).catch(() => {});
+      }
     })
     .catch(() => {});
 }
@@ -13217,6 +13391,7 @@ async function finishChallenge(status) {
     const row = await fetchChallenge(activeChallenge.code);
     await renderChallengeResult(row, resultScore);
     refreshChallengePanel();
+    refreshAvatarAchievements({ popup: true }).catch(() => {});
   } catch {
     renderChallengePanel("Резултат је локалан; online упис није прошао.");
   }
@@ -13281,9 +13456,33 @@ function playerInitial(name) {
   return clean.slice(0, 1).toUpperCase();
 }
 
+function emptyAvatarAchievementStats() {
+  return {
+    normalStarted: Number(loadNormalStats().started) || 0,
+    tournaments: loadResults().filter(isFinalResult).length,
+    challengeWins: 0,
+    bestStreak: Math.max(0, ...loadResults().map((row) => Number(row.streak) || 0))
+  };
+}
+
+function profileAvatarUnlockInfo(avatar = {}) {
+  return avatar.unlockGroup ? PROFILE_UNLOCK_GROUPS[avatar.unlockGroup] || null : null;
+}
+
+function isProfileAvatarUnlocked(avatar = {}, stats = avatarAchievementStats || emptyAvatarAchievementStats()) {
+  const info = profileAvatarUnlockInfo(avatar);
+  return !info || info.unlocked(stats);
+}
+
+function unlockedProfileAvatars(stats = avatarAchievementStats || emptyAvatarAchievementStats()) {
+  const activeStats = stats || avatarAchievementStats || emptyAvatarAchievementStats();
+  return PROFILE_AVATARS.filter((avatar) => isProfileAvatarUnlocked(avatar, activeStats));
+}
+
 function loadProfileAvatarId() {
   const id = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
-  return PROFILE_AVATARS.some((avatar) => avatar.id === id) ? id : PROFILE_AVATARS[0].id;
+  const avatar = profileAvatarById(id);
+  return avatar && isProfileAvatarUnlocked(avatar) ? avatar.id : PROFILE_AVATARS[0].id;
 }
 
 function profileAvatarById(id) {
@@ -13295,7 +13494,8 @@ function currentProfileAvatar() {
 }
 
 function normalizeProfileAvatarId(id) {
-  return profileAvatarById(id)?.id || PROFILE_AVATARS[0].id;
+  const avatar = profileAvatarById(id);
+  return avatar && isProfileAvatarUnlocked(avatar) ? avatar.id : PROFILE_AVATARS[0].id;
 }
 
 function playerAvatarCacheKey(name) {
@@ -13320,7 +13520,20 @@ function deterministicProfileAvatar(name = "") {
     hash = ((hash << 5) - hash) + letter.charCodeAt(0);
     hash |= 0;
   });
-  return PROFILE_AVATARS[Math.abs(hash) % PROFILE_AVATARS.length] || PROFILE_AVATARS[0];
+  return BASE_PROFILE_AVATARS[Math.abs(hash) % BASE_PROFILE_AVATARS.length] || PROFILE_AVATARS[0];
+}
+
+function appendAvatarImage(target, avatar = {}, fallbackName = "") {
+  const image = document.createElement("img");
+  image.src = avatar.src;
+  image.alt = avatar.label || "Аватар";
+  image.loading = "lazy";
+  image.addEventListener("error", () => {
+    target.innerHTML = "";
+    target.classList.remove("has-image");
+    target.textContent = avatar.label || playerInitial(fallbackName || loadPlayerName());
+  }, { once: true });
+  target.append(image);
 }
 
 function renderAvatarForName(target, name = "", options = {}) {
@@ -13334,11 +13547,7 @@ function renderAvatarForName(target, name = "", options = {}) {
   target.innerHTML = "";
   target.classList.toggle("has-image", Boolean(avatar?.src));
   if (avatar?.src) {
-    const image = document.createElement("img");
-    image.src = avatar.src;
-    image.alt = avatar.label || "Avatar";
-    image.loading = "lazy";
-    target.append(image);
+    appendAvatarImage(target, avatar, name);
     return;
   }
   target.textContent = avatar?.label || playerInitial(name || loadPlayerName());
@@ -13350,17 +13559,18 @@ function renderAvatarText(target, fallbackName = "") {
   target.innerHTML = "";
   target.classList.toggle("has-image", Boolean(avatar?.src));
   if (avatar?.src) {
-    const image = document.createElement("img");
-    image.src = avatar.src;
-    image.alt = avatar.label || "Аватар";
-    image.loading = "lazy";
-    target.append(image);
+    appendAvatarImage(target, avatar, fallbackName);
     return;
   }
   target.textContent = avatar?.label || playerInitial(fallbackName || loadPlayerName());
 }
 
 function saveProfileAvatar(id) {
+  const avatar = profileAvatarById(id);
+  if (avatar && !isProfileAvatarUnlocked(avatar)) {
+    setProfileMessage(profileAvatarUnlockInfo(avatar)?.requirement || "Овај аватар је још закључан.");
+    return;
+  }
   const cleanId = normalizeProfileAvatarId(id);
   localStorage.setItem(PROFILE_AVATAR_KEY, cleanId);
   const player = loadPlayerName();
@@ -13429,22 +13639,43 @@ function setProfileLinkPanelOpen(open) {
 function renderProfileAvatarGrid(group = "male") {
   if (!profileAvatarGrid) return;
   profileAvatarGrid.innerHTML = "";
+  const stats = avatarAchievementStats || emptyAvatarAchievementStats();
+  if (profileAvatarUnlockNote) profileAvatarUnlockNote.textContent = "Ваша достигнућа ће откључати нове аватаре.";
   profileAvatarTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.avatarTab === group));
   PROFILE_AVATARS.filter((avatar) => avatar.group === group).forEach((avatar) => {
+    const locked = !isProfileAvatarUnlocked(avatar, stats);
+    const info = profileAvatarUnlockInfo(avatar);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "profile-avatar-option";
     button.classList.toggle("active", avatar.id === loadProfileAvatarId());
+    button.classList.toggle("locked", locked);
+    button.title = locked ? info?.requirement || "Закључано" : avatar.label;
+    button.disabled = false;
     if (avatar.src) {
       const image = document.createElement("img");
       image.src = avatar.src;
       image.alt = avatar.label;
       image.loading = "lazy";
+      image.addEventListener("error", () => {
+        image.remove();
+        button.append(document.createTextNode(avatar.label));
+      }, { once: true });
       button.append(image);
     } else {
       button.textContent = avatar.label;
     }
+    if (locked) {
+      const lock = document.createElement("span");
+      lock.className = "profile-avatar-lock";
+      lock.textContent = "ЗАКЉ";
+      button.append(lock);
+    }
     button.addEventListener("click", () => {
+      if (locked) {
+        setProfileMessage(info?.requirement || "Овај аватар је још закључан.");
+        return;
+      }
       saveProfileAvatar(avatar.id);
       setProfileMessage("Аватар је промењен.");
     });
@@ -13465,6 +13696,7 @@ function renderProfileModal() {
 function openProfileModal() {
   if (!profileModal) return;
   renderProfileModal();
+  refreshAvatarAchievements({ popup: true }).catch(() => {});
   setProfileEditMode(false);
   if (profileAvatarMenu) profileAvatarMenu.hidden = true;
   setProfileLinkPanelOpen(false);
@@ -15500,7 +15732,10 @@ function finishCompetitive(status) {
   updateChallengeQuota();
   submitOnlineResult(result)
     .then((sent) => {
-      if (sent) refreshOnlineLeaderboard();
+      if (sent) {
+        refreshOnlineLeaderboard();
+        refreshAvatarAchievements({ popup: true }).catch(() => {});
+      }
     })
     .catch(() => {
       listingMetaEl.textContent = "локално";
@@ -16211,6 +16446,7 @@ if (initialNormalStats.started || initialNormalStats.finished) {
   submitNormalStats(initialNormalStats).catch(() => {});
 }
 refreshOnlineNormalStats().catch(() => {});
+refreshAvatarAchievements({ popup: true }).catch(() => {});
 Promise.all([
   fetchChallengeHistory(),
   fetchChallengeStatsRows().catch(() => [])

@@ -1190,6 +1190,15 @@ body[data-game-type="normal"] .status-panel p {
   color: var(--gold);
 }
 
+.profile-avatar-unlock-note {
+  margin: -2px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.25;
+  text-align: center;
+}
+
 .profile-avatar-grid {
   width: 100%;
   min-width: 0;
@@ -1208,6 +1217,7 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .profile-avatar-option {
+  position: relative;
   overflow: hidden;
   min-height: 56px;
   aspect-ratio: 1;
@@ -1228,6 +1238,24 @@ body[data-game-type="normal"] .status-panel p {
   box-shadow: 0 0 18px rgba(255, 215, 0, 0.42);
 }
 
+.profile-avatar-option.locked {
+  opacity: 0.48;
+  filter: grayscale(0.7);
+}
+
+.profile-avatar-lock {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 2px 4px;
+  border: 1px solid rgba(255, 215, 0, 0.36);
+  border-radius: 999px;
+  background: rgba(2, 8, 23, 0.76);
+  color: var(--gold);
+  font-size: 8px;
+  font-weight: 950;
+}
+
 .profile-message {
   min-height: 18px;
   margin: 0;
@@ -1235,6 +1263,65 @@ body[data-game-type="normal"] .status-panel p {
   font-size: 12px;
   font-weight: 800;
   text-align: center;
+}
+
+.avatar-unlock-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 8, 23, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.avatar-unlock-card {
+  width: min(92vw, 390px);
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 8, 23, 0.98));
+  box-shadow: 0 0 32px rgba(255, 215, 0, 0.14);
+  text-align: center;
+}
+
+.avatar-unlock-card h2 {
+  margin: 0;
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.avatar-unlock-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.avatar-unlock-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  justify-items: center;
+}
+
+.avatar-unlock-grid .profile-avatar-option {
+  width: 66px;
+}
+
+.avatar-unlock-close {
+  min-height: 36px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cyan);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 950;
 }
 
 .points-pill.score-bump {
