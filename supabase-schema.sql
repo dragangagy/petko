@@ -185,17 +185,6 @@ as $$
   end
 $$;
 
-create or replace function public.challenge_player_total_games(player_name text)
-returns integer
-language sql
-stable
-as $$
-  select coalesce(sum(total_games), 0)::integer
-  from public.challenge_stats
-  where lower(btrim(player_a)) = lower(btrim(coalesce(player_name, '')))
-     or lower(btrim(player_b)) = lower(btrim(coalesce(player_name, '')))
-$$;
-
 create or replace function public.record_finished_challenge_stats()
 returns trigger
 language plpgsql
@@ -314,7 +303,6 @@ declare
   winner_name text;
   winner_score integer;
   loser_role text;
-  loser_name text;
   loser_solved integer;
   loser_attempts integer;
   diff_value integer;
@@ -341,12 +329,10 @@ begin
     winner_name := btrim(new.creator);
     winner_score := coalesce(new.creator_score, 0);
     loser_role := 'opponent';
-    loser_name := btrim(new.opponent);
   else
     winner_name := btrim(new.opponent);
     winner_score := coalesce(new.opponent_score, 0);
     loser_role := 'creator';
-    loser_name := btrim(new.creator);
   end if;
 
   if loser_role = 'creator' then
@@ -358,10 +344,6 @@ begin
   end if;
 
   if loser_solved < 6 and loser_attempts < 11 then
-    return new;
-  end if;
-
-  if public.challenge_player_total_games(loser_name) < 10 then
     return new;
   end if;
 
@@ -566,10 +548,6 @@ with valid_scores as (
       when coalesce(c.creator_score, 0) > coalesce(c.opponent_score, 0) then btrim(c.creator)
       else btrim(c.opponent)
     end as nickname,
-    case
-      when coalesce(c.creator_score, 0) > coalesce(c.opponent_score, 0) then btrim(c.opponent)
-      else btrim(c.creator)
-    end as loser_name,
     abs(coalesce(c.creator_score, 0) - coalesce(c.opponent_score, 0)) as diff_value,
     greatest(c.creator_played_at, c.opponent_played_at) as played_at_value
   from public.challenges c
@@ -587,12 +565,6 @@ with valid_scores as (
       (coalesce(c.opponent_score, 0) > coalesce(c.creator_score, 0)
         and (coalesce(c.creator_solved, 0) >= 6 or coalesce(c.creator_attempts, 0) >= 11))
     )
-    and public.challenge_player_total_games(
-      case
-        when coalesce(c.creator_score, 0) > coalesce(c.opponent_score, 0) then btrim(c.opponent)
-        else btrim(c.creator)
-      end
-    ) >= 10
 ),
 best_scores as (
   select nickname, max(diff_value) as best_score
