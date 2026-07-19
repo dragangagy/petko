@@ -5288,6 +5288,13 @@ const UNLOCKABLE_PROFILE_AVATARS = [
     src: "avatar/M36.png",
     unlockGroup: "streak10"
   },
+  {
+    id: "male-37",
+    group: "male",
+    label: "М37",
+    src: "avatar/M37.png",
+    unlockGroup: "streak5"
+  },
   ...Array.from({ length: 5 }, (_, index) => ({
     id: `female-${index + 21}`,
     group: "female",
@@ -5331,6 +5338,11 @@ const PROFILE_UNLOCK_GROUPS = {
     title: "Низ 10",
     requirement: "Направи најдужи низ 10 у такмичарском делу.",
     unlocked: (stats) => stats.bestStreak >= 10
+  },
+  streak5: {
+    title: "Низ 5",
+    requirement: "Направи најдужи низ 5 у такмичарском делу.",
+    unlocked: (stats) => stats.bestStreak >= 5
   }
 };
 const PLAYER_AVATAR_CACHE = new Map();
