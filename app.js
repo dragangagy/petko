@@ -5295,6 +5295,13 @@ const UNLOCKABLE_PROFILE_AVATARS = [
     src: "avatar/M37.png",
     unlockGroup: "streak5"
   },
+  {
+    id: "male-38",
+    group: "male",
+    label: "М38",
+    src: "avatar/M38.png",
+    unlockGroup: "streak5"
+  },
   ...Array.from({ length: 5 }, (_, index) => ({
     id: `female-${index + 21}`,
     group: "female",
