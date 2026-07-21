@@ -2169,8 +2169,8 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   inset: 0;
   display: grid;
   align-content: center;
-  gap: 8px;
-  padding: 8px;
+  gap: 5px;
+  padding: 6px;
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(4, 16, 34, 0.96), rgba(16, 31, 54, 0.92));
   box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.12);
@@ -2214,7 +2214,7 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .challenge-result-outcome.tie {
   color: var(--gold);
-  font-size: 45px;
+  font-size: 23px;
   text-align: center;
   text-shadow: 0 0 14px rgba(255, 215, 0, 0.35);
 }
@@ -2255,10 +2255,11 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-result-media img {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: 100%;
   object-fit: contain;
-  object-position: right center;
+  object-position: right bottom;
   filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.2));
 }
 
@@ -2274,16 +2275,25 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-result-word-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .challenge-result-word-chip {
   flex: 0 1 auto;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.challenge-result-word-chip .mini-word {
+  gap: 2px;
+}
+
+.challenge-result-word-chip .mini-word-tile {
+  border-radius: 5px;
+  font-size: 12px;
 }
 
 .challenge-result-word-empty {

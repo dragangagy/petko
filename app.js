@@ -12551,6 +12551,15 @@ function renderChallengePanel(text) {
   if (challengeCodeInput && showCodeTools && pendingCode && !safeActive && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
 }
 
+function renderChallengePanelWords(row) {
+  if (!challengeStatusEl) return;
+  const words = normalizeChallengeWords(row?.words);
+  challengeStatusEl.hidden = !words.length;
+  challengeStatusEl.innerHTML = "";
+  if (!words.length) return;
+  challengeStatusEl.append(createChallengeWordList(words));
+}
+
 async function fetchChallenge(code) {
   if (!supabaseConfigured() || !code) return null;
   const query = [
@@ -13242,40 +13251,32 @@ async function refreshChallengeLobby() {
 
 async function renderChallengeResult(row, localScore) {
   if (!row) {
-    renderChallengePanel(`Твој скор: ${localScore}. Чека се противник.`);
+    renderChallengePanel("");
     return;
   }
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Играч 2";
-  const creatorScore = Number(row.creator_score);
-  const opponentScore = Number(row.opponent_score);
   const [history, statsRows] = await Promise.all([
     fetchChallengeHistory(),
     fetchChallengeStatsRows().catch(() => [])
   ]);
   if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
-  const pair = challengePairScore(history, creator, opponent);
   if (!playedChallenge(row)) {
-    const creatorDone = challengeAlreadyPlayed(row, "creator");
-    const waitingFor = creatorDone ? opponent : creator;
     saveActiveChallenge({
       code: row.code,
       role: activeChallenge?.role || loadActiveChallenge()?.role || "",
       creator,
       opponent
     });
-    renderChallengePanel(`Твој скор: ${localScore}. Чека се ${waitingFor}. Међусобно: ${challengePairText(pair, creator, opponent)}.`);
+    renderChallengePanel("");
+    renderChallengePanelWords(row);
     renderChallengeHistoryCards([row, ...history.filter((item) => item.code !== row.code)]);
     return;
   }
 
-  const winner = challengeWinner(row);
-  const winnerText = winner === "tie"
-    ? "Нерешено."
-    : `Победник: ${winner === "creator" ? creator : opponent}.`;
-  const diff = challengeDifference(row);
   clearActiveChallenge();
-  renderChallengePanel(`${winnerText} Овај изазов: ${creator} ${creatorScore} : ${opponentScore} ${opponent}. Победник добија ${formatScore(diff)}. Међусобно: ${challengePairText(pair, creator, opponent)}.`);
+  renderChallengePanel("");
+  renderChallengePanelWords(row);
   renderChallengeHistoryCards([row, ...history.filter((item) => item.code !== row.code)]);
 }
 
