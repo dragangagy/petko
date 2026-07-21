@@ -2184,7 +2184,7 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 .challenge-result-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 130px;
-  gap: 6px;
+  gap: 2px;
   align-items: stretch;
   height: 136px;
 }
@@ -2262,16 +2262,29 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-result-media img {
-  width: 100%;
+  width: 95px;
   max-width: 100%;
-  height: 130px;
-  max-height: 130px;
+  height: 95px;
+  max-height: 95px;
   object-fit: contain;
   object-position: right bottom;
   display: block;
   align-self: center;
   justify-self: end;
   filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.2));
+}
+
+.challenge-result-media.action-avatar img {
+  width: 130px;
+  height: 130px;
+  max-height: 130px;
+}
+
+.challenge-result-media .profile-avatar {
+  width: 95px;
+  height: 95px;
+  max-width: 95px;
+  max-height: 95px;
 }
 
 .challenge-result-media.tie {

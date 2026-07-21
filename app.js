@@ -12987,12 +12987,14 @@ function challengeCard(row, rows = []) {
       const winnerAvatar = challengeProfileAvatar(winnerName);
       const resultSrc = challengeResultAvatarSrc(winnerAvatar);
       if (resultSrc) {
+        media.classList.add("action-avatar");
         const resultImage = document.createElement("img");
         resultImage.src = resultSrc;
         resultImage.alt = winnerName;
         resultImage.loading = "lazy";
         resultImage.addEventListener("error", () => {
           media.innerHTML = "";
+          media.classList.remove("action-avatar");
           renderAvatarForName(media, winnerName, { avatar: winnerAvatar });
         }, { once: true });
         media.append(resultImage);
@@ -13271,7 +13273,7 @@ async function refreshChallengeLobby() {
   await syncChallengeState({ force: true });
 }
 
-async function renderChallengeResult(row, localScore) {
+async function renderChallengeResult(row, localScore, options = {}) {
   if (!row) {
     renderChallengePanel("");
     return;
@@ -13290,15 +13292,23 @@ async function renderChallengeResult(row, localScore) {
       creator,
       opponent
     });
-    renderChallengePanel("");
-    renderChallengePanelWords(row);
+    if (options.showPanelWords) {
+      renderChallengePanel("");
+      renderChallengePanelWords(row);
+    } else if (!challengeStatusEl?.classList.contains("challenge-words-copy")) {
+      renderChallengePanel("");
+    }
     renderChallengeHistoryCards([row, ...history.filter((item) => item.code !== row.code)]);
     return;
   }
 
   clearActiveChallenge();
-  renderChallengePanel("");
-  renderChallengePanelWords(row);
+  if (options.showPanelWords) {
+    renderChallengePanel("");
+    renderChallengePanelWords(row);
+  } else if (!challengeStatusEl?.classList.contains("challenge-words-copy")) {
+    renderChallengePanel("");
+  }
   renderChallengeHistoryCards([row, ...history.filter((item) => item.code !== row.code)]);
 }
 
@@ -13647,7 +13657,7 @@ async function finishChallenge(status) {
     });
     rememberChallengePlayed(activeChallenge.code, prefix);
     const row = await fetchChallenge(activeChallenge.code);
-    await renderChallengeResult(row, resultScore);
+    await renderChallengeResult(row, resultScore, { showPanelWords: true });
     refreshChallengePanel();
     refreshAvatarAchievements({ popup: true }).catch(() => {});
   } catch {
