@@ -12788,7 +12788,7 @@ function challengeResultLine(row, role, name) {
   details.textContent = [
     Number.isFinite(score) ? `${formatScore(score)} поена` : "0 поена",
     Number.isFinite(solved) ? `${formatScore(solved)}/6 табли` : "0/6 табли",
-    Number.isFinite(attempts) ? `${formatScore(attempts)}/11 редова` : "0/11 редова"
+    Number.isFinite(attempts) ? `${formatScore(attempts)}/11` : "0/11"
   ].join(" · ");
   line.append(player, details);
   return line;
