@@ -12559,14 +12559,19 @@ function renderChallengePanel(text) {
   if (challengeCodeInput && showCodeTools && pendingCode && !safeActive && !challengeCodeInput.value) challengeCodeInput.value = pendingCode;
 }
 
-function renderChallengePanelWords(row) {
+function renderChallengePanelWords(row, solvedFlags = null) {
   if (!challengeStatusEl) return;
   const words = normalizeChallengeWords(row?.words);
   challengeStatusEl.hidden = !words.length;
   challengeStatusEl.innerHTML = "";
   challengeStatusEl.classList.toggle("challenge-words-copy", Boolean(words.length));
   if (!words.length) return;
-  challengeStatusEl.append(createChallengeWordList(words, { withInfo: true }));
+  const flags = Array.isArray(solvedFlags)
+    ? solvedFlags
+    : (sameChallengeWords(words, targets) && solvedAt.length === words.length
+      ? solvedAt.map(Boolean)
+      : null);
+  challengeStatusEl.append(createChallengeWordList(words, { withInfo: true, solvedFlags: flags }));
 }
 
 async function fetchChallenge(code) {
@@ -12856,9 +12861,11 @@ function challengeAvatarElement(name) {
 function createChallengeWordList(words = [], options = {}) {
   const list = document.createElement("div");
   list.className = `challenge-result-word-list${options.withInfo ? " with-info" : ""}`;
-  normalizeChallengeWords(words).forEach((target) => {
+  const solvedFlags = Array.isArray(options.solvedFlags) ? options.solvedFlags : null;
+  normalizeChallengeWords(words).forEach((target, index) => {
+    const solved = solvedFlags ? Boolean(solvedFlags[index]) : true;
     const chip = document.createElement("div");
-    chip.className = "solution-chip solved challenge-result-word-chip";
+    chip.className = `solution-chip ${solved ? "solved" : "unsolved"} challenge-result-word-chip`;
     const word = document.createElement("div");
     word.className = "mini-word";
     [...displayWord(target)].forEach((letter) => {
@@ -13294,7 +13301,7 @@ async function renderChallengeResult(row, localScore, options = {}) {
     });
     if (options.showPanelWords) {
       renderChallengePanel("");
-      renderChallengePanelWords(row);
+      renderChallengePanelWords(row, options.solvedFlags);
     } else if (!challengeStatusEl?.classList.contains("challenge-words-copy")) {
       renderChallengePanel("");
     }
@@ -13305,7 +13312,7 @@ async function renderChallengeResult(row, localScore, options = {}) {
   clearActiveChallenge();
   if (options.showPanelWords) {
     renderChallengePanel("");
-    renderChallengePanelWords(row);
+    renderChallengePanelWords(row, options.solvedFlags);
   } else if (!challengeStatusEl?.classList.contains("challenge-words-copy")) {
     renderChallengePanel("");
   }
@@ -13657,7 +13664,7 @@ async function finishChallenge(status) {
     });
     rememberChallengePlayed(activeChallenge.code, prefix);
     const row = await fetchChallenge(activeChallenge.code);
-    await renderChallengeResult(row, resultScore, { showPanelWords: true });
+    await renderChallengeResult(row, resultScore, { showPanelWords: true, solvedFlags: solvedAt.map(Boolean) });
     refreshChallengePanel();
     refreshAvatarAchievements({ popup: true }).catch(() => {});
   } catch {

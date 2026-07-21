@@ -451,18 +451,20 @@ body[data-word-modal-open="true"] .petko-mood span {
 .challenge-vs-left {
   top: 0;
   left: 0;
+  z-index: 4;
   animation: challengeVsLeft 3s ease both;
 }
 
 .challenge-vs-right {
   right: 0;
   bottom: 0;
+  z-index: 3;
   animation: challengeVsRight 3s ease both;
 }
 
 .challenge-vs-avatar {
-  width: min(100%, 390px);
-  height: min(100%, 390px);
+  width: min(150%, 560px);
+  height: min(150%, 560px);
   border-radius: 0;
   border: 0;
   background: transparent;
@@ -481,8 +483,8 @@ body[data-word-modal-open="true"] .petko-mood span {
     brightness(0.8)
     contrast(1.08)
     saturate(0.94)
-    drop-shadow(0 0 22px rgba(255, 215, 0, 0.72))
-    drop-shadow(0 0 48px rgba(255, 179, 0, 0.44));
+    drop-shadow(0 0 14px rgba(255, 215, 0, 0.52))
+    drop-shadow(0 0 28px rgba(255, 179, 0, 0.3));
 }
 
 .challenge-vs-right .challenge-vs-avatar {
@@ -490,8 +492,8 @@ body[data-word-modal-open="true"] .petko-mood span {
     brightness(0.8)
     contrast(1.08)
     saturate(0.94)
-    drop-shadow(0 0 22px rgba(255, 54, 54, 0.72))
-    drop-shadow(0 0 48px rgba(255, 0, 0, 0.44));
+    drop-shadow(0 0 14px rgba(255, 54, 54, 0.52))
+    drop-shadow(0 0 28px rgba(255, 0, 0, 0.3));
 }
 
 .challenge-vs-avatar img {
@@ -503,6 +505,10 @@ body[data-word-modal-open="true"] .petko-mood span {
 }
 
 .challenge-vs-bolt {
+  display: none;
+}
+
+.challenge-vs-player strong {
   display: none;
 }
 
