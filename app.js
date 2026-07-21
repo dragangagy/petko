@@ -12666,19 +12666,45 @@ async function fetchChallengeHistory() {
   return Array.isArray(rows) ? rows : [];
 }
 
-async function fetchChallengeStatsRows() {
+function mergeChallengeStatsRows(rows = []) {
+  const merged = new Map();
+  rows.flat().forEach((row) => {
+    if (!row || typeof row !== "object") return;
+    const a = normalizePlayerName(row.player_a || "").toLowerCase();
+    const b = normalizePlayerName(row.player_b || "").toLowerCase();
+    if (!a || !b) return;
+    merged.set(`${a}::${b}`, row);
+  });
+  return [...merged.values()];
+}
+
+async function fetchChallengeStatsRows(options = {}) {
   if (!supabaseConfigured()) return [];
-  const query = [
+  const baseQuery = [
     "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
     "order=last_played_at.desc.nullslast",
     "limit=1000"
   ].join("&");
-  const response = await fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
+  const requests = [baseQuery];
+  const focusName = normalizePlayerName(options.focusName ?? loadPlayerName() ?? "");
+  if (focusName) {
+    const pattern = encodeURIComponent(`*${focusName}*`);
+    requests.push([
+      "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
+      `or=(player_a.ilike.${pattern},player_b.ilike.${pattern})`,
+      "order=last_played_at.desc.nullslast",
+      "limit=1000"
+    ].join("&"));
+  }
+  const responses = await Promise.all(requests.map((query) => fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
     headers: supabaseHeaders()
-  });
-  if (!response.ok) return [];
-  const rows = await response.json();
-  return Array.isArray(rows) ? rows : [];
+  })));
+  const payloads = await Promise.all(responses.map(async (response) => {
+    if (!response.ok) return [];
+    const rows = await response.json();
+    return Array.isArray(rows) ? rows : [];
+  }));
+  return mergeChallengeStatsRows(payloads);
 }
 
 async function fetchChallengeScoreStatsRows() {
