@@ -2204,6 +2204,8 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-result-outcome {
+  display: grid;
+  gap: 2px;
   color: var(--gold);
   font-size: 15px;
   font-weight: 950;

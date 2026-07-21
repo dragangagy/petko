@@ -12631,7 +12631,7 @@ async function finalizeExpiredChallenges(rows = []) {
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=code,day,status,accepted_at,creator,creator_device,opponent,opponent_device,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,creator_played_at,opponent_played_at,created_at",
+    "select=code,day,status,accepted_at,creator,creator_device,opponent,opponent_device,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,creator_played_at,opponent_played_at,words,created_at",
     "order=created_at.desc",
     "limit=1000"
   ].join("&");
@@ -12777,6 +12777,10 @@ function challengeWinnerVerb(name = "") {
   return challengeProfileAvatar(name)?.group === "female" ? "Победила" : "Победио";
 }
 
+function challengeWinnerScoreVerb(name = "") {
+  return challengeProfileAvatar(name)?.group === "female" ? "Освојила" : "Освојио";
+}
+
 function challengeResultAvatarSrc(avatar = {}) {
   const source = String(avatar?.src || "");
   const match = source.match(/^(.*\/)?([^/.]+)\.png$/i);
@@ -12903,9 +12907,15 @@ function challengeCard(row, rows = []) {
     versus.append(challengeNameWithAvatar(creator), document.createTextNode(" → "), challengeNameWithAvatar(opponent));
     const outcome = document.createElement("div");
     outcome.className = `challenge-result-outcome ${winnerRole === "tie" ? "tie" : "win"}`;
-    outcome.textContent = winnerRole === "tie"
-      ? "Нерешено"
-      : `${challengeWinnerVerb(winnerName)}: ${winnerName} · добија ${formatScore(challengeDifference(row))}`;
+    if (winnerRole === "tie") {
+      outcome.textContent = "Нерешено";
+    } else {
+      const winnerLine = document.createElement("div");
+      winnerLine.textContent = `${challengeWinnerVerb(winnerName)} ${winnerName}`;
+      const scoreLine = document.createElement("div");
+      scoreLine.textContent = `${challengeWinnerScoreVerb(winnerName)} ${formatScore(challengeDifference(row))} бодова`;
+      outcome.append(winnerLine, scoreLine);
+    }
     const lines = document.createElement("div");
     lines.className = "challenge-result-lines";
     lines.append(
