@@ -2146,7 +2146,7 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .challenge-result-flip {
   position: relative;
-  min-height: 136px;
+  height: 136px;
   transform-style: preserve-3d;
   transition: transform 0.34s ease;
 }
@@ -2182,7 +2182,7 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   grid-template-columns: minmax(0, 1fr) 116px;
   gap: 6px;
   align-items: stretch;
-  min-height: 136px;
+  height: 136px;
 }
 
 .challenge-result-body {
@@ -2213,7 +2213,10 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-result-outcome.tie {
-  color: #e5e7eb;
+  color: var(--gold);
+  font-size: 45px;
+  text-align: center;
+  text-shadow: 0 0 14px rgba(255, 215, 0, 0.35);
 }
 
 .challenge-result-lines {
@@ -2237,7 +2240,7 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .challenge-result-media {
   width: 116px;
-  min-height: 136px;
+  height: 136px;
   display: grid;
   place-items: end center;
   align-self: stretch;

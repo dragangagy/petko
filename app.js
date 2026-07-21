@@ -12788,6 +12788,26 @@ function challengeResultAvatarSrc(avatar = {}) {
   return `${match[1] || ""}${match[2]}-a.png`;
 }
 
+function renderChallengeVsAvatar(target, name = "") {
+  if (!target) return;
+  const avatar = challengeProfileAvatar(name);
+  const vsSrc = challengeResultAvatarSrc(avatar);
+  target.innerHTML = "";
+  target.classList.toggle("has-image", Boolean(vsSrc || avatar?.src));
+  if (!vsSrc) {
+    renderAvatarForName(target, name, { avatar });
+    return;
+  }
+  const image = document.createElement("img");
+  image.src = vsSrc;
+  image.alt = name || avatar?.label || "Аватар";
+  image.loading = "eager";
+  image.addEventListener("error", () => {
+    renderAvatarForName(target, name, { avatar });
+  }, { once: true });
+  target.append(image);
+}
+
 function challengeResultLine(row, role, name) {
   const score = Number(row?.[`${role}_score`]);
   const solved = Number(row?.[`${role}_solved`]);
@@ -12957,10 +12977,7 @@ function challengeCard(row, rows = []) {
     front.append(main);
     const back = document.createElement("div");
     back.className = "challenge-result-face challenge-result-back";
-    const backTitle = document.createElement("div");
-    backTitle.className = "challenge-result-back-title";
-    backTitle.textContent = "Речи из изазова";
-    back.append(backTitle, createChallengeWordList(row.words));
+    back.append(createChallengeWordList(row.words));
     flip.append(front, back);
     card.append(flip);
     bindChallengeResultFlip(card);
@@ -13439,8 +13456,8 @@ async function playChallengeVs(row) {
   const opponent = row.opponent || loadPlayerName() || "Играч 2";
   if (challengeVsLeftName) challengeVsLeftName.textContent = creator;
   if (challengeVsRightName) challengeVsRightName.textContent = opponent;
-  renderAvatarForName(challengeVsLeftAvatar, creator);
-  renderAvatarForName(challengeVsRightAvatar, opponent);
+  renderChallengeVsAvatar(challengeVsLeftAvatar, creator);
+  renderChallengeVsAvatar(challengeVsRightAvatar, opponent);
   challengeVsOverlay.hidden = false;
   challengeVsOverlay.classList.remove("active");
   void challengeVsOverlay.offsetWidth;
