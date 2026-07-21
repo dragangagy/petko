@@ -5340,6 +5340,7 @@ const UNLOCKABLE_PROFILE_AVATARS = [
   }))
 ];
 const PROFILE_AVATARS = [...BASE_PROFILE_AVATARS, ...UNLOCKABLE_PROFILE_AVATARS];
+const SELECTABLE_PROFILE_AVATARS = PROFILE_AVATARS.filter((avatar) => !avatar.adminOnly);
 const PROFILE_UNLOCK_GROUPS = {
   normal100: {
     title: "100 дневних партија",
@@ -13676,14 +13677,47 @@ function profileAvatarUnlockInfo(avatar = {}) {
   return avatar.unlockGroup ? PROFILE_UNLOCK_GROUPS[avatar.unlockGroup] || null : null;
 }
 
+function adminProfileAvatarFromNumber(group = "male", number = 0) {
+  const cleanNumber = Number(number) || 0;
+  if (cleanNumber < 100) return null;
+  const isFemale = group === "female";
+  return {
+    id: `${isFemale ? "female" : "male"}-${cleanNumber}`,
+    group: isFemale ? "female" : "male",
+    label: `${isFemale ? "Ж" : "М"}${cleanNumber}`,
+    src: `avatar/${isFemale ? "Z" : "M"}${cleanNumber}.png`,
+    adminOnly: true
+  };
+}
+
+function adminProfileAvatarFromCode(code = "") {
+  const raw = String(code || "").trim();
+  const upper = raw.toUpperCase();
+  if (!upper) return null;
+  let match = upper.match(/^MALE-(\d+)$/);
+  if (match) return adminProfileAvatarFromNumber("male", match[1]);
+  match = upper.match(/^FEMALE-(\d+)$/);
+  if (match) return adminProfileAvatarFromNumber("female", match[1]);
+  match = upper.match(/^[MМ](\d+)$/);
+  if (match) return adminProfileAvatarFromNumber("male", match[1]);
+  match = upper.match(/^[ZЗЖ](\d+)$/);
+  if (match) return adminProfileAvatarFromNumber("female", match[1]);
+  match = upper.match(/\/([MМZЗЖ])(\d+)\.PNG$/);
+  if (match) {
+    return adminProfileAvatarFromNumber(/[ZЗЖ]/.test(match[1]) ? "female" : "male", match[2]);
+  }
+  return null;
+}
+
 function isProfileAvatarUnlocked(avatar = {}, stats = avatarAchievementStats || emptyAvatarAchievementStats()) {
+  if (avatar.adminOnly) return false;
   const info = profileAvatarUnlockInfo(avatar);
   return !info || info.unlocked(stats);
 }
 
 function unlockedProfileAvatars(stats = avatarAchievementStats || emptyAvatarAchievementStats()) {
   const activeStats = stats || avatarAchievementStats || emptyAvatarAchievementStats();
-  return PROFILE_AVATARS.filter((avatar) => isProfileAvatarUnlocked(avatar, activeStats));
+  return SELECTABLE_PROFILE_AVATARS.filter((avatar) => isProfileAvatarUnlocked(avatar, activeStats));
 }
 
 function saveApprovedProfileAvatarId(id = "") {
@@ -13709,7 +13743,8 @@ function loadProfileAvatarId() {
 }
 
 function profileAvatarById(id) {
-  return PROFILE_AVATARS.find((avatar) => avatar.id === id) || null;
+  const clean = String(id || "").trim();
+  return PROFILE_AVATARS.find((avatar) => avatar.id === clean) || adminProfileAvatarFromCode(clean);
 }
 
 function profileAvatarByCode(code) {
@@ -13719,7 +13754,7 @@ function profileAvatarByCode(code) {
     String(avatar.id || "").toUpperCase() === clean ||
     String(avatar.label || "").toUpperCase() === clean ||
     String(avatar.src || "").toUpperCase().endsWith(`/${clean}.PNG`)
-  )) || null;
+  )) || adminProfileAvatarFromCode(clean);
 }
 
 function currentProfileAvatar() {
@@ -13890,7 +13925,7 @@ function renderProfileAvatarGrid(group = "male") {
   const stats = avatarAchievementStats || emptyAvatarAchievementStats();
   if (profileAvatarUnlockNote) profileAvatarUnlockNote.textContent = "Ваша достигнућа ће откључати нове аватаре.";
   profileAvatarTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.avatarTab === group));
-  PROFILE_AVATARS.filter((avatar) => avatar.group === group).forEach((avatar) => {
+  SELECTABLE_PROFILE_AVATARS.filter((avatar) => avatar.group === group).forEach((avatar) => {
     const locked = !isProfileAvatarUnlocked(avatar, stats);
     const info = profileAvatarUnlockInfo(avatar);
     const button = document.createElement("button");

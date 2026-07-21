@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache-v223";
+const CACHE_NAME = "petko-cache-v226";
 
 const ASSETS = [
   "./",
@@ -94,6 +94,24 @@ const ASSETS = [
   "./avatar/M36.png",
   "./avatar/M37.png",
   "./avatar/M38.png",
+  "./avatar/M21-a.png",
+  "./avatar/M22-a.png",
+  "./avatar/M23-a.png",
+  "./avatar/M24-a.png",
+  "./avatar/M25-a.png",
+  "./avatar/M26-a.png",
+  "./avatar/M27-a.png",
+  "./avatar/M28-a.png",
+  "./avatar/M29-a.png",
+  "./avatar/M30-a.png",
+  "./avatar/M31-a.png",
+  "./avatar/M32-a.png",
+  "./avatar/M33-a.png",
+  "./avatar/M34-a.png",
+  "./avatar/M35-a.png",
+  "./avatar/M36-a.png",
+  "./avatar/M37-a.png",
+  "./avatar/M38-a.png",
   "./avatar/challenge-tie.png",
   "./avatar/Z1.png",
   "./avatar/Z2.png",
@@ -134,6 +152,8 @@ const ASSETS = [
   "./avatar/Z38.png",
   "./avatar/Z39.png",
   "./avatar/Z40.png",
+  "./avatar/Z21-a.png",
+  "./avatar/Z22-a.png",
 
   "./medal-daily-wins.png",
   "./medal-challenge-wins.png",
