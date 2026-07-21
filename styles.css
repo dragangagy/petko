@@ -439,8 +439,8 @@ body[data-word-modal-open="true"] .petko-mood span {
   justify-items: center;
   align-items: center;
   gap: 10px;
-  width: 50%;
-  height: 50%;
+  width: 56%;
+  height: 56%;
   color: #ffffff;
   font-size: clamp(17px, 5vw, 28px);
   font-weight: 950;
@@ -463,8 +463,8 @@ body[data-word-modal-open="true"] .petko-mood span {
 }
 
 .challenge-vs-avatar {
-  width: min(150%, 560px);
-  height: min(150%, 560px);
+  width: 100%;
+  height: 100%;
   border-radius: 0;
   border: 0;
   background: transparent;
