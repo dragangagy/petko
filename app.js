@@ -12529,6 +12529,13 @@ function challengeScoreValue(status) {
   return solvedCount * 5 + unusedRows * 10;
 }
 
+function clearChallengePanelWords() {
+  if (!challengeStatusEl || !challengeStatusEl.classList.contains("challenge-words-copy")) return;
+  challengeStatusEl.classList.remove("challenge-words-copy");
+  challengeStatusEl.hidden = true;
+  challengeStatusEl.innerHTML = "";
+}
+
 function renderChallengePanel(text) {
   if (!challengePanelEl) return;
   const showLobby = gameType === "challenge" && !challengeGameOpen();
@@ -12543,6 +12550,7 @@ function renderChallengePanel(text) {
   }
   const safeActive = active && !sameChallengePlayerPair(active.creator, active.opponent) ? active : null;
   if (challengeStatusEl) {
+    challengeStatusEl.classList.remove("challenge-words-copy");
     challengeStatusEl.hidden = !text;
     challengeStatusEl.textContent = text || "";
   }
@@ -12556,8 +12564,9 @@ function renderChallengePanelWords(row) {
   const words = normalizeChallengeWords(row?.words);
   challengeStatusEl.hidden = !words.length;
   challengeStatusEl.innerHTML = "";
+  challengeStatusEl.classList.toggle("challenge-words-copy", Boolean(words.length));
   if (!words.length) return;
-  challengeStatusEl.append(createChallengeWordList(words));
+  challengeStatusEl.append(createChallengeWordList(words, { withInfo: true }));
 }
 
 async function fetchChallenge(code) {
@@ -12844,9 +12853,9 @@ function challengeAvatarElement(name) {
   return avatar;
 }
 
-function createChallengeWordList(words = []) {
+function createChallengeWordList(words = [], options = {}) {
   const list = document.createElement("div");
-  list.className = "challenge-result-word-list";
+  list.className = `challenge-result-word-list${options.withInfo ? " with-info" : ""}`;
   normalizeChallengeWords(words).forEach((target) => {
     const chip = document.createElement("div");
     chip.className = "solution-chip solved challenge-result-word-chip";
@@ -12859,6 +12868,18 @@ function createChallengeWordList(words = []) {
       word.append(tile);
     });
     chip.append(word);
+    if (options.withInfo) {
+      const info = document.createElement("button");
+      info.className = "mini-word-info";
+      info.type = "button";
+      info.textContent = "?";
+      info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+      info.addEventListener("click", (event) => {
+        event.stopPropagation();
+        showExistingWordReview(target);
+      });
+      chip.append(info);
+    }
     list.append(chip);
   });
   if (!list.childElementCount) {
@@ -12908,6 +12929,7 @@ function challengeNameWithAvatar(name) {
 function challengeCard(row, rows = []) {
   const card = document.createElement("article");
   card.className = `challenge-card ${playedChallenge(row) ? "result" : "invite"} ${challengeCardState(row)}`;
+  card.addEventListener("click", () => clearChallengePanelWords());
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Чека се";
   const openInvite = isOpenChallengeOpponent(opponent);
@@ -16156,6 +16178,7 @@ window.addEventListener("resize", () => requestAnimationFrame(positionKeyboard))
 typeButtons.forEach((button) => {
   button.addEventListener("click", () => {
     saveChallengeProgress();
+    clearChallengePanelWords();
     const nextType = button.dataset.type;
     if (nextType === "challenge") {
       exitChallengeToLobby();
