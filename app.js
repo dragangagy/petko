@@ -12766,6 +12766,16 @@ function challengeWinnerName(row) {
   return "Чека се";
 }
 
+function challengeProfileAvatar(name = "") {
+  if (isOpenChallengeOpponent(name)) return profileAvatarByCode("Z40") || profileAvatarById("female-40");
+  if (sameChallengeName(name, loadPlayerName())) return currentProfileAvatar();
+  return cachedProfileAvatar(name) || deterministicProfileAvatar(name);
+}
+
+function challengeWinnerVerb(name = "") {
+  return challengeProfileAvatar(name)?.group === "female" ? "Победила" : "Победио";
+}
+
 function challengeResultLine(row, role, name) {
   const score = Number(row?.[`${role}_score`]);
   const solved = Number(row?.[`${role}_solved`]);
@@ -12787,13 +12797,63 @@ function challengeResultLine(row, role, name) {
 function challengeAvatarElement(name) {
   const avatar = document.createElement("span");
   avatar.className = "profile-avatar challenge-player-avatar";
-  const forcedAvatar = isOpenChallengeOpponent(name) ? profileAvatarById("Z40") : null;
   renderAvatarForName(avatar, name, {
-    avatar: forcedAvatar,
-    current: sameChallengeName(name, loadPlayerName())
+    avatar: challengeProfileAvatar(name)
   });
   return avatar;
 }
+
+function createChallengeWordList(words = []) {
+  const list = document.createElement("div");
+  list.className = "challenge-result-word-list";
+  normalizeChallengeWords(words).forEach((target) => {
+    const chip = document.createElement("div");
+    chip.className = "solution-chip solved challenge-result-word-chip";
+    const word = document.createElement("div");
+    word.className = "mini-word";
+    [...displayWord(target)].forEach((letter) => {
+      const tile = document.createElement("span");
+      tile.className = "mini-word-tile";
+      tile.textContent = letter;
+      word.append(tile);
+    });
+    chip.append(word);
+    list.append(chip);
+  });
+  if (!list.childElementCount) {
+    const empty = document.createElement("div");
+    empty.className = "challenge-result-word-empty";
+    empty.textContent = "Речи нису сачуване.";
+    list.append(empty);
+  }
+  return list;
+}
+
+function bindChallengeResultFlip(card) {
+  let holdTimer = 0;
+  const clearHold = () => {
+    window.clearTimeout(holdTimer);
+    holdTimer = 0;
+  };
+  const hide = () => {
+    clearHold();
+    card.classList.remove("show-words");
+  };
+  card.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    clearHold();
+    holdTimer = window.setTimeout(() => {
+      card.classList.add("show-words");
+    }, 420);
+  });
+  card.addEventListener("pointerup", hide);
+  card.addEventListener("pointercancel", hide);
+  card.addEventListener("pointerleave", hide);
+  card.addEventListener("contextmenu", (event) => {
+    if (card.classList.contains("show-words")) event.preventDefault();
+  });
+}
+
 function challengeNameWithAvatar(name) {
   const item = document.createElement("span");
   item.className = "challenge-name-with-avatar";
@@ -12837,7 +12897,7 @@ function challengeCard(row, rows = []) {
     outcome.className = `challenge-result-outcome ${winnerRole === "tie" ? "tie" : "win"}`;
     outcome.textContent = winnerRole === "tie"
       ? "Нерешено"
-      : `Победио: ${winnerName} · добија ${formatScore(challengeDifference(row))}`;
+      : `${challengeWinnerVerb(winnerName)}: ${winnerName} · добија ${formatScore(challengeDifference(row))}`;
     const lines = document.createElement("div");
     lines.className = "challenge-result-lines";
     lines.append(
@@ -12855,22 +12915,23 @@ function challengeCard(row, rows = []) {
       tieImage.loading = "lazy";
       media.append(tieImage);
     } else {
-      renderAvatarForName(media, winnerName);
+      renderAvatarForName(media, winnerName, { avatar: challengeProfileAvatar(winnerName) });
     }
     main.append(body, media);
-    card.append(main);
-    if (pair) {
-      const pairEl = document.createElement("div");
-      pairEl.className = "challenge-card-pair challenge-result-pair";
-      pairEl.append(
-        document.createTextNode("Међусобно: "),
-        challengeNameWithAvatar(creator),
-        document.createTextNode(` ${pair.creator} : ${pair.opponent} `),
-        challengeNameWithAvatar(opponent),
-        document.createTextNode(` · нерешено ${pair.tie || 0}`)
-      );
-      card.append(pairEl);
-    }
+    const flip = document.createElement("div");
+    flip.className = "challenge-result-flip";
+    const front = document.createElement("div");
+    front.className = "challenge-result-face challenge-result-front";
+    front.append(main);
+    const back = document.createElement("div");
+    back.className = "challenge-result-face challenge-result-back";
+    const backTitle = document.createElement("div");
+    backTitle.className = "challenge-result-back-title";
+    backTitle.textContent = "Речи из изазова";
+    back.append(backTitle, createChallengeWordList(row.words));
+    flip.append(front, back);
+    card.append(flip);
+    bindChallengeResultFlip(card);
     return card;
   }
   if (pair) {
@@ -13628,6 +13689,16 @@ function loadProfileAvatarId() {
 
 function profileAvatarById(id) {
   return PROFILE_AVATARS.find((avatar) => avatar.id === id) || null;
+}
+
+function profileAvatarByCode(code) {
+  const clean = String(code || "").trim().toUpperCase();
+  if (!clean) return null;
+  return PROFILE_AVATARS.find((avatar) => (
+    String(avatar.id || "").toUpperCase() === clean ||
+    String(avatar.label || "").toUpperCase() === clean ||
+    String(avatar.src || "").toUpperCase().endsWith(`/${clean}.PNG`)
+  )) || null;
 }
 
 function currentProfileAvatar() {

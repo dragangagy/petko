@@ -2139,13 +2139,49 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 .challenge-card.result.played {
   border-color: rgba(56, 189, 248, 0.32);
   background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(15, 23, 42, 0.82));
+  perspective: 900px;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.challenge-result-flip {
+  position: relative;
+  min-height: 112px;
+  transform-style: preserve-3d;
+  transition: transform 0.34s ease;
+}
+
+.challenge-card.result.played.show-words .challenge-result-flip {
+  transform: rotateY(180deg);
+}
+
+.challenge-result-face {
+  backface-visibility: hidden;
+}
+
+.challenge-result-front {
+  position: relative;
+  z-index: 1;
+}
+
+.challenge-result-back {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(4, 16, 34, 0.96), rgba(16, 31, 54, 0.92));
+  box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.12);
+  transform: rotateY(180deg);
 }
 
 .challenge-result-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 82px;
+  grid-template-columns: minmax(0, 1fr) 104px;
   gap: 8px;
-  align-items: stretch;
+  align-items: center;
 }
 
 .challenge-result-body {
@@ -2196,16 +2232,16 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-result-media {
-  width: 82px;
-  min-height: 82px;
+  width: 104px;
+  min-height: 104px;
   display: grid;
   place-items: center;
-  align-self: stretch;
-  border: 1px solid rgba(255, 215, 0, 0.42);
-  border-radius: 8px;
-  background: radial-gradient(circle at 50% 38%, rgba(255, 215, 0, 0.13), rgba(8, 13, 27, 0.62));
-  box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.07);
-  overflow: hidden;
+  align-self: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
   color: var(--gold);
   font-size: 42px;
   font-weight: 950;
@@ -2215,15 +2251,38 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   width: 100%;
   height: 100%;
   object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.2));
 }
 
 .challenge-result-media.tie {
-  border-color: rgba(56, 189, 248, 0.42);
-  background: radial-gradient(circle at 50% 38%, rgba(56, 189, 248, 0.13), rgba(8, 13, 27, 0.62));
+  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.22));
 }
 
-.challenge-result-pair {
-  margin-top: 2px;
+.challenge-result-back-title {
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.challenge-result-word-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+.challenge-result-word-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.challenge-result-word-empty {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
 }
 
 .challenge-card-title {
