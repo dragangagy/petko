@@ -12776,6 +12776,13 @@ function challengeWinnerVerb(name = "") {
   return challengeProfileAvatar(name)?.group === "female" ? "Победила" : "Победио";
 }
 
+function challengeResultAvatarSrc(avatar = {}) {
+  const source = String(avatar?.src || "");
+  const match = source.match(/^(.*\/)?([^/.]+)\.png$/i);
+  if (!match) return "";
+  return `${match[1] || ""}${match[2]}-a.png`;
+}
+
 function challengeResultLine(row, role, name) {
   const score = Number(row?.[`${role}_score`]);
   const solved = Number(row?.[`${role}_solved`]);
@@ -12915,7 +12922,21 @@ function challengeCard(row, rows = []) {
       tieImage.loading = "lazy";
       media.append(tieImage);
     } else {
-      renderAvatarForName(media, winnerName, { avatar: challengeProfileAvatar(winnerName) });
+      const winnerAvatar = challengeProfileAvatar(winnerName);
+      const resultSrc = challengeResultAvatarSrc(winnerAvatar);
+      if (resultSrc) {
+        const resultImage = document.createElement("img");
+        resultImage.src = resultSrc;
+        resultImage.alt = winnerName;
+        resultImage.loading = "lazy";
+        resultImage.addEventListener("error", () => {
+          media.innerHTML = "";
+          renderAvatarForName(media, winnerName, { avatar: winnerAvatar });
+        }, { once: true });
+        media.append(resultImage);
+      } else {
+        renderAvatarForName(media, winnerName, { avatar: winnerAvatar });
+      }
     }
     main.append(body, media);
     const flip = document.createElement("div");
