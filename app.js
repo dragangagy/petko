@@ -12804,6 +12804,10 @@ function challengeWinnerScoreVerb(name = "") {
   return challengeProfileAvatar(name)?.group === "female" ? "Освојила" : "Освојио";
 }
 
+function challengeSentVerb(name = "") {
+  return challengeProfileAvatar(name)?.group === "female" ? "послала" : "послао";
+}
+
 function challengeResultAvatarSrc(avatar = {}) {
   const source = String(avatar?.src || "");
   const match = source.match(/^(.*\/)?([^/.]+)\.png$/i);
@@ -13047,7 +13051,7 @@ function challengeCard(row, rows = []) {
       title.append(document.createTextNode("Упутили сте изазов: "), challengeNameWithAvatar(opponent));
     }
   } else {
-    title.append(challengeNameWithAvatar(creator), document.createTextNode(" вас је позвао на изазов"));
+    title.append(challengeNameWithAvatar(creator), document.createTextNode(` вам је ${challengeSentVerb(creator)} изазов`));
   }
   const winner = document.createElement("div");
   winner.className = "challenge-card-winner";
