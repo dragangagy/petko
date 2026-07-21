@@ -5225,6 +5225,7 @@ const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
 const CHALLENGE_CANCELLED_KEY = "petko-challenge-cancelled-v1";
 const CHALLENGE_PLAYED_KEY = "petko-challenge-played-v1";
+const CHALLENGE_RESULT_PENDING_KEY = "petko-challenge-result-pending-v1";
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
 const LOCK_STORAGE_KEY = "petko-competitive-lock-v2";
 const COMPETITIVE_PROGRESS_KEY = "petko-competitive-progress-v1";
@@ -11788,6 +11789,43 @@ function rememberChallengePlayed(rowOrCode, role) {
   saveChallengePlayedStore(store);
 }
 
+function loadPendingChallengeResults() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHALLENGE_RESULT_PENDING_KEY) || "null");
+    return data && typeof data === "object" ? data : {};
+  } catch {}
+  return {};
+}
+
+function savePendingChallengeResults(store) {
+  const entries = Object.entries(store || {})
+    .filter(([, item]) => item?.code && item?.role && item?.patch)
+    .slice(-40);
+  localStorage.setItem(CHALLENGE_RESULT_PENDING_KEY, JSON.stringify(Object.fromEntries(entries)));
+}
+
+function rememberPendingChallengeResult(code, role, patch, meta = {}) {
+  const cleanCode = normalizeChallengeCode(code);
+  if (!cleanCode || !role || !patch) return;
+  const store = loadPendingChallengeResults();
+  store[cleanCode] = {
+    code: cleanCode,
+    role,
+    patch,
+    meta,
+    updatedAt: new Date().toISOString()
+  };
+  savePendingChallengeResults(store);
+}
+
+function forgetPendingChallengeResult(code) {
+  const cleanCode = normalizeChallengeCode(code);
+  if (!cleanCode) return;
+  const store = loadPendingChallengeResults();
+  delete store[cleanCode];
+  savePendingChallengeResults(store);
+}
+
 function challengePlayedToday(row) {
   if (!playedChallenge(row)) return false;
   const playedTimes = [row?.creator_played_at, row?.opponent_played_at]
@@ -12598,6 +12636,34 @@ async function updateChallenge(code, patch) {
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
 }
 
+async function retryPendingChallengeResults() {
+  if (!supabaseConfigured()) return [];
+  const items = Object.values(loadPendingChallengeResults());
+  const refreshedRows = [];
+  for (const item of items) {
+    const code = normalizeChallengeCode(item?.code);
+    const role = item?.role === "creator" ? "creator" : item?.role === "opponent" ? "opponent" : "";
+    if (!code || !role || !item?.patch) continue;
+    try {
+      const current = await fetchChallenge(code).catch(() => null);
+      if (current && challengePlayedAt(current, role)) {
+        forgetPendingChallengeResult(code);
+        clearChallengeProgress(code);
+        rememberChallengePlayed(code, role);
+        refreshedRows.push(current);
+        continue;
+      }
+      await updateChallenge(code, item.patch);
+      const updated = await fetchChallenge(code).catch(() => null);
+      forgetPendingChallengeResult(code);
+      clearChallengeProgress(code);
+      rememberChallengePlayed(code, role);
+      if (updated) refreshedRows.push(updated);
+    } catch {}
+  }
+  return refreshedRows;
+}
+
 async function deleteChallenge(code) {
   const response = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(code)}`), {
     method: "DELETE",
@@ -13277,6 +13343,7 @@ async function syncChallengeState({ force = false } = {}) {
   if (challengeSyncBusy) return;
   challengeSyncBusy = true;
   try {
+    await retryPendingChallengeResults().catch(() => []);
     const [players, rows, statsRows] = await Promise.all([
       gameType === "challenge" && !challengeGameOpen()
         ? fetchChallengePlayers().catch(() => [])
@@ -13673,7 +13740,6 @@ async function acceptChallenge(codeInput = "", options = {}) {
 
 async function finishChallenge(status) {
   done = true;
-  clearChallengeProgress();
   document.body.dataset.challengePlaying = "true";
   document.body.dataset.challengeFinished = "true";
   renderSolutionsPanel(true);
@@ -13684,21 +13750,28 @@ async function finishChallenge(status) {
     : `Изазов завршен: ${solvedCount}/6. Решења: ${displayWords(targets)}. Скор ${resultScore}.`;
   if (!activeChallenge?.code || !supabaseConfigured()) return;
   const prefix = activeChallenge.role === "creator" ? "creator" : "opponent";
+  const patch = {
+    status: "played",
+    [`${prefix}_score`]: resultScore,
+    [`${prefix}_attempts`]: guesses.length,
+    [`${prefix}_solved`]: solvedCount,
+    [`${prefix}_played_at`]: new Date().toISOString()
+  };
+  rememberPendingChallengeResult(activeChallenge.code, prefix, patch, {
+    score: resultScore,
+    solvedFlags: solvedAt.map(Boolean)
+  });
   try {
-    await updateChallenge(activeChallenge.code, {
-      status: "played",
-      [`${prefix}_score`]: resultScore,
-      [`${prefix}_attempts`]: guesses.length,
-      [`${prefix}_solved`]: solvedCount,
-      [`${prefix}_played_at`]: new Date().toISOString()
-    });
+    await updateChallenge(activeChallenge.code, patch);
+    forgetPendingChallengeResult(activeChallenge.code);
+    clearChallengeProgress(activeChallenge.code);
     rememberChallengePlayed(activeChallenge.code, prefix);
     const row = await fetchChallenge(activeChallenge.code);
     await renderChallengeResult(row, resultScore, { showPanelWords: true, solvedFlags: solvedAt.map(Boolean) });
     refreshChallengePanel();
     refreshAvatarAchievements({ popup: true }).catch(() => {});
   } catch {
-    renderChallengePanel("Резултат је локалан; online упис није прошао.");
+    renderChallengePanel("Резултат је сачуван локално; покушаћу поново online.");
   }
   render();
 }
@@ -15684,6 +15757,32 @@ function normalizeChallengeWinStatsRows(rows = []) {
   return [...byName.values()];
 }
 
+function mergeChallengeWinLeaderRows(...groups) {
+  const byName = new Map();
+  groups.flat().filter(Boolean).forEach((row) => {
+    const nickname = (row.nickname || "Играч").trim() || "Играч";
+    const key = nickname.toLocaleLowerCase("sr");
+    const current = byName.get(key) || {
+      nickname,
+      wins: 0,
+      winsAt: "",
+      played: 0,
+      best: 0,
+      bestAt: ""
+    };
+    current.nickname = current.nickname || nickname;
+    current.wins = Math.max(current.wins, Number(row.wins) || 0);
+    current.played = Math.max(current.played, Number(row.played) || 0);
+    current.best = Math.max(current.best, Number(row.best) || 0);
+    const winsAt = row.winsAt || "";
+    const bestAt = row.bestAt || "";
+    if (winsAt && (!current.winsAt || winsAt > current.winsAt)) current.winsAt = winsAt;
+    if (bestAt && (!current.bestAt || bestAt > current.bestAt)) current.bestAt = bestAt;
+    byName.set(key, current);
+  });
+  return [...byName.values()];
+}
+
 function challengeStats(rows) {
   const byName = new Map();
   rows.filter(playedChallenge).forEach((row) => {
@@ -15935,9 +16034,7 @@ async function renderHallOfFame() {
     const leaderboard = aggregateLeaderboard(rows);
     const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
     const onlineChallengeWinRows = normalizeChallengeWinStatsRows(Array.isArray(challengeStatsRows) ? challengeStatsRows : []);
-    const challengeLeaders = onlineChallengeWinRows.length
-      ? onlineChallengeWinRows
-      : challengeStats(challengeRowsSafe);
+    const challengeLeaders = mergeChallengeWinLeaderRows(onlineChallengeWinRows, challengeStats(challengeRowsSafe));
     const onlineChallengeScoreRows = normalizeChallengeScoreStatsRows(Array.isArray(challengeScoreRows) ? challengeScoreRows : []);
     const challengeStrongLeaders = onlineChallengeScoreRows.length
       ? onlineChallengeScoreRows
