@@ -13135,6 +13135,30 @@ function createChallengeWordList(words = [], options = {}) {
 }
 
 let heldChallengeResultKey = "";
+let challengeSectionState = loadChallengeSectionState();
+
+function loadChallengeSectionState() {
+  return {};
+}
+
+function saveChallengeSectionState() {}
+
+function challengeSectionOpen(key) {
+  if (typeof challengeSectionState[key] === "boolean") return challengeSectionState[key];
+  return false;
+}
+
+function setChallengeSectionOpen(key, open) {
+  challengeSectionState[key] = Boolean(open);
+  saveChallengeSectionState();
+}
+
+function syncChallengeIdlePetkoState() {
+  if (!challengeHistoryEl) return;
+  const hasOpenCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section.open .challenge-section-body"))
+    .some((section) => section.children.length);
+  document.body.dataset.challengeCards = hasOpenCards ? "true" : "false";
+}
 
 function releaseChallengeResultFlip() {
   heldChallengeResultKey = "";
@@ -13167,6 +13191,45 @@ function bindChallengeResultFlip(card, key) {
   card.addEventListener("contextmenu", (event) => {
     if (heldChallengeResultKey === key || card.classList.contains("show-words")) event.preventDefault();
   });
+}
+
+function challengeHistorySection(key, title, rows, allRows) {
+  const section = document.createElement("section");
+  const open = challengeSectionOpen(key);
+  section.className = `challenge-section challenge-section-${key} ${open ? "open" : "collapsed"}`;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "challenge-section-toggle";
+  toggle.setAttribute("aria-expanded", String(open));
+
+  const label = document.createElement("span");
+  label.textContent = title;
+  const count = document.createElement("span");
+  count.className = "challenge-section-count";
+  count.textContent = String(rows.length);
+  const arrow = document.createElement("span");
+  arrow.className = "challenge-section-arrow";
+  arrow.textContent = "⌄";
+  toggle.append(label, count, arrow);
+
+  const body = document.createElement("div");
+  body.className = "challenge-section-body";
+  body.hidden = !open;
+  rows.forEach((row) => body.append(challengeCard(row, allRows)));
+
+  toggle.addEventListener("click", () => {
+    const nextOpen = section.classList.contains("collapsed");
+    section.classList.toggle("collapsed", !nextOpen);
+    section.classList.toggle("open", nextOpen);
+    body.hidden = !nextOpen;
+    toggle.setAttribute("aria-expanded", String(nextOpen));
+    setChallengeSectionOpen(key, nextOpen);
+    syncChallengeIdlePetkoState();
+  });
+
+  section.append(toggle, body);
+  return section;
 }
 
 function challengeNameWithAvatar(name) {
@@ -13393,8 +13456,16 @@ function renderChallengeHistoryCards(rows = []) {
   const resultRows = visibleRows
     .filter(playedChallenge)
     .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""));
-  document.body.dataset.challengeCards = (inviteRows.length || resultRows.length) ? "true" : "false";
-  [...inviteRows, ...resultRows].forEach((row) => challengeHistoryEl.append(challengeCard(row, rows)));
+  const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
+  const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
+  [
+    ["active", "Активни изазови", activeRows],
+    ["pending", "Изазови на чекању", pendingRows],
+    ["played", "Одиграни изазови", resultRows]
+  ].forEach(([key, title, sectionRows]) => {
+    if (sectionRows.length) challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows));
+  });
+  syncChallengeIdlePetkoState();
 }
 
 async function refreshChallengeHistoryCards() {
