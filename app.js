@@ -12994,28 +12994,38 @@ function createChallengeWordList(words = [], options = {}) {
   return list;
 }
 
-function bindChallengeResultFlip(card) {
+let heldChallengeResultKey = "";
+
+function releaseChallengeResultFlip() {
+  heldChallengeResultKey = "";
+  document.querySelectorAll(".challenge-card.result.played.show-words").forEach((card) => {
+    card.classList.remove("show-words");
+  });
+}
+
+document.addEventListener("pointerup", releaseChallengeResultFlip);
+document.addEventListener("pointercancel", releaseChallengeResultFlip);
+
+function challengeResultKey(row = {}) {
+  return String(row.id || row.code || row.created_at || "");
+}
+
+function bindChallengeResultFlip(card, key) {
   let holdTimer = 0;
   const clearHold = () => {
     window.clearTimeout(holdTimer);
     holdTimer = 0;
   };
-  const hide = () => {
-    clearHold();
-    card.classList.remove("show-words");
-  };
   card.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     clearHold();
+    heldChallengeResultKey = key;
     holdTimer = window.setTimeout(() => {
-      card.classList.add("show-words");
+      if (heldChallengeResultKey === key) card.classList.add("show-words");
     }, 420);
   });
-  card.addEventListener("pointerup", hide);
-  card.addEventListener("pointercancel", hide);
-  card.addEventListener("pointerleave", hide);
   card.addEventListener("contextmenu", (event) => {
-    if (card.classList.contains("show-words")) event.preventDefault();
+    if (heldChallengeResultKey === key || card.classList.contains("show-words")) event.preventDefault();
   });
 }
 
@@ -13050,6 +13060,8 @@ function challengeCard(row, rows = []) {
   const otherPlayer = role === "creator" ? (openInvite ? "нови корисник" : opponent) : creator;
   const pair = openInvite || opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
   if (playedChallenge(row)) {
+    const resultKey = challengeResultKey(row);
+    if (heldChallengeResultKey === resultKey) card.classList.add("show-words");
     const winnerRole = challengeWinner(row);
     const winnerName = challengeWinnerName(row);
     const main = document.createElement("div");
@@ -13116,7 +13128,7 @@ function challengeCard(row, rows = []) {
     back.append(createChallengeWordList(row.words));
     flip.append(front, back);
     card.append(flip);
-    bindChallengeResultFlip(card);
+    bindChallengeResultFlip(card, resultKey);
     return card;
   }
   if (pair) {
