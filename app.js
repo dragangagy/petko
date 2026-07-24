@@ -13412,7 +13412,7 @@ function challengeCard(row, rows = []) {
       surrender.type = "button";
       surrender.className = "challenge-surrender-button";
       surrender.textContent = "Предај изазов";
-      surrender.addEventListener("click", () => surrenderChallenge(row).catch(() => renderChallengePanel("Предаја изазова није успела.")));
+      surrender.addEventListener("click", () => confirmSurrenderChallenge(row));
       actions.append(surrender);
     } else if (challengeIsActive(row) && role && challengeAlreadyPlayed(row, role)) {
       const waiting = document.createElement("div");
@@ -14017,6 +14017,30 @@ async function surrenderChallenge(row) {
   }
   renderChallengePanel("Изазов је предат.");
   refreshChallengePanel();
+}
+
+function confirmSurrenderChallenge(row) {
+  showWordModal({
+    title: "Предаја изазова",
+    word: "изазов",
+    text: "Да ли сигурно желиш да предаш овај изазов?",
+    reviewText: "Када потврдиш, овај изазов се уписује као одигран са твоје стране.",
+    buttons: [
+      {
+        label: "Да, предај",
+        tone: "danger",
+        onClick: () => {
+          closeWordModal();
+          surrenderChallenge(row).catch(() => renderChallengePanel("Предаја изазова није успела."));
+        }
+      },
+      {
+        label: "Не",
+        tone: "success",
+        onClick: closeWordModal
+      }
+    ]
+  });
 }
 
 function loadPlayerName() {
