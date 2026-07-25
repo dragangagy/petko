@@ -13175,10 +13175,53 @@ function challengeWinnerName(row) {
   return "Чека се";
 }
 
+function challengeAvatarCode(avatar = {}) {
+  const explicitCode = String(avatar?.code || "").trim();
+  if (explicitCode) return explicitCode.toUpperCase();
+
+  const id = String(avatar?.id || "").trim().toLowerCase();
+  const idMatch = id.match(/^(male|female)-(\d+)$/);
+  if (idMatch) return `${idMatch[1] === "female" ? "Z" : "M"}${idMatch[2]}`;
+
+  const source = String(avatar?.fullSrc || avatar?.src || "");
+  const sourceMatch = source.match(/(?:^|\/)([MZ]\d{2,3})(?:-[ab])?\.png$/i);
+  return sourceMatch ? sourceMatch[1].toUpperCase() : "";
+}
+
+function challengeAvatarIsMale(avatar = {}) {
+  const code = challengeAvatarCode(avatar);
+  const id = String(avatar?.id || "").toLowerCase();
+  return avatar?.group === "male" || id.startsWith("male-") || /^M\d+$/i.test(code);
+}
+
+function challengeAvatarIsWeekendWitch(avatar = {}) {
+  return /^Z4[1-5]$/i.test(challengeAvatarCode(avatar));
+}
+
+function challengeWeekendHunterAvatar() {
+  return profileAvatarByCode("M50") || profileAvatarById("male-50") || {
+    id: "male-50",
+    code: "M50",
+    group: "male",
+    label: "Ловац",
+    src: "avatar/M50.png",
+    fullSrc: "avatar/M50-a.png"
+  };
+}
+
+function challengeDisplayAvatar(avatar = {}) {
+  if (!isWeekendWitchActive()) return avatar;
+  if (challengeAvatarIsWeekendWitch(avatar)) return avatar;
+  if (challengeAvatarIsMale(avatar)) return challengeWeekendHunterAvatar();
+  return avatar;
+}
+
 function challengeProfileAvatar(name = "") {
-  if (isOpenChallengeOpponent(name)) return profileAvatarByCode("Z40") || profileAvatarById("female-40");
-  if (sameChallengeName(name, loadPlayerName())) return currentProfileAvatar();
-  return cachedProfileAvatar(name) || deterministicProfileAvatar(name);
+  let avatar;
+  if (isOpenChallengeOpponent(name)) avatar = profileAvatarByCode("Z40") || profileAvatarById("female-40");
+  else if (sameChallengeName(name, loadPlayerName())) avatar = currentProfileAvatar();
+  else avatar = cachedProfileAvatar(name) || deterministicProfileAvatar(name);
+  return challengeDisplayAvatar(avatar);
 }
 
 function challengeWinnerVerb(name = "") {
@@ -13193,11 +13236,36 @@ function challengeSentVerb(name = "") {
   return challengeProfileAvatar(name)?.group === "female" ? "послала" : "послао";
 }
 
-function challengeResultAvatarSrc(avatar = {}) {
-  const source = String(avatar?.src || "");
-  const match = source.match(/^(.*\/)?([^/.]+)\.png$/i);
+function challengeResultAvatarSrc(avatar = {}, variant = "a") {
+  const displayAvatar = challengeDisplayAvatar(avatar);
+  const suffix = variant === "b" ? "b" : "a";
+  const code = challengeAvatarCode(displayAvatar);
+  if (code) {
+    if (code === "M50" && suffix === "b") return "avatar/M50-a.png";
+    return `avatar/${code}-${suffix}.png`;
+  }
+  const source = String(displayAvatar?.fullSrc || displayAvatar?.src || "");
+  const match = source.match(/^(.*\/)?([^/.]+?)(?:-[ab])?\.png$/i);
   if (!match) return "";
-  return `${match[1] || ""}${match[2]}-a.png`;
+  return `${match[1] || ""}${match[2]}-${suffix}.png`;
+}
+
+function challengeResultVisual(winnerName = "", loserName = "") {
+  const loserAvatar = challengeProfileAvatar(loserName);
+  if (isWeekendWitchActive() && challengeAvatarIsWeekendWitch(loserAvatar)) {
+    return {
+      name: loserName,
+      avatar: loserAvatar,
+      src: challengeResultAvatarSrc(loserAvatar, "b")
+    };
+  }
+
+  const winnerAvatar = challengeProfileAvatar(winnerName);
+  return {
+    name: winnerName,
+    avatar: winnerAvatar,
+    src: challengeResultAvatarSrc(winnerAvatar, "a")
+  };
 }
 
 function renderChallengeVsAvatar(target, name = "") {
@@ -13455,22 +13523,23 @@ function challengeCard(row, rows = []) {
       tieImage.loading = "lazy";
       media.append(tieImage);
     } else {
-      const winnerAvatar = challengeProfileAvatar(winnerName);
-      const resultSrc = challengeResultAvatarSrc(winnerAvatar);
+      const loserName = winnerRole === "creator" ? opponent : winnerRole === "opponent" ? creator : "";
+      const resultVisual = challengeResultVisual(winnerName, loserName);
+      const resultSrc = resultVisual.src;
       if (resultSrc) {
         media.classList.add("action-avatar");
         const resultImage = document.createElement("img");
         resultImage.src = resultSrc;
-        resultImage.alt = winnerName;
+        resultImage.alt = resultVisual.name;
         resultImage.loading = "lazy";
         resultImage.addEventListener("error", () => {
           media.innerHTML = "";
           media.classList.remove("action-avatar");
-          renderAvatarForName(media, winnerName, { avatar: winnerAvatar });
+          renderAvatarForName(media, resultVisual.name, { avatar: resultVisual.avatar });
         }, { once: true });
         media.append(resultImage);
       } else {
-        renderAvatarForName(media, winnerName, { avatar: winnerAvatar });
+        renderAvatarForName(media, resultVisual.name, { avatar: resultVisual.avatar });
       }
     }
     main.append(body, media);
