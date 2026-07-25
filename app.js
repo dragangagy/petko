@@ -11860,6 +11860,20 @@ function challengeExpired(row) {
   return Boolean(until && Date.now() >= until);
 }
 
+function challengePlayedSortTime(row) {
+  const times = [row?.creator_played_at, row?.opponent_played_at, row?.updated_at, row?.created_at]
+    .map((value) => Date.parse(value || ""))
+    .filter(Number.isFinite);
+  return times.length ? Math.max(...times) : 0;
+}
+
+function challengeExpirySortTime(row) {
+  const state = challengeCardState(row);
+  if (state === "accepted") return challengeActiveUntil(row);
+  if (state === "pending") return challengePendingUntil(row);
+  return challengePlayedSortTime(row);
+}
+
 function formatChallengeCountdown(remaining) {
   if (!remaining) return "истекло";
   const hours = Math.floor(remaining / 3600000);
@@ -13450,12 +13464,14 @@ function renderChallengeHistoryCards(rows = []) {
       const stateOrder = { accepted: 0, pending: 1, played: 2 };
       const stateDiff = stateOrder[challengeCardState(a)] - stateOrder[challengeCardState(b)];
       if (stateDiff) return stateDiff;
-      return Date.parse(b.created_at || "") - Date.parse(a.created_at || "");
+      const expiryDiff = challengeExpirySortTime(a) - challengeExpirySortTime(b);
+      if (expiryDiff) return expiryDiff;
+      return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
     })
     .slice(0, 12);
   const resultRows = visibleRows
     .filter(playedChallenge)
-    .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""));
+    .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
   [
