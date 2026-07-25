@@ -13450,7 +13450,7 @@ function challengeCard(row, rows = []) {
     if (winnerRole === "tie") {
       media.setAttribute("aria-label", "Нерешено");
       const tieImage = document.createElement("img");
-      tieImage.src = "avatar/challenge-tie.png";
+      tieImage.src = isWeekendWitchActive() ? "avatar/challenge-tie-witch.png" : "avatar/challenge-tie.png";
       tieImage.alt = "Нерешено";
       tieImage.loading = "lazy";
       media.append(tieImage);
