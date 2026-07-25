@@ -5312,6 +5312,12 @@ const DEVICE_ID_KEY = "petko-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
 const NORMAL_CHALLENGE_BONUS_KEY = "petko-normal-challenge-bonus-v1";
+const WEEKEND_WITCH_KEY = "petko-weekend-witch-v1";
+const WEEKEND_WITCH_PREVIOUS_AVATAR_KEY = "petko-weekend-witch-previous-avatar-v1";
+const WEEKEND_WITCH_PROMPT_KEY = "petko-weekend-witch-prompt-v1";
+const WEEKEND_WITCH_CHALLENGE_BONUS_KEY = "petko-weekend-witch-challenge-bonus-v1";
+const WEEKEND_WITCH_CHALLENGE_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const WEEKEND_WITCH_AVATAR_IDS = ["female-41", "female-42", "female-43", "female-44", "female-45"];
 const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
@@ -5408,6 +5414,14 @@ const UNLOCKABLE_PROFILE_AVATARS = [
     label: `Ж${number}`,
     src: `avatar/Z${number}.png`,
     unlockGroup: "streak5"
+  })),
+  ...Array.from({ length: 5 }, (_, index) => ({
+    id: `female-${index + 41}`,
+    group: "female",
+    label: `Z${index + 41}`,
+    src: `avatar/Z${index + 41}.png`,
+    unlockGroup: "weekendWitch",
+    weekendWitch: true
   }))
 ];
 const PROFILE_AVATARS = [...BASE_PROFILE_AVATARS, ...UNLOCKABLE_PROFILE_AVATARS];
@@ -5437,6 +5451,11 @@ const PROFILE_UNLOCK_GROUPS = {
     title: "Низ 5",
     requirement: "Направи најдужи низ 5 у такмичарском делу.",
     unlocked: (stats) => stats.bestStreak >= 5
+  },
+  weekendWitch: {
+    title: "Vikend veštičarenja",
+    requirement: "Dostupno subotom i nedeljom.",
+    unlocked: () => isWeekendWitchActive()
   }
 };
 const PLAYER_AVATAR_CACHE = new Map();
@@ -10996,6 +11015,24 @@ function isPetkoFriday() {
   return override === null ? new Date().getDay() === 5 : override;
 }
 
+function isWeekendWitchActive(date = new Date()) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function weekendWitchId(date = new Date()) {
+  const saturday = new Date(date);
+  if (saturday.getDay() === 0) saturday.setDate(saturday.getDate() - 1);
+  const year = saturday.getFullYear();
+  const month = String(saturday.getMonth() + 1).padStart(2, "0");
+  const day = String(saturday.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isWeekendWitchAvatarId(id = "") {
+  return WEEKEND_WITCH_AVATAR_IDS.includes(String(id || "").trim());
+}
+
 function currentYearId() {
   return todayId().slice(0, 4);
 }
@@ -11310,6 +11347,39 @@ function resetNormalChallengeStreak() {
   renderNormalStats();
 }
 
+function emptyWeekendWitchChallengeBonus() {
+  return { weekend: weekendWitchId(), bonus: 0, lastAwardAt: Date.now() };
+}
+
+function loadWeekendWitchChallengeBonus() {
+  try {
+    const data = { ...emptyWeekendWitchChallengeBonus(), ...JSON.parse(localStorage.getItem(WEEKEND_WITCH_CHALLENGE_BONUS_KEY) || "{}") };
+    if (data.weekend !== weekendWitchId()) return emptyWeekendWitchChallengeBonus();
+    data.bonus = Math.max(0, Number(data.bonus) || 0);
+    data.lastAwardAt = Math.max(0, Number(data.lastAwardAt) || Date.now());
+    return data;
+  } catch {
+    return emptyWeekendWitchChallengeBonus();
+  }
+}
+
+function saveWeekendWitchChallengeBonus(data) {
+  localStorage.setItem(WEEKEND_WITCH_CHALLENGE_BONUS_KEY, JSON.stringify({ ...data, weekend: weekendWitchId() }));
+}
+
+function weekendWitchChallengeBonus() {
+  if (!isWeekendWitchActive() || !isWeekendWitchAvatarId(loadProfileAvatarId())) return 0;
+  const data = loadWeekendWitchChallengeBonus();
+  const elapsed = Math.max(0, Date.now() - data.lastAwardAt);
+  const gained = Math.floor(elapsed / WEEKEND_WITCH_CHALLENGE_INTERVAL_MS);
+  if (gained > 0) {
+    data.bonus += gained;
+    data.lastAwardAt += gained * WEEKEND_WITCH_CHALLENGE_INTERVAL_MS;
+    saveWeekendWitchChallengeBonus(data);
+  }
+  return data.bonus;
+}
+
 function loadNormalStats() {
   try {
     return { started: 0, finished: 0, ...JSON.parse(localStorage.getItem(NORMAL_STATS_KEY) || "{}") };
@@ -11400,8 +11470,18 @@ async function refreshAvatarAchievements(options = {}) {
   avatarAchievementStats = stats;
   const unlocked = unlockedProfileAvatars(stats);
   const seen = loadSeenUnlockedAvatars();
-  const newlyUnlocked = unlocked.filter((avatar) => avatar.unlockGroup && !seen.has(avatar.id) && !previousUnlocked.has(avatar.id));
-  saveSeenUnlockedAvatars([...seen, ...unlocked.filter((avatar) => avatar.unlockGroup).map((avatar) => avatar.id)]);
+  const newlyUnlocked = unlocked.filter((avatar) => (
+    avatar.unlockGroup &&
+    avatar.unlockGroup !== "weekendWitch" &&
+    !seen.has(avatar.id) &&
+    !previousUnlocked.has(avatar.id)
+  ));
+  saveSeenUnlockedAvatars([
+    ...seen,
+    ...unlocked
+      .filter((avatar) => avatar.unlockGroup && avatar.unlockGroup !== "weekendWitch")
+      .map((avatar) => avatar.id)
+  ]);
   if (profileModal && !profileModal.hidden) renderProfileModal();
   if (options.popup && newlyUnlocked.length) showAvatarUnlockPopup(newlyUnlocked);
 }
@@ -11449,6 +11529,64 @@ function showAvatarUnlockPopup(avatars = []) {
   card.append(title, text, grid, close);
   overlay.append(card);
   document.body.append(overlay);
+}
+
+function weekendWitchAvatars() {
+  return WEEKEND_WITCH_AVATAR_IDS.map(profileAvatarById).filter(Boolean);
+}
+
+function showWeekendWitchPopup() {
+  const avatars = weekendWitchAvatars();
+  if (!avatars.length) return;
+  const overlay = document.createElement("div");
+  overlay.className = "avatar-unlock-modal";
+  const card = document.createElement("article");
+  card.className = "avatar-unlock-card";
+  const title = document.createElement("h2");
+  title.textContent = "Vikend veštičarenja";
+  const text = document.createElement("p");
+  text.textContent = "Može da počne. Izaberi vikend avatar.";
+  const grid = document.createElement("div");
+  grid.className = "avatar-unlock-grid";
+  avatars.forEach((avatar) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "profile-avatar-option";
+    if (avatar.src) {
+      const image = document.createElement("img");
+      image.src = avatar.src;
+      image.alt = avatar.label;
+      image.loading = "lazy";
+      image.addEventListener("error", () => {
+        image.remove();
+        button.append(document.createTextNode(avatar.label));
+      }, { once: true });
+      button.append(image);
+    } else {
+      button.textContent = avatar.label;
+    }
+    button.addEventListener("click", () => {
+      saveProfileAvatar(avatar.id);
+      overlay.remove();
+    });
+    grid.append(button);
+  });
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "avatar-unlock-close";
+  close.textContent = "Kasnije";
+  close.addEventListener("click", () => overlay.remove());
+  card.append(title, text, grid, close);
+  overlay.append(card);
+  document.body.append(overlay);
+}
+
+function maybeShowWeekendWitchOffer() {
+  if (!isWeekendWitchActive()) return;
+  const weekend = weekendWitchId();
+  if (localStorage.getItem(WEEKEND_WITCH_PROMPT_KEY) === weekend) return;
+  localStorage.setItem(WEEKEND_WITCH_PROMPT_KEY, weekend);
+  showWeekendWitchPopup();
 }
 
 function bumpNormalStarted() {
@@ -12225,7 +12363,8 @@ function challengeDailyLimit() {
     .slice(0, Math.max(0, Math.min(completed, COMPETITIVE_LEVELS.length)))
     .reduce((sum, level) => sum + level, 0);
   const normalBonus = loadNormalChallengeBonus().bonus;
-  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus);
+  const weekendBonus = weekendWitchChallengeBonus();
+  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus + weekendBonus);
 }
 
 function completedCompetitiveLevelIndex() {
@@ -14167,7 +14306,39 @@ function isProfileAvatarApproved(id = "") {
   return Boolean(id && localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY) === id);
 }
 
+function loadWeekendWitchState() {
+  try {
+    return { weekend: weekendWitchId(), ...JSON.parse(localStorage.getItem(WEEKEND_WITCH_KEY) || "{}") };
+  } catch {
+    return { weekend: weekendWitchId() };
+  }
+}
+
+function saveWeekendWitchState(data = {}) {
+  localStorage.setItem(WEEKEND_WITCH_KEY, JSON.stringify({ ...data, weekend: weekendWitchId() }));
+}
+
+function syncWeekendWitchAvatarState() {
+  const active = isWeekendWitchActive();
+  const current = localStorage.getItem(PROFILE_AVATAR_KEY) || "";
+  if (active) {
+    const state = loadWeekendWitchState();
+    if (state.weekend !== weekendWitchId()) saveWeekendWitchState({});
+    return;
+  }
+  if (!isWeekendWitchAvatarId(current)) return;
+  const previous = localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
+  const fallback = previous && !isWeekendWitchAvatarId(previous) && profileAvatarById(previous)
+    ? previous
+    : PROFILE_AVATARS[0].id;
+  localStorage.setItem(PROFILE_AVATAR_KEY, fallback);
+  localStorage.removeItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
+  saveWeekendWitchState({});
+  syncProfileAvatarToSupabase(fallback).catch(() => false);
+}
+
 function loadProfileAvatarId() {
+  syncWeekendWitchAvatarState();
   const id = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
   const avatar = profileAvatarById(id);
   return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id))
@@ -14215,6 +14386,7 @@ function applySupabaseProfileAvatar(row = {}, nickname = loadPlayerName()) {
   const avatar = profileAvatarById(row.avatar_id);
   const cleanName = normalizePlayerName(nickname || row.nickname || "");
   if (!avatar) return false;
+  if (isWeekendWitchAvatarId(avatar.id) && !isWeekendWitchActive()) return false;
   saveApprovedProfileAvatarId(avatar.id);
   localStorage.setItem(PROFILE_AVATAR_KEY, normalizeProfileAvatarId(avatar.id));
   if (cleanName) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(cleanName), avatar.id);
@@ -14286,6 +14458,17 @@ function saveProfileAvatar(id) {
     return;
   }
   const cleanId = normalizeProfileAvatarId(id);
+  if (isWeekendWitchAvatarId(cleanId) && isWeekendWitchActive()) {
+    const current = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
+    if (!isWeekendWitchAvatarId(current)) {
+      localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, current);
+    }
+    saveWeekendWitchState({ selected: cleanId });
+    const data = loadWeekendWitchChallengeBonus();
+    if (data.weekend !== weekendWitchId() || !data.lastAwardAt) {
+      saveWeekendWitchChallengeBonus(emptyWeekendWitchChallengeBonus());
+    }
+  }
   localStorage.setItem(PROFILE_AVATAR_KEY, cleanId);
   const cleanAvatar = profileAvatarById(cleanId);
   if (cleanAvatar && isProfileAvatarUnlocked(cleanAvatar)) saveApprovedProfileAvatarId("");
@@ -17181,6 +17364,9 @@ document.addEventListener("visibilitychange", () => {
     saveNormalProgress();
     saveChallengeProgress();
   } else {
+    syncWeekendWitchAvatarState();
+    updateChallengeQuota();
+    maybeShowWeekendWitchOffer();
     syncChallengeState({ force: true }).catch(() => {});
   }
 });
@@ -17195,9 +17381,16 @@ setInterval(notifyDailyEvents, 600000);
 setInterval(() => {
   syncChallengeState().catch(() => {});
 }, CHALLENGE_SYNC_INTERVAL_MS);
+setInterval(() => {
+  syncWeekendWitchAvatarState();
+  updateChallengeQuota();
+  updateStatusProfile();
+}, 60000);
 
 async function bootPetkoApp() {
   await loadOnlineWords().catch(() => {});
+  syncWeekendWitchAvatarState();
+  weekendWitchChallengeBonus();
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {
     startGame("challenge");
@@ -17220,6 +17413,7 @@ if (initialNormalStats.started || initialNormalStats.finished) {
 }
 refreshOnlineNormalStats().catch(() => {});
 refreshAvatarAchievements({ popup: true }).catch(() => {});
+window.setTimeout(maybeShowWeekendWitchOffer, 700);
 Promise.all([
   fetchChallengeHistory(),
   fetchChallengeStatsRows().catch(() => [])
