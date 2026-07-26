@@ -13209,11 +13209,21 @@ function challengeWeekendHunterAvatar() {
   };
 }
 
-function challengeDisplayAvatar(avatar = {}) {
+function challengeWeekendWitchAvatar(seed = "") {
+  const weekendSeed = `${weekendWitchId()}|${normalizeChallengeName(seed)}`;
+  let hash = 0;
+  for (let index = 0; index < weekendSeed.length; index += 1) {
+    hash = ((hash * 31) + weekendSeed.charCodeAt(index)) >>> 0;
+  }
+  const code = `Z${41 + (hash % 5)}`;
+  return profileAvatarByCode(code) || profileAvatarById(`female-${code.slice(1)}`);
+}
+
+function challengeDisplayAvatar(avatar = {}, seed = "") {
   if (!isWeekendWitchActive()) return avatar;
   if (challengeAvatarIsWeekendWitch(avatar)) return avatar;
   if (challengeAvatarIsMale(avatar)) return challengeWeekendHunterAvatar();
-  return avatar;
+  return challengeWeekendWitchAvatar(seed || challengeAvatarCode(avatar) || avatar?.id) || avatar;
 }
 
 function challengeProfileAvatar(name = "") {
@@ -13221,7 +13231,36 @@ function challengeProfileAvatar(name = "") {
   if (isOpenChallengeOpponent(name)) avatar = profileAvatarByCode("Z40") || profileAvatarById("female-40");
   else if (sameChallengeName(name, loadPlayerName())) avatar = currentProfileAvatar();
   else avatar = cachedProfileAvatar(name) || deterministicProfileAvatar(name);
-  return challengeDisplayAvatar(avatar);
+  return challengeDisplayAvatar(avatar, name);
+}
+
+function confirmWitchSisterChallenge(opponent = "") {
+  return new Promise((resolve) => {
+    showWordModal({
+      title: "Викенд вештичарења",
+      word: "сестра вештица",
+      text: `Изазиваш сестру вештицу ${opponent}.`,
+      reviewText: "Да ли желиш да пошаљеш изазов?",
+      buttons: [
+        {
+          label: "Да",
+          tone: "success",
+          onClick: () => {
+            closeWordModal();
+            resolve(true);
+          }
+        },
+        {
+          label: "Не",
+          tone: "danger",
+          onClick: () => {
+            closeWordModal();
+            resolve(false);
+          }
+        }
+      ]
+    });
+  });
 }
 
 function challengeWinnerVerb(name = "") {
@@ -13379,6 +13418,8 @@ function syncChallengeIdlePetkoState() {
   const hasOpenCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section.open .challenge-section-body"))
     .some((section) => section.children.length);
   document.body.dataset.challengeCards = hasOpenCards ? "true" : "false";
+  document.body.dataset.challengeWeekendPoster =
+    isWeekendWitchActive() && !hasOpenCards ? "true" : "false";
 }
 
 function releaseChallengeResultFlip() {
@@ -13908,6 +13949,24 @@ async function createChallenge(selectedOpponent = null) {
   if (sameChallengeName(nickname, opponent)) {
     renderChallengePanel("Не можеш изазвати самог себе.");
     return false;
+  }
+  if (isWeekendWitchActive() && !shareAfterCreate) {
+    const creatorAvatar = challengeProfileAvatar(nickname);
+    const opponentAvatar = challengeProfileAvatar(opponent);
+    const creatorIsHunter = challengeAvatarIsMale(creatorAvatar);
+    const opponentIsHunter = challengeAvatarIsMale(opponentAvatar);
+
+    if (creatorIsHunter && opponentIsHunter) {
+      renderChallengePanel("Поштуј кодекс ловца. Сада је сезона лова на вештице.");
+      return false;
+    }
+    if (!creatorIsHunter && !opponentIsHunter) {
+      const confirmed = await confirmWitchSisterChallenge(opponent);
+      if (!confirmed) {
+        renderChallengePanel("Изазов сестри вештици није послат.");
+        return false;
+      }
+    }
   }
   const sentToday = await fetchSentChallengesToday().catch(() => loadSentChallengeRowsToday());
   updateChallengeQuota(sentToday);
