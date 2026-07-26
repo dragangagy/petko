@@ -13422,9 +13422,9 @@ function loadChallengeSectionState() {
 
 function saveChallengeSectionState() {}
 
-function challengeSectionOpen(key) {
+function challengeSectionOpen(key, defaultOpen = false) {
   if (typeof challengeSectionState[key] === "boolean") return challengeSectionState[key];
-  return false;
+  return defaultOpen;
 }
 
 function setChallengeSectionOpen(key, open) {
@@ -13434,11 +13434,11 @@ function setChallengeSectionOpen(key, open) {
 
 function syncChallengeIdlePetkoState() {
   if (!challengeHistoryEl) return;
-  const hasOpenCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section.open .challenge-section-body"))
+  const hasCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"))
     .some((section) => section.children.length);
-  document.body.dataset.challengeCards = hasOpenCards ? "true" : "false";
+  document.body.dataset.challengeCards = hasCards ? "true" : "false";
   document.body.dataset.challengeWeekendPoster =
-    isWeekendWitchActive() && !hasOpenCards ? "true" : "false";
+    isWeekendWitchActive() && !hasCards ? "true" : "false";
 }
 
 function releaseChallengeResultFlip() {
@@ -13474,9 +13474,9 @@ function bindChallengeResultFlip(card, key) {
   });
 }
 
-function challengeHistorySection(key, title, rows, allRows) {
+function challengeHistorySection(key, title, rows, allRows, defaultOpen = false) {
   const section = document.createElement("section");
-  const open = challengeSectionOpen(key);
+  const open = challengeSectionOpen(key, defaultOpen);
   section.className = `challenge-section challenge-section-${key} ${open ? "open" : "collapsed"}`;
 
   const toggle = document.createElement("button");
@@ -13742,12 +13742,15 @@ function renderChallengeHistoryCards(rows = []) {
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
-  [
+  const sections = [
     ["active", "Активни изазови", activeRows],
     ["pending", "Изазови на чекању", pendingRows],
     ["played", "Одиграни изазови", resultRows]
-  ].forEach(([key, title, sectionRows]) => {
-    if (sectionRows.length) challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows));
+  ].filter(([, , sectionRows]) => sectionRows.length);
+  const hasExplicitSectionState = sections.some(([key]) => typeof challengeSectionState[key] === "boolean");
+  const defaultOpenKey = hasExplicitSectionState ? "" : sections[0]?.[0];
+  sections.forEach(([key, title, sectionRows]) => {
+    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, key === defaultOpenKey));
   });
   syncChallengeIdlePetkoState();
 }
