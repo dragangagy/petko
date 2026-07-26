@@ -12189,7 +12189,8 @@ function challengeCardVisible(row) {
   if (locallyCancelledChallenge(row)) return false;
   if (challengePendingExpired(row)) return false;
   if (selfChallengeRow(row)) return false;
-  if (playedChallenge(row)) return challengePlayedToday(row);
+  // Zavrseni izazovi su javna istorija i ne nestaju nakon ponoci.
+  if (playedChallenge(row)) return true;
   if (row?.status === "pending") return true;
   const until = challengeActiveUntil(row);
   return !until || Date.now() < until;
@@ -13032,14 +13033,18 @@ async function finalizeExpiredChallenges(rows = []) {
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=code,day,status,accepted_at,creator,creator_device,opponent,opponent_device,creator_score,opponent_score,creator_solved,opponent_solved,creator_attempts,opponent_attempts,creator_played_at,opponent_played_at,words,created_at",
+    "select=*",
     "order=created_at.desc",
     "limit=1000"
   ].join("&");
   const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
     headers: supabaseHeaders()
   });
-  if (!response.ok) return [];
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    console.warn("Petko: challenge history request failed.", response.status, details);
+    return [];
+  }
   const rows = await response.json();
   return Array.isArray(rows) ? rows : [];
 }
