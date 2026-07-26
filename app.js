@@ -12157,6 +12157,11 @@ function ownPendingChallenge(row) {
 }
 
 function selfChallengeRow(row) {
+  const creatorDevice = String(row?.creator_device || "").trim();
+  const opponentDevice = String(row?.opponent_device || "").trim();
+  // Dva razlicita uredjaja mogu imati isto ime nakon spajanja profila.
+  // Tada to nije izazov samom sebi i kartica mora ostati vidljiva.
+  if (creatorDevice && opponentDevice) return creatorDevice === opponentDevice;
   return sameChallengePlayerPair(row?.creator, row?.opponent);
 }
 
@@ -12185,12 +12190,13 @@ function locallyCancelledChallenge(rowOrCode) {
 }
 
 function challengeCardVisible(row) {
+  if (!row) return false;
+  // Zavrseni izazovi su javna istorija: lokalni otkaz, istek ili stari profil ne smeju da ih sakriju.
+  if (playedChallenge(row)) return true;
   if (row?.status === "cancelled") return false;
   if (locallyCancelledChallenge(row)) return false;
   if (challengePendingExpired(row)) return false;
   if (selfChallengeRow(row)) return false;
-  // Zavrseni izazovi su javna istorija i ne nestaju nakon ponoci.
-  if (playedChallenge(row)) return true;
   if (row?.status === "pending") return true;
   const until = challengeActiveUntil(row);
   return !until || Date.now() < until;
@@ -13720,14 +13726,16 @@ function renderChallengeHistoryCards(rows = []) {
   updateChallengeQuota(sentChallengeRowsFromHistory(rows));
   const me = loadPlayerName();
   const typedCode = String(challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || "").trim().toUpperCase();
-  const currentRows = rows.filter((row) =>
-    playedChallenge(row) ||
-    row.creator_device === deviceId() ||
-    row.opponent_device === deviceId() ||
-    (typedCode && String(row.code || "").toUpperCase() === typedCode) ||
-    sameChallengeName(row.opponent, me) ||
-    sameChallengeName(row.creator, me)
-  ).filter((row) => !selfChallengeRow(row));
+  const currentRows = rows.filter((row) => {
+    // Rezultat je javna istorija i ostaje prikazan i kada su imena ili uredjaji naknadno spojeni.
+    if (playedChallenge(row)) return true;
+    if (selfChallengeRow(row)) return false;
+    return row.creator_device === deviceId() ||
+      row.opponent_device === deviceId() ||
+      (typedCode && String(row.code || "").toUpperCase() === typedCode) ||
+      sameChallengeName(row.opponent, me) ||
+      sameChallengeName(row.creator, me);
+  });
 
   const visibleRows = currentRows
     .filter((row) => (row.creator || row.opponent) && challengeCardVisible(row));
