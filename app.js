@@ -11033,6 +11033,14 @@ function isWeekendWitchAvatarId(id = "") {
   return WEEKEND_WITCH_AVATAR_IDS.includes(String(id || "").trim());
 }
 
+function isWeekendHunterAvatarId(id = "") {
+  return challengeAvatarCode(profileAvatarById(id)) === "M50";
+}
+
+function isWeekendEventAvatarId(id = "") {
+  return isWeekendWitchAvatarId(id) || isWeekendHunterAvatarId(id);
+}
+
 function currentYearId() {
   return todayId().slice(0, 4);
 }
@@ -11575,7 +11583,11 @@ function showWeekendWitchPopup() {
   close.type = "button";
   close.className = "avatar-unlock-close";
   close.textContent = "Kasnije";
-  close.addEventListener("click", () => overlay.remove());
+  close.addEventListener("click", () => {
+    const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+    if (randomAvatar) saveProfileAvatar(randomAvatar.id);
+    overlay.remove();
+  });
   card.append(title, text, grid, close);
   overlay.append(card);
   document.body.append(overlay);
@@ -11583,8 +11595,15 @@ function showWeekendWitchPopup() {
 
 function maybeShowWeekendWitchOffer() {
   if (!isWeekendWitchActive()) return;
+  syncWeekendWitchAvatarState();
+  const current = profileAvatarById(localStorage.getItem(PROFILE_AVATAR_KEY));
+  if (!current || challengeAvatarIsMale(current) || challengeAvatarIsWeekendWitch(current)) return;
   const weekend = weekendWitchId();
-  if (localStorage.getItem(WEEKEND_WITCH_PROMPT_KEY) === weekend) return;
+  if (localStorage.getItem(WEEKEND_WITCH_PROMPT_KEY) === weekend) {
+    const fallback = challengeWeekendWitchAvatar(loadPlayerName());
+    if (fallback) saveProfileAvatar(fallback.id);
+    return;
+  }
   localStorage.setItem(WEEKEND_WITCH_PROMPT_KEY, weekend);
   showWeekendWitchPopup();
 }
@@ -14452,11 +14471,24 @@ function syncWeekendWitchAvatarState() {
   if (active) {
     const state = loadWeekendWitchState();
     if (state.weekend !== weekendWitchId()) saveWeekendWitchState({});
+    if (isWeekendEventAvatarId(current)) return;
+    const avatar = profileAvatarById(current) || PROFILE_AVATARS[0];
+    if (!localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY)) {
+      localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, avatar.id);
+    }
+    if (challengeAvatarIsMale(avatar)) {
+      const hunter = challengeWeekendHunterAvatar();
+      localStorage.setItem(PROFILE_AVATAR_KEY, hunter.id);
+      saveWeekendWitchState({ selected: hunter.id });
+      const player = loadPlayerName();
+      if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), hunter.id);
+      syncProfileAvatarToSupabase(hunter.id).catch(() => false);
+    }
     return;
   }
-  if (!isWeekendWitchAvatarId(current)) return;
+  if (!isWeekendEventAvatarId(current)) return;
   const previous = localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
-  const fallback = previous && !isWeekendWitchAvatarId(previous) && profileAvatarById(previous)
+  const fallback = previous && !isWeekendEventAvatarId(previous) && profileAvatarById(previous)
     ? previous
     : PROFILE_AVATARS[0].id;
   localStorage.setItem(PROFILE_AVATAR_KEY, fallback);
@@ -14469,7 +14501,7 @@ function loadProfileAvatarId() {
   syncWeekendWitchAvatarState();
   const id = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
   const avatar = profileAvatarById(id);
-  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id))
+  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id) || (isWeekendWitchActive() && isWeekendEventAvatarId(avatar.id)))
     ? avatar.id
     : PROFILE_AVATARS[0].id;
 }
@@ -14495,7 +14527,7 @@ function currentProfileAvatar() {
 
 function normalizeProfileAvatarId(id) {
   const avatar = profileAvatarById(id);
-  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id))
+  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id) || (isWeekendWitchActive() && isWeekendEventAvatarId(avatar.id)))
     ? avatar.id
     : PROFILE_AVATARS[0].id;
 }
@@ -14581,14 +14613,15 @@ function renderAvatarText(target, fallbackName = "") {
 
 function saveProfileAvatar(id) {
   const avatar = profileAvatarById(id);
-  if (avatar && !isProfileAvatarUnlocked(avatar) && !isProfileAvatarApproved(avatar.id)) {
+  const weekendAvatar = avatar && isWeekendWitchActive() && isWeekendEventAvatarId(avatar.id);
+  if (avatar && !isProfileAvatarUnlocked(avatar) && !isProfileAvatarApproved(avatar.id) && !weekendAvatar) {
     setProfileMessage(profileAvatarUnlockInfo(avatar)?.requirement || "Овај аватар је још закључан.");
     return;
   }
   const cleanId = normalizeProfileAvatarId(id);
-  if (isWeekendWitchAvatarId(cleanId) && isWeekendWitchActive()) {
+  if (isWeekendEventAvatarId(cleanId) && isWeekendWitchActive()) {
     const current = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
-    if (!isWeekendWitchAvatarId(current)) {
+    if (!isWeekendEventAvatarId(current)) {
       localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, current);
     }
     saveWeekendWitchState({ selected: cleanId });
