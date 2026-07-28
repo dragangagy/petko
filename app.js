@@ -11015,7 +11015,20 @@ function isPetkoFriday() {
   return override === null ? new Date().getDay() === 5 : override;
 }
 
+function weekendWitchOverride() {
+  const value = new URLSearchParams(window.location.search).get("witch");
+  if (value === "1" || value === "true" || value === "preview") return true;
+  if (value === "0" || value === "false") return false;
+  return null;
+}
+
 function isWeekendWitchActive(date = new Date()) {
+  const override = weekendWitchOverride();
+  if (override !== null) return override;
+  const localPreview = window.location.protocol === "file:" ||
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+  if (localPreview) return true;
   const day = date.getDay();
   return day === 0 || day === 6;
 }
