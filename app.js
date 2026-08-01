@@ -12025,6 +12025,12 @@ function challengeIsWitchHuntRow(row) {
   return Boolean(weekendWitchWindowContaining(row?.created_at || row?.day));
 }
 
+function challengeIsCurrentWitchHuntRow(row) {
+  const window = weekendWitchWindowContaining(new Date());
+  const createdAt = Date.parse(row?.created_at || row?.day || "");
+  return Boolean(window && Number.isFinite(createdAt) && createdAt >= window.start && createdAt < window.end);
+}
+
 function challengePausedForWitchHunt(row, now = new Date()) {
   return isWeekendWitchActive(now) && !challengeIsWitchHuntRow(row);
 }
@@ -12074,7 +12080,7 @@ function challengePendingUntil(row) {
 function challengePendingExpired(row) {
   if (row?.status !== "pending" || row?.opponent_device || row?.accepted_at) return false;
   // Žute Witch Hunt kartice traju do kraja lova, bez roka u satima.
-  if (isWeekendWitchActive() && challengeIsWitchHuntRow(row)) return false;
+  if (isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(row)) return false;
   if (challengePausedForWitchHunt(row)) return false;
   const until = challengePendingUntil(row);
   return Boolean(until && Date.now() >= until);
@@ -12269,7 +12275,7 @@ function challengeCardVisible(row) {
     return Date.now() < challengePlayedSortTime(row) + CHALLENGE_ACTIVE_MS;
   }
   // Vikend pozivi se gase čim se lov završi.
-  if (challengeIsWitchHuntRow(row) && !isWeekendWitchActive()) return false;
+  if (challengeIsWitchHuntRow(row) && (!isWeekendWitchActive() || !challengeIsCurrentWitchHuntRow(row))) return false;
   // Stari pozivi su sacuvani, ali se za vreme Witch Hunta ne prikazuju niti im istice vreme.
   if (challengePausedForWitchHunt(row)) return false;
   if (row?.status === "cancelled") return false;
@@ -12440,7 +12446,7 @@ function challengeCountsForDailyLimit(row) {
 function challengeSentEntryActive(entry) {
   const created = Date.parse(entry?.created_at || entry?.sentAt || "");
   if (!Number.isFinite(created)) return false;
-  if (isWeekendWitchActive() && challengeIsWitchHuntRow(entry)) return entry?.status !== "cancelled";
+  if (isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(entry)) return entry?.status !== "cancelled";
   const pendingUntil = created + CHALLENGE_PENDING_MS;
   const activeUntil = created + CHALLENGE_ACTIVE_MS;
   const status = entry?.status || "pending";
@@ -12497,7 +12503,7 @@ function sentChallengeRowsFromHistory(rows = []) {
   return rows.filter((row) =>
     row.creator_device === profileDeviceId() &&
     (isWeekendWitchActive()
-      ? challengeIsWitchHuntRow(row)
+      ? challengeIsCurrentWitchHuntRow(row)
       : String(row.day || "").slice(0, 10) === todayId()) &&
     challengeCountsForDailyLimit(row)
   );
@@ -12513,7 +12519,7 @@ function updateChallengeQuota(rows = null) {
 async function fetchSentChallengesToday() {
   const weekendWindow = isWeekendWitchActive() ? weekendWitchWindowContaining(new Date()) : null;
   const local = loadSentChallengeRowsToday()
-    .filter((row) => !weekendWindow || challengeIsWitchHuntRow(row))
+    .filter((row) => !weekendWindow || challengeIsCurrentWitchHuntRow(row))
     .filter(challengeCountsForDailyLimit);
   if (!supabaseConfigured()) return local;
   const periodFilter = weekendWindow
@@ -13138,6 +13144,38 @@ async function cancelPendingChallenge(row) {
   }
   renderChallengePanel("Изазов је отказан.");
   await refreshChallengeLobby().catch(() => {});
+}
+
+function confirmCancelPendingChallenge(row) {
+  return new Promise((resolve) => {
+    showWordModal({
+      modalVariant: "witch-confirm",
+      title: "Otkaži izazov",
+      word: "žuta karta",
+      text: "Da li želiš da obrišeš ovaj izazov?",
+      reviewText: isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(row)
+        ? "Vraća ti se 1 dozvoljeni izazov. Možeš odmah izazvati drugog igrača."
+        : "Ovaj izazov će biti otkazan.",
+      buttons: [
+        {
+          label: "Ne, zadrži",
+          tone: "danger",
+          onClick: () => {
+            closeWordModal();
+            resolve(false);
+          }
+        },
+        {
+          label: "Da, otkaži",
+          tone: "success",
+          onClick: () => {
+            closeWordModal();
+            resolve(true);
+          }
+        }
+      ]
+    });
+  });
 }
 
 async function finalizeExpiredChallenges(rows = []) {
@@ -13784,7 +13822,10 @@ function challengeCard(row, rows = []) {
     cancel.className = "challenge-cancel-button";
     cancel.setAttribute("aria-label", "\u041e\u0434\u0443\u0441\u0442\u0430\u043d\u0438 \u043e\u0434 \u0438\u0437\u0430\u0437\u043e\u0432\u0430");
     cancel.textContent = "\u00d7";
-    cancel.addEventListener("click", () => cancelPendingChallenge(row).catch(() => renderChallengePanel("\u041e\u0434\u0443\u0441\u0442\u0430\u0458\u0430\u045a\u0435 \u043e\u0434 \u0438\u0437\u0430\u0437\u043e\u0432\u0430 \u043d\u0438\u0458\u0435 \u0443\u0441\u043f\u0435\u043b\u043e.")));
+    cancel.addEventListener("click", async () => {
+      if (!await confirmCancelPendingChallenge(row)) return;
+      cancelPendingChallenge(row).catch(() => renderChallengePanel("\u041e\u0434\u0443\u0441\u0442\u0430\u0458\u0430\u045a\u0435 \u043e\u0434 \u0438\u0437\u0430\u0437\u043e\u0432\u0430 \u043d\u0438\u0458\u0435 \u0443\u0441\u043f\u0435\u043b\u043e."));
+    });
     card.append(cancel);
   }
   const otherPlayer = role === "creator" ? (openInvite ? "нови корисник" : opponent) : creator;
