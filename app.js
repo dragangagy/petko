@@ -14172,6 +14172,9 @@ function exitChallengeToLobby() {
   tryButton.textContent = `0/${CHALLENGE_ATTEMPTS}`;
   updateScoreDisplay();
   renderChallengePanel();
+  // Prikazi vikend poster odmah dok se online kartice ucitavaju. Kada se
+  // kartice vrate, renderChallengeHistoryCards ce ga sam sakriti.
+  syncChallengeIdlePetkoState();
   if (challengeCodeInput && activeChallenge) challengeCodeInput.value = "";
   refreshChallengeLobby().catch(() => {});
 }
