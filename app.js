@@ -5309,6 +5309,7 @@ const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const PROFILE_UNLOCK_SEEN_KEY = "petko-profile-unlock-seen-v1";
 const CHALLENGE_FAVORITES_KEY = "petko-challenge-favorites-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
+const PROFILE_DEVICE_ID_KEY = "petko-profile-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
 const FRIDAY_BONUS_KEY = "petko-friday-bonus-v1";
 const NORMAL_CHALLENGE_BONUS_KEY = "petko-normal-challenge-bonus-v1";
@@ -11116,7 +11117,7 @@ const PETKO_MOODS = {
   oops: ["8.png", "18.png", "23.png", "petko-mood-oops.png"],
   sad: ["9.png", "24.png", "petko-mood-sad.png"],
   cool: ["10.png", "25.png", "petko-mood-cool.png"],
-  great: ["11.png", "16.png", "26.png", "petko-mood-great.png"],
+  great: ["11.png", "16.png", "petko-mood-great.png"],
   trophy: ["12.png", "extrime2.png", "extrime3.png", "petko-mood-trophy.png"],
   extreme: ["extrime1.png", "extrime2.png", "extrime3.png"]
 };
@@ -12061,8 +12062,8 @@ function challengePendingCountdownText(row) {
 
 function challengeRole(row) {
   const me = loadPlayerName();
-  if (row?.creator_device && row.creator_device === deviceId()) return "creator";
-  if (row?.opponent_device && row.opponent_device === deviceId()) return "opponent";
+  if (row?.creator_device && row.creator_device === profileDeviceId()) return "creator";
+  if (row?.opponent_device && row.opponent_device === profileDeviceId()) return "opponent";
   if (sameChallengeName(row?.opponent, me)) return "opponent";
   if (sameChallengeName(row?.creator, me)) return "creator";
   return "";
@@ -12166,7 +12167,7 @@ function sameChallengePlayerPair(creator, opponent) {
 
 function ownPendingChallenge(row) {
   if (!row || row.status !== "pending") return false;
-  return row.creator_device === deviceId() || sameChallengeName(row.creator, loadPlayerName());
+  return row.creator_device === profileDeviceId() || sameChallengeName(row.creator, loadPlayerName());
 }
 
 function selfChallengeRow(row) {
@@ -12270,7 +12271,7 @@ function loadSentChallengeRowsToday() {
           code: entry.code || "",
           day: entry.day || todayId(),
           creator: entry.creator || loadPlayerName() || "Играч",
-          creator_device: entry.creator_device || deviceId(),
+          creator_device: entry.creator_device || profileDeviceId(),
           opponent: entry.opponent || "",
           opponent_device: entry.opponent_device || "",
           accepted_at: entry.accepted_at || "",
@@ -12284,7 +12285,7 @@ function loadSentChallengeRowsToday() {
       return data.opponents.map((opponent) => ({
         day: todayId(),
         creator: loadPlayerName() || "Играч",
-        creator_device: deviceId(),
+        creator_device: profileDeviceId(),
         opponent,
         status: "pending",
         created_at: new Date().toISOString(),
@@ -12296,7 +12297,7 @@ function loadSentChallengeRowsToday() {
       return [{
         day: todayId(),
         creator: loadPlayerName() || "Играч",
-        creator_device: deviceId(),
+        creator_device: profileDeviceId(),
         opponent: "legacy",
         status: "pending",
         created_at: new Date().toISOString(),
@@ -12326,7 +12327,7 @@ function markChallengeSentToday(opponent, row = null) {
     code: row?.code || "",
     day: row?.day || todayId(),
     creator: row?.creator || loadPlayerName() || "Играч",
-    creator_device: row?.creator_device || deviceId(),
+    creator_device: row?.creator_device || profileDeviceId(),
     opponent: opponent || "",
     opponent_device: row?.opponent_device || "",
     accepted_at: row?.accepted_at || "",
@@ -12425,7 +12426,7 @@ function updateCompetitiveNextButton() {
 
 function sentChallengeRowsFromHistory(rows = []) {
   return rows.filter((row) =>
-    row.creator_device === deviceId() &&
+    row.creator_device === profileDeviceId() &&
     String(row.day || "").slice(0, 10) === todayId() &&
     challengeCountsForDailyLimit(row)
   );
@@ -12443,7 +12444,7 @@ async function fetchSentChallengesToday() {
   if (!supabaseConfigured()) return local;
   const query = [
     "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at",
-    `creator_device=eq.${encodeURIComponent(deviceId())}`,
+    `creator_device=eq.${encodeURIComponent(profileDeviceId())}`,
     `day=eq.${encodeURIComponent(todayId())}`,
     "limit=1000"
   ].join("&");
@@ -12779,7 +12780,7 @@ function challengeNotificationRows(rows = []) {
     if (playedChallenge(row)) return false;
     if (selfChallengeRow(row)) return false;
     if (!challengeCardVisible(row)) return false;
-    const mineByDevice = row.creator_device === deviceId() || row.opponent_device === deviceId();
+    const mineByDevice = row.creator_device === profileDeviceId() || row.opponent_device === profileDeviceId();
     const mineByName = me && (sameChallengeName(row.opponent, me) || sameChallengeName(row.creator, me));
     return mineByDevice || mineByName;
   });
@@ -12845,6 +12846,44 @@ async function petkoNotify(id, title, body, tag = id) {
     }
     new Notification(title, options);
   } catch {}
+}
+
+async function registerNativePushDevice(token) {
+  if (!token || !supabaseConfigured()) return false;
+  const capacitor = window.Capacitor;
+  const platform = capacitor?.getPlatform?.() || "web";
+  const response = await fetch(supabaseUrl("push_devices?on_conflict=token"), {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    body: JSON.stringify({
+      token,
+      platform,
+      nickname: loadPlayerName() || null,
+      device_id: deviceId(),
+      updated_at: new Date().toISOString()
+    })
+  });
+  return response.ok;
+}
+
+async function setupNativePushNotifications() {
+  const capacitor = window.Capacitor;
+  const push = capacitor?.Plugins?.PushNotifications;
+  if (!capacitor?.isNativePlatform?.() || !push) return false;
+
+  const current = await push.checkPermissions();
+  const permission = current.receive === "prompt" ? await push.requestPermissions() : current;
+  if (permission.receive !== "granted") return false;
+
+  await push.removeAllListeners();
+  await push.addListener("registration", ({ value }) => registerNativePushDevice(value).catch(() => false));
+  await push.addListener("registrationError", () => {});
+  await push.addListener("pushNotificationActionPerformed", ({ notification }) => {
+    const url = notification?.data?.url;
+    if (typeof url === "string" && url) window.location.assign(url);
+  });
+  await push.register();
+  return true;
 }
 
 function notifyDailyEvents() {
@@ -13743,8 +13782,8 @@ function renderChallengeHistoryCards(rows = []) {
     // Rezultat je javna istorija i ostaje prikazan i kada su imena ili uredjaji naknadno spojeni.
     if (playedChallenge(row)) return true;
     if (selfChallengeRow(row)) return false;
-    return row.creator_device === deviceId() ||
-      row.opponent_device === deviceId() ||
+    return row.creator_device === profileDeviceId() ||
+      row.opponent_device === profileDeviceId() ||
       (typedCode && String(row.code || "").toUpperCase() === typedCode) ||
       sameChallengeName(row.opponent, me) ||
       sameChallengeName(row.creator, me);
@@ -14035,7 +14074,7 @@ async function createChallenge(selectedOpponent = null) {
         code,
         day: todayId(),
         creator: nickname,
-        creator_device: deviceId(),
+        creator_device: profileDeviceId(),
         opponent: shareAfterCreate ? "Чека се" : opponent,
         status: "pending",
         words
@@ -14057,7 +14096,7 @@ async function createChallenge(selectedOpponent = null) {
     day: todayId(),
     status: "pending",
     creator: nickname,
-    creator_device: deviceId(),
+    creator_device: profileDeviceId(),
     opponent: shareAfterCreate ? "" : opponent,
     words,
     created_at: createdAt
@@ -14241,7 +14280,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
     renderChallengePanel("Изазов није пронађен.");
     return;
   }
-  if (row.creator_device === deviceId()) {
+  if (row.creator_device === profileDeviceId()) {
     if (row.status !== "accepted" && row.status !== "played") {
       renderChallengePanel("Изазов је послат. Чека се прихватање противника.");
       return;
@@ -14278,7 +14317,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
     await updateChallenge(code, {
       status: "accepted",
       opponent: isOpenChallengeOpponent(row.opponent) ? acceptedName : row.opponent,
-      opponent_device: deviceId(),
+      opponent_device: profileDeviceId(),
       accepted_at: new Date().toISOString()
     });
   }
@@ -14674,8 +14713,8 @@ async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
   const cleanId = normalizeProfileAvatarId(id);
   const name = normalizePlayerName(loadPlayerName() || "");
   const jobs = [];
-  if (deviceId()) {
-    jobs.push(patchSupabaseRows(`${playersTable()}?device_id=eq.${encodeURIComponent(deviceId())}`, { avatar_id: cleanId }));
+  if (profileDeviceId()) {
+    jobs.push(patchSupabaseRows(`${playersTable()}?device_id=eq.${encodeURIComponent(profileDeviceId())}`, { avatar_id: cleanId }));
   }
   if (name) {
     jobs.push(patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, { avatar_id: cleanId }));
@@ -15019,6 +15058,10 @@ function deviceId() {
   id = crypto.randomUUID ? crypto.randomUUID() : `d-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   localStorage.setItem(DEVICE_ID_KEY, id);
   return id;
+}
+
+function profileDeviceId() {
+  return localStorage.getItem(PROFILE_DEVICE_ID_KEY) || deviceId();
 }
 
 function profileConnectionCode() {
@@ -17219,6 +17262,7 @@ if ("serviceWorker" in navigator) {
 
 document.addEventListener("pointerdown", () => {
   requestNotificationPermission().then(() => notifyDailyEvents());
+  setupNativePushNotifications().catch(() => false);
 }, { once: true });
 
 setTimeout(notifyDailyEvents, 1200);
@@ -17312,9 +17356,13 @@ function restoredResultFromOnline(row) {
 }
 
 function restoreLocalResultsFromOnline(rows, nickname = loadPlayerName()) {
-  if (!nickname || !Array.isArray(rows) || loadResults().length) return false;
+  if (!nickname || !Array.isArray(rows)) return false;
   const year = currentYearId();
   const byDate = new Map();
+  const localResults = loadResults();
+  localResults
+    .filter((result) => result?.date && result.date.startsWith(year))
+    .forEach((result) => byDate.set(result.date, result));
   rows
     .filter((row) => sameChallengeName(row.nickname, nickname))
     .map(restoredResultFromOnline)
@@ -17323,9 +17371,16 @@ function restoreLocalResultsFromOnline(rows, nickname = loadPlayerName()) {
       const old = byDate.get(result.date);
       if (!old || Number(result.finalScore) > Number(old.finalScore)) byDate.set(result.date, result);
     });
-  const restored = [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
-  if (!restored.length) return false;
-  saveResults(restored);
+  const mergedCurrentYear = [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
+  const merged = [
+    ...localResults.filter((result) => !result?.date || !result.date.startsWith(year)),
+    ...mergedCurrentYear
+  ].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  if (!merged.length) return false;
+  const before = JSON.stringify(localResults);
+  const after = JSON.stringify(merged);
+  if (before === after) return false;
+  saveResults(merged);
   updateScoreDisplay();
   renderListing();
   return true;
@@ -17366,7 +17421,7 @@ async function fetchCurrentPlayerProfile() {
   const queries = [
     [
       "select=nickname,device_id,avatar_id",
-      `device_id=eq.${encodeURIComponent(deviceId())}`,
+      `device_id=eq.${encodeURIComponent(profileDeviceId())}`,
       "limit=1"
     ].join("&")
   ];
@@ -17398,7 +17453,7 @@ async function connectProfileByCode() {
     setProfileMessage("Унеси код за повезивање.");
     return;
   }
-  if (targetDeviceId === deviceId().toLowerCase()) {
+  if (targetDeviceId === profileDeviceId().toLowerCase()) {
     setProfileMessage("Ово је већ код овог профила.");
     return;
   }
@@ -17408,13 +17463,17 @@ async function connectProfileByCode() {
     setProfileMessage("Код није пронађен. Провери да ли је добро копиран.");
     return;
   }
-  localStorage.setItem(DEVICE_ID_KEY, targetDeviceId);
+  // Keep this device's identifier for local counters and notifications, but
+  // retain the linked profile identity for avatars and challenges.
+  localStorage.setItem(PROFILE_DEVICE_ID_KEY, targetDeviceId);
   if (profileAvatarById(row.avatar_id)) {
     applySupabaseProfileAvatar(row, nickname);
   }
   savePlayerName(nickname);
   updateChallengePlayerName();
-  const onlineRows = await fetchOnlineLeaderboard().catch(() => []);
+  // Read this profile's full result history directly. The public leaderboard
+  // is capped and can omit an older result when many players are active.
+  const onlineRows = await fetchOnlinePlayerStats(nickname).catch(() => []);
   const restored = restoreLocalResultsFromOnline(onlineRows, nickname);
   renderProfileModal();
   setProfileEditMode(false);
@@ -17434,7 +17493,7 @@ function refreshOnlineLeaderboard() {
   ])
     .then(([rows, stats]) => {
       if (Array.isArray(rows)) {
-        restoreLocalResultsFromOnline(rows, nickname);
+        restoreLocalResultsFromOnline(stats, nickname);
         renderOnlineLeaderboard(rows);
       }
       if (nickname) renderPlayerStats(stats);

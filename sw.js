@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache-v247";
+const CACHE_NAME = "petko-cache-v251";
 
 const ASSETS = [
   "./",
@@ -9,8 +9,8 @@ const ASSETS = [
 
   "./logo-cut.png",
   "./logo-icon.png",
-  "./app-icon.png",
-  "./app-icon-maskable.png",
+  "./app-icon-store.png",
+  "./app-icon-maskable-v2.png",
   "./petko-logo.png",
   "./witch-weekend-poster.png",
   "./petak-za-petka-logo.png",
@@ -53,7 +53,6 @@ const ASSETS = [
   "./23.png",
   "./24.png",
   "./25.png",
-  "./26.png",
   "./extrime1.png",
   "./extrime2.png",
   "./extrime3.png",
@@ -121,6 +120,8 @@ const ASSETS = [
   "./avatar/challenge-tie-witch.png",
   "./avatar/M50.png",
   "./avatar/M50-a.png",
+  "./avatar/M103.png",
+  "./avatar/M103-a.png",
   "./avatar/Z1.png",
   "./avatar/Z2.png",
   "./avatar/Z3.png",
