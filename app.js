@@ -13632,11 +13632,13 @@ function renderWeekendWitchScoreboard(rows = []) {
 
 function syncChallengeIdlePetkoState() {
   if (!challengeHistoryEl) return;
-  const hasCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"))
-    .some((section) => section.children.length);
-  document.body.dataset.challengeCards = hasCards ? "true" : "false";
+  // Zatvorene sekcije ne pokrivaju Witch Hunt poster i konačni rezultat.
+  // Tek kada igrač stvarno otvori karticu, poster se privremeno skloni.
+  const hasOpenCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"))
+    .some((section) => section.children.length && !section.hidden);
+  document.body.dataset.challengeCards = hasOpenCards ? "true" : "false";
   document.body.dataset.challengeWeekendPoster =
-    isWeekendWitchActive() && !hasCards ? "true" : "false";
+    isWeekendWitchActive() && !hasOpenCards ? "true" : "false";
 }
 
 function releaseChallengeResultFlip() {
