@@ -14638,6 +14638,8 @@ function adminProfileAvatarFromCode(code = "") {
 
 function isProfileAvatarUnlocked(avatar = {}, stats = avatarAchievementStats || emptyAvatarAchievementStats()) {
   if (avatar.adminOnly) return false;
+  // Lovac i Veštice su isključivo sezonski avatari — zaključani su van Witch Hunta.
+  if (isWeekendEventAvatarId(avatar.id)) return isWeekendWitchActive();
   const info = profileAvatarUnlockInfo(avatar);
   return !info || info.unlocked(stats);
 }
@@ -14658,7 +14660,7 @@ function saveApprovedProfileAvatarId(id = "") {
 }
 
 function isProfileAvatarApproved(id = "") {
-  return Boolean(id && localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY) === id);
+  return Boolean(id && !isWeekendEventAvatarId(id) && localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY) === id);
 }
 
 function loadWeekendWitchState() {
@@ -14710,10 +14712,14 @@ function syncWeekendWitchAvatarState() {
   let hash = 0;
   [...seed].forEach((letter) => { hash = ((hash * 31) + letter.charCodeAt(0)) >>> 0; });
   const fallback = previous && !isWeekendEventAvatarId(previous) && profileAvatarById(previous)
+    && isProfileAvatarUnlocked(profileAvatarById(previous))
     ? previous
     : (candidates[hash % candidates.length] || PROFILE_AVATARS[0]).id;
   localStorage.setItem(PROFILE_AVATAR_KEY, fallback);
   localStorage.removeItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
+  if (isWeekendEventAvatarId(localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY))) {
+    saveApprovedProfileAvatarId("");
+  }
   saveWeekendWitchState({});
   syncProfileAvatarToSupabase(fallback).catch(() => false);
 }
@@ -14774,8 +14780,8 @@ function applySupabaseProfileAvatar(row = {}, nickname = loadPlayerName()) {
   const avatar = profileAvatarById(row.avatar_id);
   const cleanName = normalizePlayerName(nickname || row.nickname || "");
   if (!avatar) return false;
-  if (isWeekendWitchAvatarId(avatar.id) && !isWeekendWitchActive()) return false;
-  saveApprovedProfileAvatarId(avatar.id);
+  if (isWeekendEventAvatarId(avatar.id) && !isWeekendWitchActive()) return false;
+  if (!isWeekendEventAvatarId(avatar.id)) saveApprovedProfileAvatarId(avatar.id);
   localStorage.setItem(PROFILE_AVATAR_KEY, normalizeProfileAvatarId(avatar.id));
   if (cleanName) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(cleanName), avatar.id);
   updateStatusProfile();
@@ -14937,12 +14943,13 @@ function renderProfileAvatarGrid(group = "male") {
   SELECTABLE_PROFILE_AVATARS.filter((avatar) => avatar.group === group).forEach((avatar) => {
     const locked = !isProfileAvatarUnlocked(avatar, stats);
     const info = profileAvatarUnlockInfo(avatar);
+    const seasonalLock = isWeekendEventAvatarId(avatar.id) && !isWeekendWitchActive();
     const button = document.createElement("button");
     button.type = "button";
     button.className = "profile-avatar-option";
     button.classList.toggle("active", avatar.id === loadProfileAvatarId());
     button.classList.toggle("locked", locked);
-    button.title = locked ? info?.requirement || "Закључано" : avatar.label;
+    button.title = locked ? (seasonalLock ? "Доступно само током Witch Hunta" : info?.requirement || "Закључано") : avatar.label;
     button.disabled = false;
     if (avatar.src) {
       const image = document.createElement("img");
@@ -14965,7 +14972,7 @@ function renderProfileAvatarGrid(group = "male") {
     }
     button.addEventListener("click", () => {
       if (locked) {
-        setProfileMessage(info?.requirement || "Овај аватар је још закључан.");
+        setProfileMessage(seasonalLock ? "Овај аватар је доступан само током Witch Hunta." : info?.requirement || "Овај аватар је још закључан.");
         return;
       }
       saveProfileAvatar(avatar.id);
