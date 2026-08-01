@@ -2520,6 +2520,12 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.22));
 }
 
+.challenge-result-media.tie img {
+  width: 130px;
+  height: 130px;
+  max-height: 130px;
+}
+
 .challenge-result-back-title {
   color: var(--cyan);
   font-size: 12px;
