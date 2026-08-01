@@ -15062,6 +15062,7 @@ function renderProfileModal() {
   if (profileModalName) profileModalName.textContent = name;
   if (profileNameInput) profileNameInput.value = name;
   if (profileLinkCode) profileLinkCode.textContent = profileConnectionCode();
+  if (isWeekendWitchActive() && profileAvatarMenu) profileAvatarMenu.hidden = true;
   const activeGroup = profileAvatarTabs.find((tab) => tab.classList.contains("active"))?.dataset.avatarTab || "male";
   renderProfileAvatarGrid(activeGroup);
 }
@@ -17322,6 +17323,11 @@ if (profileModal) {
 if (profileAvatarButton) {
   profileAvatarButton.addEventListener("click", () => {
     if (!profileAvatarMenu) return;
+    if (isWeekendWitchActive()) {
+      profileAvatarMenu.hidden = true;
+      setProfileMessage("Tokom Witch Hunta avatar se dodeljuje automatski: Lovac muškarcima, Veštica ženama. Osnovni avatar ostaje sačuvan.");
+      return;
+    }
     profileAvatarMenu.hidden = !profileAvatarMenu.hidden;
     renderProfileAvatarGrid(profileAvatarTabs.find((tab) => tab.classList.contains("active"))?.dataset.avatarTab || "male");
   });
