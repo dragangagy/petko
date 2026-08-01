@@ -13615,13 +13615,39 @@ function renderWeekendWitchScoreboard(rows = []) {
 
   weekendWitchScoreboardEl.hidden = false;
   weekendWitchScoreboardEl.innerHTML = "";
-  const title = document.createElement("div");
-  title.className = "weekend-witch-scoreboard-title";
-  title.textContent = "Rezultat Witch Hunta – Rezultat lova na veštice";
-  const score = document.createElement("div");
-  score.className = "weekend-witch-scoreboard-score";
-  score.textContent = `Lovci ${hunters} : ${witches} Veštice`;
-  weekendWitchScoreboardEl.append(title, score);
+  const createTally = (count, faction, label) => {
+    const side = document.createElement("div");
+    side.className = `weekend-witch-faction ${faction}`;
+    const name = document.createElement("div");
+    name.className = "weekend-witch-faction-name";
+    name.textContent = label;
+    const tally = document.createElement("div");
+    tally.className = "weekend-witch-tally";
+    tally.setAttribute("aria-label", `${label}: ${count}`);
+    if (!count) {
+      tally.textContent = "—";
+    } else {
+      const completeGroups = Math.floor(count / 5);
+      const remainder = count % 5;
+      const addGroup = (marks, crossed = false) => {
+        const group = document.createElement("span");
+        group.className = "weekend-witch-tally-group";
+        for (let index = 0; index < marks; index += 1) {
+          group.append(document.createElement("i"));
+        }
+        if (crossed) group.append(document.createElement("b"));
+        tally.append(group);
+      };
+      for (let index = 0; index < completeGroups; index += 1) addGroup(4, true);
+      if (remainder) addGroup(remainder);
+    }
+    side.append(name, tally);
+    return side;
+  };
+  weekendWitchScoreboardEl.append(
+    createTally(hunters, "hunters", "Lovci"),
+    createTally(witches, "witches", "Veštice")
+  );
   if (draws) {
     const drawsText = document.createElement("div");
     drawsText.className = "weekend-witch-scoreboard-draws";
