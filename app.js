@@ -14832,6 +14832,9 @@ function applySupabaseProfileAvatar(row = {}, nickname = loadPlayerName()) {
   if (!isWeekendEventAvatarId(avatar.id)) saveApprovedProfileAvatarId(avatar.id);
   localStorage.setItem(PROFILE_AVATAR_KEY, normalizeProfileAvatarId(avatar.id));
   if (cleanName) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(cleanName), avatar.id);
+  // Kada Supabase vrati stalni avatar usred Witch Hunta, odmah ponovo prikaži
+  // odgovarajućeg Lovca ili Vešticu i sačuvaj ga samo u vikend poljima.
+  if (isWeekendWitchActive()) syncWeekendWitchAvatarState();
   updateStatusProfile();
   return true;
 }
