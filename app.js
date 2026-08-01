@@ -14872,6 +14872,9 @@ function renderAvatarForName(target, name = "", options = {}) {
       ? currentProfileAvatar()
       : cachedProfileAvatar(name) || deterministicProfileAvatar(name);
   }
+  // Tokom Witch Hunta svaki profil u listama i rezultatima dobija sezonu:
+  // muškarci su Lovci, a žene Veštice.
+  if (isWeekendWitchActive()) avatar = challengeDisplayAvatar(avatar, name);
   target.innerHTML = "";
   target.classList.toggle("has-image", Boolean(avatar?.src));
   if (avatar?.src) {
