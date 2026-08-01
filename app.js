@@ -13379,10 +13379,11 @@ function challengeProfileAvatar(name = "") {
 function confirmWitchSisterChallenge(opponent = "") {
   return new Promise((resolve) => {
     showWordModal({
+      modalVariant: "witch-confirm",
       title: "Викенд вештичарења",
       word: "сестра вештица",
-      text: `Изазиваш сестру вештицу ${opponent}.`,
-      reviewText: "Да ли желиш да пошаљеш изазов?",
+      text: `Изазиваш сестру вештицу ${opponent}. Овај изазов је дозвољен.`,
+      reviewText: "Потврди да желиш да пошаљеш изазов.",
       buttons: [
         {
           label: "Да",
@@ -13401,6 +13402,26 @@ function confirmWitchSisterChallenge(opponent = "") {
           }
         }
       ]
+    });
+  });
+}
+
+function showHunterChallengeBlocked(opponent = "") {
+  return new Promise((resolve) => {
+    showWordModal({
+      modalVariant: "hunter-blocked",
+      title: "Кодекс Ловаца",
+      word: "ловци не нападају ловце",
+      text: `Не можеш послати изазов играчу ${opponent} јер сте обојица Ловци.`,
+      reviewText: "Током Witch Hunta Ловац може изазвати само Вештицу.",
+      buttons: [{
+        label: "Разумем",
+        tone: "success",
+        onClick: () => {
+          closeWordModal();
+          resolve();
+        }
+      }]
     });
   });
 }
@@ -13564,7 +13585,7 @@ function renderWeekendWitchScoreboard(rows = []) {
       return playedChallenge(row) && Number.isFinite(sentAt) && sentAt >= currentWitchWindow.start && sentAt < currentWitchWindow.end;
     })
     : [];
-  if (!isWeekendWitchActive() || !playedRows.length) {
+  if (!isWeekendWitchActive() || !currentWitchWindow) {
     weekendWitchScoreboardEl.hidden = true;
     weekendWitchScoreboardEl.innerHTML = "";
     return;
@@ -13596,7 +13617,7 @@ function renderWeekendWitchScoreboard(rows = []) {
   weekendWitchScoreboardEl.innerHTML = "";
   const title = document.createElement("div");
   title.className = "weekend-witch-scoreboard-title";
-  title.textContent = "Rezultat svih odigranih izazova";
+  title.textContent = "Rezultat Witch Hunta";
   const score = document.createElement("div");
   score.className = "weekend-witch-scoreboard-score";
   score.textContent = `Lovci ${hunters} : ${witches} Veštice`;
@@ -14157,7 +14178,8 @@ async function createChallenge(selectedOpponent = null) {
     const opponentIsHunter = challengeAvatarIsMale(opponentAvatar);
 
     if (creatorIsHunter && opponentIsHunter) {
-      renderChallengePanel("Поштуј кодекс ловца. Сада је сезона лова на вештице.");
+      await showHunterChallengeBlocked(opponent);
+      renderChallengePanel("Ловац не може изазвати Ловца tokom Witch Hunta.");
       return false;
     }
     if (!creatorIsHunter && !opponentIsHunter) {
@@ -15830,6 +15852,7 @@ function renderSolutionsPanel(show) {
 
 function closeWordModal() {
   if (wordModal) wordModal.hidden = true;
+  if (wordModal) delete wordModal.dataset.variant;
   document.body.dataset.wordModalOpen = "false";
 }
 
@@ -15846,8 +15869,10 @@ function setWordModalButtons(buttons) {
   });
 }
 
-function showWordModal({ title, word, text, reviewText = "", buttons }) {
+function showWordModal({ title, word, text, reviewText = "", buttons, modalVariant = "" }) {
   if (!wordModal || !wordModalTitle || !wordModalWord || !wordModalText) return;
+  if (modalVariant) wordModal.dataset.variant = modalVariant;
+  else delete wordModal.dataset.variant;
   wordModalTitle.textContent = title;
   wordModalWord.textContent = displayWord(word);
   wordModalText.textContent = text;
