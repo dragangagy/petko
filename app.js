@@ -14769,7 +14769,7 @@ function syncWeekendWitchAvatarState() {
     saveApprovedProfileAvatarId("");
   }
   saveWeekendWitchState({});
-  syncProfileAvatarToSupabase(fallback).catch(() => false);
+  // Osnovni avatar u Supabase-u nije menjan tokom vikenda, zato ga ovde ne prepisujemo.
 }
 
 function loadProfileAvatarId() {
@@ -15237,8 +15237,7 @@ async function syncCurrentPlayerDevice() {
   if (registered === false) {
     const encodedName = encodeURIComponent(name);
     return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, {
-      device_id: deviceId(),
-      ...playerAvatarRegistrationPayload()
+      device_id: deviceId()
     });
   }
   return false;
