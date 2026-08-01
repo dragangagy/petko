@@ -14733,9 +14733,16 @@ function playerAvatarCacheKey(name) {
   return normalizePlayerName(name).toLowerCase();
 }
 
+function weekendAvatarFromPlayerRow(row = {}) {
+  const weekendAvatar = profileAvatarById(row.weekend_avatar_id);
+  return isWeekendWitchActive() && row.weekend_avatar_weekend === weekendWitchId() && weekendAvatar
+    ? weekendAvatar
+    : profileAvatarById(row.avatar_id);
+}
+
 function cachePlayerAvatar(row = {}) {
   const key = playerAvatarCacheKey(row.nickname);
-  const avatar = profileAvatarById(row.avatar_id);
+  const avatar = weekendAvatarFromPlayerRow(row);
   if (key && avatar) PLAYER_AVATAR_CACHE.set(key, avatar.id);
 }
 
@@ -14841,12 +14848,16 @@ async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
   if (!supabaseConfigured()) return false;
   const cleanId = normalizeProfileAvatarId(id);
   const name = normalizePlayerName(loadPlayerName() || "");
+  const weekendAvatar = isWeekendWitchActive() && isWeekendEventAvatarId(cleanId);
+  const patch = weekendAvatar
+    ? { weekend_avatar_id: cleanId, weekend_avatar_weekend: weekendWitchId() }
+    : { avatar_id: cleanId };
   const jobs = [];
   if (profileDeviceId()) {
-    jobs.push(patchSupabaseRows(`${playersTable()}?device_id=eq.${encodeURIComponent(profileDeviceId())}`, { avatar_id: cleanId }));
+    jobs.push(patchSupabaseRows(`${playersTable()}?device_id=eq.${encodeURIComponent(profileDeviceId())}`, patch));
   }
   if (name) {
-    jobs.push(patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, { avatar_id: cleanId }));
+    jobs.push(patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, patch));
   }
   if (!jobs.length) return false;
   await Promise.allSettled(jobs);
@@ -15087,7 +15098,7 @@ async function editChallengePlayerName() {
 async function fetchPlayerRows() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=nickname,created_at,device_id,avatar_id",
+    "select=nickname,created_at,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend",
     "order=nickname.asc",
     "limit=1000"
   ].join("&");
