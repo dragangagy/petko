@@ -13557,7 +13557,13 @@ function setChallengeSectionOpen(key, open) {
 
 function renderWeekendWitchScoreboard(rows = []) {
   if (!weekendWitchScoreboardEl) return;
-  const playedRows = Array.isArray(rows) ? rows.filter(playedChallenge) : [];
+  const currentWitchWindow = weekendWitchWindowContaining(new Date());
+  const playedRows = Array.isArray(rows) && currentWitchWindow
+    ? rows.filter((row) => {
+      const sentAt = Date.parse(row?.created_at || row?.day || "");
+      return playedChallenge(row) && Number.isFinite(sentAt) && sentAt >= currentWitchWindow.start && sentAt < currentWitchWindow.end;
+    })
+    : [];
   if (!isWeekendWitchActive() || !playedRows.length) {
     weekendWitchScoreboardEl.hidden = true;
     weekendWitchScoreboardEl.innerHTML = "";
