@@ -14933,6 +14933,9 @@ async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
   const cleanId = normalizeProfileAvatarId(id);
   const name = normalizePlayerName(loadPlayerName() || "");
   const weekendAvatar = isWeekendWitchActive() && isWeekendEventAvatarId(cleanId);
+  // Za vreme Witch Hunta stalni avatar je zaključan za upis.
+  // Samo sezonski Lovac/Veštica sme da se šalje u weekend_avatar_id.
+  if (isWeekendWitchActive() && !weekendAvatar) return true;
   const patch = weekendAvatar
     ? { weekend_avatar_id: cleanId, weekend_avatar_weekend: weekendWitchId() }
     : { avatar_id: cleanId };
