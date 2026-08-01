@@ -5294,6 +5294,7 @@ const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
 const CHALLENGE_CANCELLED_KEY = "petko-challenge-cancelled-v1";
+const CHALLENGE_MANUAL_CREDIT_KEY = "petko-challenge-manual-credit-v1";
 const CHALLENGE_PLAYED_KEY = "petko-challenge-played-v1";
 const CHALLENGE_RESULT_PENDING_KEY = "petko-challenge-result-pending-v1";
 const RESULT_STORAGE_KEY = "petko-competitive-results-v2";
@@ -12002,6 +12003,30 @@ function challengeIsActive(row) {
   return activeStatus && !playedChallenge(row) && !challengePausedForWitchHunt(row) && Date.now() < challengeActiveUntil(row);
 }
 
+function loadManualChallengeCredit() {
+  try {
+    return Math.max(0, Number(localStorage.getItem(CHALLENGE_MANUAL_CREDIT_KEY)) || 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function refreshManualChallengeCredit() {
+  if (!supabaseConfigured() || !profileDeviceId()) return loadManualChallengeCredit();
+  const query = [
+    "select=challenge_bonus",
+    `device_id=eq.${encodeURIComponent(profileDeviceId())}`,
+    "limit=1"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), { headers: supabaseHeaders() });
+  if (!response.ok) return loadManualChallengeCredit();
+  const rows = await response.json();
+  const credit = Math.max(0, Number(rows?.[0]?.challenge_bonus) || 0);
+  localStorage.setItem(CHALLENGE_MANUAL_CREDIT_KEY, String(credit));
+  updateChallengeQuota();
+  return credit;
+}
+
 function challengeCardState(row) {
   if (playedChallenge(row)) return "played";
   if (challengeIsActive(row)) return "accepted";
@@ -12473,7 +12498,7 @@ function todayCompetitiveCompletedLevels() {
 
 function challengeDailyLimit() {
   if (isWeekendWitchActive()) {
-    return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + weekendWitchChallengeBonus());
+    return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + weekendWitchChallengeBonus() + loadManualChallengeCredit());
   }
   const completed = todayCompetitiveCompletedLevels();
   const levelBonus = COMPETITIVE_LEVELS
@@ -12481,7 +12506,7 @@ function challengeDailyLimit() {
     .reduce((sum, level) => sum + level, 0);
   const normalBonus = loadNormalChallengeBonus().bonus;
   const weekendBonus = weekendWitchChallengeBonus();
-  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus + weekendBonus);
+  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus + weekendBonus + loadManualChallengeCredit());
 }
 
 function completedCompetitiveLevelIndex() {
@@ -15249,7 +15274,7 @@ async function editChallengePlayerName() {
 async function fetchPlayerRows() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=nickname,created_at,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend",
+    "select=nickname,created_at,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend,challenge_bonus",
     "order=nickname.asc",
     "limit=1000"
   ].join("&");
@@ -17938,6 +17963,7 @@ async function bootPetkoApp() {
   await loadOnlineWords().catch(() => {});
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
+  refreshManualChallengeCredit().catch(() => {});
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {
     startGame("challenge");
