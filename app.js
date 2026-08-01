@@ -13568,6 +13568,14 @@ function renderWeekendWitchScoreboard(rows = []) {
   let witches = 0;
   let draws = 0;
   playedRows.forEach((row) => {
+    const creatorIsHunter = challengeAvatarIsMale(challengeProfileAvatar(row.creator));
+    const opponentIsHunter = challengeAvatarIsMale(challengeProfileAvatar(row.opponent));
+    // Veštica koja napadne drugu Vešticu računa se kao poražena Veštica:
+    // bez obzira na pojedinačni skor, poen ide Lovcima.
+    if (!creatorIsHunter && !opponentIsHunter) {
+      hunters += 1;
+      return;
+    }
     const winner = challengeWinner(row);
     if (winner === "tie") {
       draws += 1;
