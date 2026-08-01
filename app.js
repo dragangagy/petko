@@ -11998,7 +11998,7 @@ function challengeUrl(code) {
 
 function challengeIsActive(row) {
   const activeStatus = row?.status === "accepted" || row?.status === "played";
-  return activeStatus && !playedChallenge(row) && Date.now() < challengeActiveUntil(row);
+  return activeStatus && !playedChallenge(row) && !challengePausedForWitchHunt(row) && Date.now() < challengeActiveUntil(row);
 }
 
 function challengeCardState(row) {
@@ -12007,27 +12007,78 @@ function challengeCardState(row) {
   return "pending";
 }
 
+function weekendWitchWindowContaining(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = date.getDay();
+  if (day !== 0 && day !== 6) return null;
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  if (day === 0) start.setDate(start.getDate() - 1);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 2);
+  return { start: start.getTime(), end: end.getTime() };
+}
+
+function challengeIsWitchHuntRow(row) {
+  return Boolean(weekendWitchWindowContaining(row?.created_at || row?.day));
+}
+
+function challengePausedForWitchHunt(row, now = new Date()) {
+  return isWeekendWitchActive(now) && !challengeIsWitchHuntRow(row);
+}
+
+function pausedWitchHuntTimeBetween(start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  let paused = 0;
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  cursor.setDate(cursor.getDate() - 1);
+  while (cursor.getTime() < end) {
+    const window = weekendWitchWindowContaining(cursor);
+    if (window) {
+      paused += Math.max(0, Math.min(end, window.end) - Math.max(start, window.start));
+      cursor.setDate(cursor.getDate() + 2);
+    } else {
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  return paused;
+}
+
+function challengeDeadlineWithWeekendPause(base, duration, row) {
+  if (!Number.isFinite(base)) return 0;
+  if (challengeIsWitchHuntRow(row)) return base + duration;
+  let deadline = base + duration;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const extended = base + duration + pausedWitchHuntTimeBetween(base, deadline);
+    if (extended === deadline) break;
+    deadline = extended;
+  }
+  return deadline;
+}
+
 function challengeActiveUntil(row) {
   const accepted = Date.parse(row?.accepted_at || "");
   const created = Date.parse(row?.created_at || "");
   const base = Number.isFinite(accepted) ? accepted : created;
-  if (!Number.isFinite(base)) return 0;
-  return base + CHALLENGE_ACTIVE_MS;
+  return challengeDeadlineWithWeekendPause(base, CHALLENGE_ACTIVE_MS, row);
 }
 
 function challengePendingUntil(row) {
   const created = Date.parse(row?.created_at || "");
-  if (!Number.isFinite(created)) return 0;
-  return created + CHALLENGE_PENDING_MS;
+  return challengeDeadlineWithWeekendPause(created, CHALLENGE_PENDING_MS, row);
 }
 
 function challengePendingExpired(row) {
   if (row?.status !== "pending" || row?.opponent_device || row?.accepted_at) return false;
+  if (challengePausedForWitchHunt(row)) return false;
   const until = challengePendingUntil(row);
   return Boolean(until && Date.now() >= until);
 }
 
 function challengeExpired(row) {
+  if (challengePausedForWitchHunt(row)) return false;
   const until = challengeActiveUntil(row);
   return Boolean(until && Date.now() >= until);
 }
@@ -12206,8 +12257,16 @@ function locallyCancelledChallenge(rowOrCode) {
 
 function challengeCardVisible(row) {
   if (!row) return false;
-  // Zavrseni izazovi su javna istorija: lokalni otkaz, istek ili stari profil ne smeju da ih sakriju.
-  if (playedChallenge(row)) return true;
+  if (playedChallenge(row)) {
+    // Plavi rezultat traje 24h. Za vreme Witch Hunta vide se samo rezultati tog vikenda,
+    // sve do ponedeljka kada se automatski sklone.
+    const witchWindow = weekendWitchWindowContaining(row?.created_at || row?.day);
+    if (witchWindow) return Date.now() >= witchWindow.start && Date.now() < witchWindow.end;
+    if (isWeekendWitchActive()) return false;
+    return Date.now() < challengePlayedSortTime(row) + CHALLENGE_ACTIVE_MS;
+  }
+  // Stari pozivi su sacuvani, ali se za vreme Witch Hunta ne prikazuju niti im istice vreme.
+  if (challengePausedForWitchHunt(row)) return false;
   if (row?.status === "cancelled") return false;
   if (locallyCancelledChallenge(row)) return false;
   if (challengePendingExpired(row)) return false;
