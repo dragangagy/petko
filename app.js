@@ -14544,7 +14544,7 @@ function syncWeekendWitchAvatarState() {
     if (state.weekend !== weekendWitchId()) saveWeekendWitchState({});
     if (isWeekendEventAvatarId(current)) return;
     const avatar = profileAvatarById(current) || PROFILE_AVATARS[0];
-    if (!localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY)) {
+    if (current && !localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY)) {
       localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, avatar.id);
     }
     if (challengeAvatarIsMale(avatar)) {
@@ -14554,14 +14554,27 @@ function syncWeekendWitchAvatarState() {
       const player = loadPlayerName();
       if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), hunter.id);
       syncProfileAvatarToSupabase(hunter.id).catch(() => false);
+    } else {
+      const witch = challengeWeekendWitchAvatar(loadPlayerName());
+      if (!witch) return;
+      localStorage.setItem(PROFILE_AVATAR_KEY, witch.id);
+      saveWeekendWitchState({ selected: witch.id });
+      const player = loadPlayerName();
+      if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), witch.id);
+      syncProfileAvatarToSupabase(witch.id).catch(() => false);
     }
     return;
   }
   if (!isWeekendEventAvatarId(current)) return;
   const previous = localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
+  const eventAvatar = profileAvatarById(current);
+  const candidates = BASE_PROFILE_AVATARS.filter((avatar) => avatar.group === eventAvatar?.group);
+  const seed = `${weekendWitchId()}|${profileDeviceId()}|${loadPlayerName()}|${eventAvatar?.group || "male"}`;
+  let hash = 0;
+  [...seed].forEach((letter) => { hash = ((hash * 31) + letter.charCodeAt(0)) >>> 0; });
   const fallback = previous && !isWeekendEventAvatarId(previous) && profileAvatarById(previous)
     ? previous
-    : PROFILE_AVATARS[0].id;
+    : (candidates[hash % candidates.length] || PROFILE_AVATARS[0]).id;
   localStorage.setItem(PROFILE_AVATAR_KEY, fallback);
   localStorage.removeItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
   saveWeekendWitchState({});
