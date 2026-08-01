@@ -12243,7 +12243,8 @@ function selfChallengeRow(row) {
 function loadCancelledChallengeCodes() {
   try {
     const data = JSON.parse(localStorage.getItem(CHALLENGE_CANCELLED_KEY) || "null");
-    if (data?.day !== todayId() || !Array.isArray(data.codes)) return [];
+    const period = isWeekendWitchActive() ? weekendWitchId() : todayId();
+    if ((data?.period || data?.day) !== period || !Array.isArray(data.codes)) return [];
     return data.codes.map((code) => String(code || "").trim().toUpperCase()).filter(Boolean);
   } catch {
     return [];
@@ -12255,7 +12256,8 @@ function rememberCancelledChallenge(code) {
   if (!cleanCode) return;
   const codes = loadCancelledChallengeCodes().filter((item) => item !== cleanCode);
   codes.unshift(cleanCode);
-  localStorage.setItem(CHALLENGE_CANCELLED_KEY, JSON.stringify({ day: todayId(), codes: codes.slice(0, 80) }));
+  const period = isWeekendWitchActive() ? weekendWitchId() : todayId();
+  localStorage.setItem(CHALLENGE_CANCELLED_KEY, JSON.stringify({ period, codes: codes.slice(0, 80) }));
 }
 
 function locallyCancelledChallenge(rowOrCode) {
@@ -13143,6 +13145,8 @@ async function cancelPendingChallenge(row) {
     await updateChallenge(row.code, { status: "cancelled" });
   }
   renderChallengePanel("Изазов је отказан.");
+  const sentRows = await fetchSentChallengesToday().catch(() => loadSentChallengeRowsToday());
+  updateChallengeQuota(sentRows);
   await refreshChallengeLobby().catch(() => {});
 }
 
