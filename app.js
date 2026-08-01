@@ -13293,7 +13293,7 @@ function challengeWeekendHunterAvatar() {
 }
 
 function challengeWeekendWitchAvatar(seed = "") {
-  const weekendSeed = `${weekendWitchId()}|${normalizeChallengeName(seed)}`;
+  const weekendSeed = `${weekendWitchId()}|${cleanChallengeName(seed)}`;
   let hash = 0;
   for (let index = 0; index < weekendSeed.length; index += 1) {
     hash = ((hash * 31) + weekendSeed.charCodeAt(index)) >>> 0;
