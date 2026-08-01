@@ -10842,6 +10842,7 @@ const petkoSplashButton = document.querySelector("#petkoSplashButton");
 const petkoMood = document.querySelector("#petkoMood");
 const petkoMoodImage = document.querySelector("#petkoMoodImage");
 const petkoMoodText = document.querySelector("#petkoMoodText");
+const weekendWitchScoreboardEl = document.querySelector("#weekendWitchScoreboard");
 const modeButtons = [...document.querySelectorAll(".mode-button")];
 const typeButtons = [...document.querySelectorAll(".type-button")];
 
@@ -13495,6 +13496,46 @@ function setChallengeSectionOpen(key, open) {
   saveChallengeSectionState();
 }
 
+function renderWeekendWitchScoreboard(rows = []) {
+  if (!weekendWitchScoreboardEl) return;
+  const playedRows = Array.isArray(rows) ? rows.filter(playedChallenge) : [];
+  if (!isWeekendWitchActive() || !playedRows.length) {
+    weekendWitchScoreboardEl.hidden = true;
+    weekendWitchScoreboardEl.innerHTML = "";
+    return;
+  }
+
+  let hunters = 0;
+  let witches = 0;
+  let draws = 0;
+  playedRows.forEach((row) => {
+    const winner = challengeWinner(row);
+    if (winner === "tie") {
+      draws += 1;
+      return;
+    }
+    const winnerName = winner === "creator" ? row.creator : row.opponent;
+    if (challengeAvatarIsMale(challengeProfileAvatar(winnerName))) hunters += 1;
+    else witches += 1;
+  });
+
+  weekendWitchScoreboardEl.hidden = false;
+  weekendWitchScoreboardEl.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "weekend-witch-scoreboard-title";
+  title.textContent = "Rezultat svih odigranih izazova";
+  const score = document.createElement("div");
+  score.className = "weekend-witch-scoreboard-score";
+  score.textContent = `Lovci ${hunters} : ${witches} Veštice`;
+  weekendWitchScoreboardEl.append(title, score);
+  if (draws) {
+    const drawsText = document.createElement("div");
+    drawsText.className = "weekend-witch-scoreboard-draws";
+    drawsText.textContent = `Nerešeno: ${draws}`;
+    weekendWitchScoreboardEl.append(drawsText);
+  }
+}
+
 function syncChallengeIdlePetkoState() {
   if (!challengeHistoryEl) return;
   const hasCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"))
@@ -13773,6 +13814,7 @@ function challengeCard(row, rows = []) {
 function renderChallengeHistoryCards(rows = []) {
   if (!challengeHistoryEl) return;
   challengeHistoryEl.innerHTML = "";
+  renderWeekendWitchScoreboard(rows);
   updateChallengeBadge(rows);
   notifyChallengeEvents(rows);
   updateChallengeQuota(sentChallengeRowsFromHistory(rows));
@@ -13812,10 +13854,8 @@ function renderChallengeHistoryCards(rows = []) {
     ["pending", "Изазови на чекању", pendingRows],
     ["played", "Одиграни изазови", resultRows]
   ].filter(([, , sectionRows]) => sectionRows.length);
-  const hasExplicitSectionState = sections.some(([key]) => typeof challengeSectionState[key] === "boolean");
-  const defaultOpenKey = hasExplicitSectionState ? "" : sections[0]?.[0];
   sections.forEach(([key, title, sectionRows]) => {
-    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, key === defaultOpenKey));
+    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, false));
   });
   syncChallengeIdlePetkoState();
 }
