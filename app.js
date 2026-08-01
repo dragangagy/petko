@@ -14945,6 +14945,23 @@ async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
   return true;
 }
 
+function playerAvatarRegistrationPayload(id = loadProfileAvatarId()) {
+  const cleanId = normalizeProfileAvatarId(id);
+  if (!isWeekendWitchActive() || !isWeekendEventAvatarId(cleanId)) {
+    return { avatar_id: cleanId };
+  }
+  const previous = localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
+  const baseAvatar = previous && !isWeekendEventAvatarId(previous) && profileAvatarById(previous)
+    ? previous
+    : deterministicProfileAvatar(loadPlayerName()).id;
+  return {
+    // Osnovni avatar ostaje trajni avatar; sezonski se čuva odvojeno.
+    avatar_id: baseAvatar,
+    weekend_avatar_id: cleanId,
+    weekend_avatar_weekend: weekendWitchId()
+  };
+}
+
 function updateTopScoreProfile(totalScore) {
   if (annualTopScoreEl) {
     annualTopScoreEl.textContent = formatScore(totalScore ?? 0);
@@ -15203,7 +15220,7 @@ async function registerPlayerName(name) {
     body: JSON.stringify({
       nickname: clean,
       device_id: deviceId(),
-      avatar_id: loadProfileAvatarId()
+      ...playerAvatarRegistrationPayload()
     })
   });
   if (response.ok) return true;
@@ -15221,7 +15238,7 @@ async function syncCurrentPlayerDevice() {
     const encodedName = encodeURIComponent(name);
     return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, {
       device_id: deviceId(),
-      avatar_id: loadProfileAvatarId()
+      ...playerAvatarRegistrationPayload()
     });
   }
   return false;
