@@ -14292,6 +14292,8 @@ async function createChallenge(selectedOpponent = null) {
     return false;
   }
   if (isWeekendWitchActive() && !shareAfterCreate) {
+    // Resolve Supabase weekend avatars before deciding which modal to show.
+    await refreshChallengePlayerAvatars().catch(() => []);
     const creatorAvatar = challengeProfileAvatar(nickname);
     const opponentAvatar = challengeProfileAvatar(opponent);
     const creatorIsHunter = challengeAvatarIsMale(creatorAvatar);
@@ -15285,6 +15287,12 @@ async function fetchPlayerRows() {
   const rows = await response.json();
   if (!Array.isArray(rows)) return [];
   rows.forEach(cachePlayerAvatar);
+  return rows;
+}
+
+async function refreshChallengePlayerAvatars() {
+  const rows = await fetchPlayerRows();
+  if (Array.isArray(rows)) rows.forEach(cachePlayerAvatar);
   return rows;
 }
 
