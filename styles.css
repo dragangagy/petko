@@ -1824,6 +1824,22 @@ body[data-game-type="challenge"][data-challenge-weekend-poster="true"]:not([data
   display: contents;
 }
 
+.weekend-witch-winner {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  z-index: 3;
+  color: var(--gold);
+  font-size: clamp(15px, 4.2vw, 21px);
+  font-weight: 950;
+  line-height: 1.15;
+  text-align: center;
+  text-shadow: 0 0 12px rgba(255, 205, 64, 0.8);
+}
+
+.weekend-witch-winner[hidden] {
+  display: none;
+}
+
 body[data-friday="true"][data-game-type="challenge"] .score-count.profile-mode,
 body[data-friday="true"][data-game-type="challenge"] .status-profile-button,
 body[data-friday="true"][data-game-type="challenge"] .status-profile-button .profile-avatar {

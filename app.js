@@ -10844,6 +10844,8 @@ const petkoMood = document.querySelector("#petkoMood");
 const petkoMoodImage = document.querySelector("#petkoMoodImage");
 const petkoMoodText = document.querySelector("#petkoMoodText");
 const weekendWitchScoreboardEl = document.querySelector("#weekendWitchScoreboard");
+const weekendWitchWinnerEl = document.querySelector("#weekendWitchWinner");
+const idleWitchWeekendPosterEl = document.querySelector(".idle-witch-weekend-poster");
 const modeButtons = [...document.querySelectorAll(".mode-button")];
 const typeButtons = [...document.querySelectorAll(".type-button")];
 
@@ -13212,7 +13214,11 @@ async function finalizeExpiredChallenges(rows = []) {
   for (const row of rows) {
     const creatorPlayed = challengePlayedAt(row, "creator");
     const opponentPlayed = challengePlayedAt(row, "opponent");
-    const shouldFinalize = !playedChallenge(row) && challengeExpired(row) && creatorPlayed !== opponentPlayed;
+    const witchWindow = weekendWitchWindowContaining(row?.created_at || row?.day);
+    const witchHuntEnded = Boolean(witchWindow && Date.now() >= witchWindow.end);
+    // Kada se Witch Hunt završi, odigrana strana automatski pobeđuje
+    // svaku nedovršenu zelenu karticu; druga strana dobija nula poena.
+    const shouldFinalize = !playedChallenge(row) && (challengeExpired(row) || witchHuntEnded) && creatorPlayed !== opponentPlayed;
     if (!shouldFinalize || !row.code) {
       patchedRows.push(row);
       continue;
@@ -13663,18 +13669,39 @@ function setChallengeSectionOpen(key, open) {
   saveChallengeSectionState();
 }
 
+function latestFinishedWitchHuntWindow(rows = []) {
+  const now = Date.now();
+  return (rows || []).reduce((latest, row) => {
+    const window = weekendWitchWindowContaining(row?.created_at || row?.day);
+    return window && window.end <= now && (!latest || window.end > latest.end) ? window : latest;
+  }, null);
+}
+
+function showFinishedWitchHuntUntilFriday() {
+  const day = new Date().getDay();
+  return day >= 1 && day <= 4 && !isPetkoFriday();
+}
+
 function renderWeekendWitchScoreboard(rows = []) {
   if (!weekendWitchScoreboardEl) return;
   const currentWitchWindow = weekendWitchWindowContaining(new Date());
-  const playedRows = Array.isArray(rows) && currentWitchWindow
+  const finishedWindow = latestFinishedWitchHuntWindow(rows);
+  const displayWindow = currentWitchWindow || (showFinishedWitchHuntUntilFriday() ? finishedWindow : null);
+  const showFinalWinner = !currentWitchWindow && Boolean(displayWindow);
+  const playedRows = Array.isArray(rows) && displayWindow
     ? rows.filter((row) => {
       const sentAt = Date.parse(row?.created_at || row?.day || "");
-      return playedChallenge(row) && Number.isFinite(sentAt) && sentAt >= currentWitchWindow.start && sentAt < currentWitchWindow.end;
+      return playedChallenge(row) && Number.isFinite(sentAt) && sentAt >= displayWindow.start && sentAt < displayWindow.end;
     })
     : [];
-  if (!isWeekendWitchActive() || !currentWitchWindow) {
+  if ((!isWeekendWitchActive() && !showFinalWinner) || !displayWindow) {
     weekendWitchScoreboardEl.hidden = true;
     weekendWitchScoreboardEl.innerHTML = "";
+    if (weekendWitchWinnerEl) weekendWitchWinnerEl.hidden = true;
+    if (idleWitchWeekendPosterEl) {
+      idleWitchWeekendPosterEl.src = "witch-weekend-poster.png";
+      idleWitchWeekendPosterEl.alt = "";
+    }
     return;
   }
 
@@ -13699,6 +13726,24 @@ function renderWeekendWitchScoreboard(rows = []) {
     if (challengeAvatarIsMale(challengeProfileAvatar(winnerName))) hunters += 1;
     else witches += 1;
   });
+
+  if (idleWitchWeekendPosterEl) {
+    idleWitchWeekendPosterEl.src = showFinalWinner
+      ? (hunters > witches ? "avatar/Z45-b.png" : "avatar/challenge-tie-witch.png")
+      : "witch-weekend-poster.png";
+    idleWitchWeekendPosterEl.alt = showFinalWinner ? "Pobednici Witch Hunta" : "";
+  }
+  if (weekendWitchWinnerEl) {
+    if (showFinalWinner) {
+      const winner = hunters > witches ? "Lovci" : witches > hunters ? "Veštice" : "Nerešeno";
+      weekendWitchWinnerEl.textContent = winner === "Nerešeno"
+        ? "Witch Hunt je završen nerešeno"
+        : `Pobednici ove nedelje su ${winner}`;
+      weekendWitchWinnerEl.hidden = false;
+    } else {
+      weekendWitchWinnerEl.hidden = true;
+    }
+  }
 
   weekendWitchScoreboardEl.hidden = false;
   weekendWitchScoreboardEl.innerHTML = "";
@@ -13751,7 +13796,7 @@ function syncChallengeIdlePetkoState() {
     .some((section) => section.children.length && !section.hidden);
   document.body.dataset.challengeCards = hasOpenCards ? "true" : "false";
   document.body.dataset.challengeWeekendPoster =
-    isWeekendWitchActive() && !hasOpenCards ? "true" : "false";
+    (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) && !hasOpenCards ? "true" : "false";
 }
 
 function releaseChallengeResultFlip() {
