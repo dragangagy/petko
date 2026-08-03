@@ -13911,9 +13911,6 @@ function challengeCard(row, rows = []) {
   const opponent = row.opponent || "Чека се";
   const openInvite = isOpenChallengeOpponent(opponent);
   const role = challengeRole(row);
-  if (!playedChallenge(row) && row.status === "pending") {
-    card.classList.add(role === "opponent" ? "incoming" : "outgoing");
-  }
   const canCancel = role === "creator" && row.status === "pending" && !row.opponent_device && !row.accepted_at;
   if (canCancel) {
     const cancel = document.createElement("button");
