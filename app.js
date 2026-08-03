@@ -13432,6 +13432,17 @@ function challengeAvatarIsMale(avatar = {}) {
   return avatar?.group === "male" || id.startsWith("male-") || /^M\d+$/i.test(code);
 }
 
+function challengeFactionFromAvatar(avatar = {}) {
+  return challengeAvatarIsMale(avatar) ? "hunter" : "witch";
+}
+
+function challengeRowFaction(row = {}, role = "creator") {
+  const saved = String(row?.[`${role}_faction`] || "").toLowerCase();
+  if (saved === "hunter" || saved === "witch") return saved;
+  const name = role === "creator" ? row.creator : row.opponent;
+  return challengeFactionFromAvatar(challengeProfileAvatar(name));
+}
+
 function challengeAvatarIsWeekendWitch(avatar = {}) {
   return /^Z4[1-5]$/i.test(challengeAvatarCode(avatar));
 }
@@ -13723,8 +13734,8 @@ function renderWeekendWitchScoreboard(rows = []) {
   let witches = 0;
   let draws = 0;
   playedRows.forEach((row) => {
-    const creatorIsHunter = challengeAvatarIsMale(challengeProfileAvatar(row.creator));
-    const opponentIsHunter = challengeAvatarIsMale(challengeProfileAvatar(row.opponent));
+    const creatorIsHunter = challengeRowFaction(row, "creator") === "hunter";
+    const opponentIsHunter = challengeRowFaction(row, "opponent") === "hunter";
     // Veštica koja napadne drugu Vešticu računa se kao poražena Veštica:
     // bez obzira na pojedinačni skor, poen ide Lovcima.
     if (!creatorIsHunter && !opponentIsHunter) {
@@ -13736,8 +13747,8 @@ function renderWeekendWitchScoreboard(rows = []) {
       draws += 1;
       return;
     }
-    const winnerName = winner === "creator" ? row.creator : row.opponent;
-    if (challengeAvatarIsMale(challengeProfileAvatar(winnerName))) hunters += 1;
+    const winnerRole = winner === "creator" ? "creator" : "opponent";
+    if (challengeRowFaction(row, winnerRole) === "hunter") hunters += 1;
     else witches += 1;
   });
 
@@ -14382,6 +14393,8 @@ async function createChallenge(selectedOpponent = null) {
   }
   const code = challengeCode();
   const words = chooseTargets(CHALLENGE_WORDS);
+  const creatorFaction = challengeFactionFromAvatar(challengeProfileAvatar(nickname));
+  const opponentFaction = shareAfterCreate ? null : challengeFactionFromAvatar(challengeProfileAvatar(opponent));
   let response;
   try {
     response = await fetch(supabaseUrl(challengeTable()), {
@@ -14392,6 +14405,8 @@ async function createChallenge(selectedOpponent = null) {
         day: todayId(),
         creator: nickname,
         creator_device: profileDeviceId(),
+        creator_faction: creatorFaction,
+        opponent_faction: opponentFaction,
         opponent: shareAfterCreate ? "Чека се" : opponent,
         status: "pending",
         words
@@ -14638,6 +14653,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
       status: "accepted",
       opponent: isOpenChallengeOpponent(row.opponent) ? acceptedName : row.opponent,
       opponent_device: profileDeviceId(),
+      opponent_faction: challengeFactionFromAvatar(currentProfileAvatar()),
       accepted_at: new Date().toISOString()
     });
   }
