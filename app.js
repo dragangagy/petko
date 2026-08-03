@@ -12903,12 +12903,15 @@ function challengeNotificationRows(rows = []) {
 function updateChallengeBadge(rows = []) {
   const button = typeButtons.find((item) => item.dataset.type === "challenge");
   if (!button) return;
-  const count = challengeNotificationRows(rows).length;
-  if (count) {
-    button.dataset.count = String(count);
-  } else {
-    delete button.dataset.count;
-  }
+  const pendingRows = challengeNotificationRows(rows)
+    .filter((row) => row.status === "pending" && !row.opponent_device && !row.accepted_at);
+  const waitingForReply = pendingRows.filter((row) => challengeRole(row) === "creator").length;
+  const waitingForMe = pendingRows.filter((row) => challengeRole(row) === "opponent").length;
+  if (waitingForReply) button.dataset.sentCount = String(waitingForReply);
+  else delete button.dataset.sentCount;
+  if (waitingForMe) button.dataset.receivedCount = String(waitingForMe);
+  else delete button.dataset.receivedCount;
+  delete button.dataset.count;
 }
 
 function notificationSeenIds() {

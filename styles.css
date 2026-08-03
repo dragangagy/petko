@@ -1598,11 +1598,9 @@ body[data-game-type="hall"] .listing-panel {
   display: none;
 }
 
-.type-button[data-count]::before {
-  content: attr(data-count);
+.type-button[data-sent-count]::before,
+.type-button[data-received-count]::after {
   position: absolute;
-  top: 3px;
-  right: 5px;
   min-width: 17px;
   height: 17px;
   display: grid;
@@ -1613,6 +1611,19 @@ body[data-game-type="hall"] .listing-panel {
   font-size: 10px;
   font-weight: 950;
   box-shadow: 0 0 12px rgba(255, 215, 0, 0.45);
+}
+
+.type-button[data-sent-count]::before {
+  content: attr(data-sent-count);
+  top: 3px;
+  right: 21px;
+}
+
+.type-button[data-received-count]::after {
+  content: attr(data-received-count);
+  top: 3px;
+  right: 3px;
+  background: #f59e0b;
 }
 
 body[data-game-type="competitive"] .normal-stats,
