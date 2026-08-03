@@ -12610,7 +12610,6 @@ function renderChallengePlayers(names = []) {
   const items = [
     ["", "Изазови Петка"],
     ...names.map((name) => [name, name]),
-    ["__new__", "Нови корисник"]
   ];
   const hasCurrent = items.some(([value]) => value === current);
   challengePlayerSelect.value = hasCurrent ? current : "";
@@ -12666,10 +12665,7 @@ function renderChallengePlayers(names = []) {
 }
 
 function challengePickerItems() {
-  return [
-    ...challengePickerPlayers.map((name) => ({ value: name, label: name, kind: "player" })),
-    { value: "__new__", label: "Нови корисник", kind: "new" }
-  ];
+  return challengePickerPlayers.map((name) => ({ value: name, label: name, kind: "player" }));
 }
 
 function challengeFavoriteId(name) {
@@ -13915,6 +13911,9 @@ function challengeCard(row, rows = []) {
   const opponent = row.opponent || "Чека се";
   const openInvite = isOpenChallengeOpponent(opponent);
   const role = challengeRole(row);
+  if (!playedChallenge(row) && row.status === "pending") {
+    card.classList.add(role === "opponent" ? "incoming" : "outgoing");
+  }
   const canCancel = role === "creator" && row.status === "pending" && !row.opponent_device && !row.accepted_at;
   if (canCancel) {
     const cancel = document.createElement("button");
@@ -14350,12 +14349,13 @@ async function createChallenge(selectedOpponent = null) {
   if (!nickname) return false;
   const selectedChallengeOpponent = selectedOpponent ?? challengePickerSelected;
   let opponent = cleanChallengeName(selectedChallengeOpponent || challengePlayerSelect?.value || "");
-  const shareAfterCreate = opponent === "__new__";
+  const shareAfterCreate = false;
   if (opponent === "__new__") {
-    opponent = "";
+    renderChallengePanel("Позив за новог корисника више није доступан. Нови играч се прво региструје именом и аватаром.");
+    return false;
   }
   if (!opponent && !shareAfterCreate) {
-    renderChallengePanel("Изабери учесника или унеси новог корисника.");
+    renderChallengePanel("Изабери регистрованог играча.");
     return false;
   }
   if (sameChallengeName(nickname, opponent)) {
@@ -14751,6 +14751,12 @@ function confirmSurrenderChallenge(row) {
 
 function loadPlayerName() {
   return (localStorage.getItem(PLAYER_NAME_KEY) || "").trim();
+}
+
+function hasRegisteredPlayerProfile() {
+  const name = loadPlayerName();
+  const avatarId = String(localStorage.getItem(PROFILE_AVATAR_KEY) || "").trim();
+  return Boolean(name && profileAvatarById(avatarId));
 }
 
 function normalizePlayerName(value) {
@@ -15160,10 +15166,17 @@ function renderProfileAvatarGrid(group = "male") {
   if (!profileAvatarGrid) return;
   profileAvatarGrid.innerHTML = "";
   const stats = avatarAchievementStats || emptyAvatarAchievementStats();
-  if (profileAvatarUnlockNote) profileAvatarUnlockNote.textContent = "Ваша достигнућа ће откључати нове аватаре.";
+  const witchPicker = isWeekendWitchActive() && !challengeAvatarIsMale(currentProfileAvatar());
+  if (witchPicker) group = "female";
+  if (profileAvatarUnlockNote) profileAvatarUnlockNote.textContent = witchPicker
+    ? "Током Witch Hunta можеш изабрати једну од пет Вештица."
+    : "Ваша достигнућа ће откључати нове аватаре.";
   profileAvatarTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.avatarTab === group));
-  SELECTABLE_PROFILE_AVATARS.filter((avatar) => avatar.group === group).forEach((avatar) => {
-    const locked = !isProfileAvatarUnlocked(avatar, stats);
+  const visibleAvatars = witchPicker
+    ? weekendWitchAvatars()
+    : SELECTABLE_PROFILE_AVATARS.filter((avatar) => avatar.group === group);
+  visibleAvatars.forEach((avatar) => {
+    const locked = witchPicker ? false : !isProfileAvatarUnlocked(avatar, stats);
     const info = profileAvatarUnlockInfo(avatar);
     const seasonalLock = isWeekendEventAvatarId(avatar.id) && !isWeekendWitchActive();
     const button = document.createElement("button");
@@ -15210,7 +15223,6 @@ function renderProfileModal() {
   if (profileModalName) profileModalName.textContent = name;
   if (profileNameInput) profileNameInput.value = name;
   if (profileLinkCode) profileLinkCode.textContent = profileConnectionCode();
-  if (isWeekendWitchActive() && profileAvatarMenu) profileAvatarMenu.hidden = true;
   const activeGroup = profileAvatarTabs.find((tab) => tab.classList.contains("active"))?.dataset.avatarTab || "male";
   renderProfileAvatarGrid(activeGroup);
 }
@@ -15845,6 +15857,12 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
   updateFridayTheme();
   if (nextType === "hall") {
     showHallOfFame();
+    return;
+  }
+  if (!hasRegisteredPlayerProfile()) {
+    openProfileModal();
+    setProfileEditMode(true);
+    setProfileMessage("За почетак игре изабери надимак и аватар.");
     return;
   }
   if (nextType === "challenge") {
@@ -17477,9 +17495,9 @@ if (profileModal) {
 if (profileAvatarButton) {
   profileAvatarButton.addEventListener("click", () => {
     if (!profileAvatarMenu) return;
-    if (isWeekendWitchActive()) {
+    if (isWeekendWitchActive() && challengeAvatarIsMale(currentProfileAvatar())) {
       profileAvatarMenu.hidden = true;
-      setProfileMessage("Tokom Witch Hunta avatar se dodeljuje automatski: Lovac muškarcima, Veštica ženama. Osnovni avatar ostaje sačuvan.");
+      setProfileMessage("Tokom Witch Hunta Lovac se dodeljuje automatski. Osnovni avatar ostaje sačuvan.");
       return;
     }
     profileAvatarMenu.hidden = !profileAvatarMenu.hidden;
@@ -18051,8 +18069,6 @@ async function bootPetkoApp() {
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {
     startGame("challenge");
-  if (challengePlayerSelect) challengePlayerSelect.value = "__new__";
-  if (challengePlayerButton) challengePlayerButton.textContent = "Нови корисник";
   if (challengeCodeInput) challengeCodeInput.value = incomingChallengeCode.toUpperCase();
   renderChallengePanel(`Позвани сте на изазов ${incomingChallengeCode.toUpperCase()}. Прихвати га, па играј када желиш.`);
   fetchChallenge(incomingChallengeCode)
