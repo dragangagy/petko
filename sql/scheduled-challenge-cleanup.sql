@@ -31,15 +31,25 @@ begin
   get diagnostics step_count = row_count;
   deleted_count := deleted_count + step_count;
 
-  -- Finished result cards are kept briefly so players can see them, then removed.
+  -- Plave rezultatne kartice su vidljive 24h. Witch Hunt kartice (subota i
+  -- nedelja po beogradskom vremenu) ostaju tokom celog lova, do ponedeljka 00:00.
   delete from public.challenges
   where status = 'played'
-    and greatest(
-      coalesce(creator_played_at, created_at),
-      coalesce(opponent_played_at, created_at),
-      coalesce(accepted_at, created_at),
-      created_at
-    ) < now() - interval '24 hours';
+    and (
+      case
+        when extract(isodow from (created_at at time zone 'Europe/Belgrade')) in (6, 7)
+          then now() >= (
+            date_trunc('week', created_at at time zone 'Europe/Belgrade')
+            + interval '7 days'
+          ) at time zone 'Europe/Belgrade'
+        else greatest(
+          coalesce(creator_played_at, created_at),
+          coalesce(opponent_played_at, created_at),
+          coalesce(accepted_at, created_at),
+          created_at
+        ) < now() - interval '24 hours'
+      end
+    );
   get diagnostics step_count = row_count;
   deleted_count := deleted_count + step_count;
 
