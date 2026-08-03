@@ -5468,6 +5468,7 @@ const SUPABASE_CONFIG = {
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
   challengeScoreStatsTable: "challenge_score_stats",
+  weekendResultsTable: "weekend_results",
   normalStatsTable: "normal_stats",
   lectorStatsTable: "lector_stats",
   playersTable: "players",
@@ -11736,6 +11737,10 @@ function challengeScoreStatsTable() {
   return SUPABASE_CONFIG.challengeScoreStatsTable || "challenge_score_stats";
 }
 
+function weekendResultsTable() {
+  return SUPABASE_CONFIG.weekendResultsTable || "weekend_results";
+}
+
 function normalStatsTable() {
   return SUPABASE_CONFIG.normalStatsTable || "normal_stats";
 }
@@ -13690,6 +13695,41 @@ function latestFinishedWitchHuntWindow(rows = []) {
   }, null);
 }
 
+let weekendWitchResults = [];
+
+async function refreshWeekendWitchResults() {
+  if (!supabaseConfigured()) return [];
+  const response = await fetch(supabaseUrl(`${weekendResultsTable()}?select=*&order=weekend_start.desc&limit=24`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return weekendWitchResults;
+  const rows = await response.json();
+  weekendWitchResults = Array.isArray(rows) ? rows : [];
+  return weekendWitchResults;
+}
+
+function weekendResultWindow(result = {}) {
+  const start = Date.parse(`${String(result.weekend_start || "").slice(0, 10)}T00:00:00`);
+  if (!Number.isFinite(start)) return null;
+  return { start, end: start + (2 * 24 * 60 * 60 * 1000) };
+}
+
+function savedWitchHuntResultForWindow(window) {
+  if (!window) return null;
+  return weekendWitchResults.find((result) => {
+    const savedWindow = weekendResultWindow(result);
+    return savedWindow && savedWindow.start === window.start;
+  }) || null;
+}
+
+function latestSavedWitchHuntResult() {
+  const now = Date.now();
+  return weekendWitchResults.find((result) => {
+    const window = weekendResultWindow(result);
+    return window && window.end <= now;
+  }) || null;
+}
+
 function showFinishedWitchHuntUntilFriday() {
   const day = new Date().getDay();
   return day >= 1 && day <= 4 && !isPetkoFriday();
@@ -13710,7 +13750,10 @@ function renderWeekendWitchScoreboard(rows = []) {
   if (!weekendWitchScoreboardEl) return;
   const currentWitchWindow = weekendWitchWindowContaining(new Date());
   const finishedWindow = latestFinishedWitchHuntWindow(rows);
-  const displayWindow = currentWitchWindow || (showFinishedWitchHuntUntilFriday() ? finishedWindow : null);
+  const savedFinishedResult = latestSavedWitchHuntResult();
+  const savedFinishedWindow = weekendResultWindow(savedFinishedResult);
+  const displayWindow = currentWitchWindow || (showFinishedWitchHuntUntilFriday() ? (savedFinishedWindow || finishedWindow) : null);
+  const savedResult = savedWitchHuntResultForWindow(displayWindow);
   const showFinalWinner = !currentWitchWindow && Boolean(displayWindow);
   const playedRows = Array.isArray(rows) && displayWindow
     ? rows.filter((row) => {
@@ -13729,10 +13772,11 @@ function renderWeekendWitchScoreboard(rows = []) {
     return;
   }
 
-  let hunters = 0;
-  let witches = 0;
-  let draws = 0;
-  playedRows.forEach((row) => {
+  let hunters = Number(savedResult?.hunters) || 0;
+  let witches = Number(savedResult?.witches) || 0;
+  let draws = Number(savedResult?.draws) || 0;
+  const unplayed = Number(savedResult?.unplayed) || 0;
+  if (!savedResult) playedRows.forEach((row) => {
     const creatorIsHunter = challengeRowFaction(row, "creator") === "hunter";
     const opponentIsHunter = challengeRowFaction(row, "opponent") === "hunter";
     // Veštica koja napadne drugu Vešticu računa se kao poražena Veštica:
@@ -13751,7 +13795,7 @@ function renderWeekendWitchScoreboard(rows = []) {
     else witches += 1;
   });
 
-  const winningFaction = hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie";
+  const winningFaction = savedResult?.winner || (hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie");
   if (idleWitchWeekendPosterEl) {
     idleWitchWeekendPosterEl.src = showFinalWinner
       ? witchHuntWinnerImage(winningFaction, displayWindow)
@@ -13810,6 +13854,12 @@ function renderWeekendWitchScoreboard(rows = []) {
     drawsText.className = "weekend-witch-scoreboard-draws";
     drawsText.textContent = `Nerešeno: ${draws}`;
     weekendWitchScoreboardEl.append(drawsText);
+  }
+  if (unplayed) {
+    const unplayedText = document.createElement("div");
+    unplayedText.className = "weekend-witch-scoreboard-draws";
+    unplayedText.textContent = `Neodigrano: ${unplayed}`;
+    weekendWitchScoreboardEl.append(unplayedText);
   }
 }
 
@@ -14148,7 +14198,8 @@ async function refreshChallengeHistoryCards() {
   if (!challengeHistoryEl || !supabaseConfigured()) return;
   const [rows, statsRows] = await Promise.all([
     fetchChallengeHistory(),
-    fetchChallengeStatsRows().catch(() => [])
+    fetchChallengeStatsRows().catch(() => []),
+    refreshWeekendWitchResults().catch(() => [])
   ]);
   if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
   renderChallengeHistoryCards(rows);
@@ -18098,7 +18149,8 @@ refreshAvatarAchievements({ popup: true }).catch(() => {});
 window.setTimeout(maybeShowWeekendWitchOffer, 700);
 Promise.all([
   fetchChallengeHistory(),
-  fetchChallengeStatsRows().catch(() => [])
+  fetchChallengeStatsRows().catch(() => []),
+  refreshWeekendWitchResults().catch(() => [])
 ])
   .then(([rows, statsRows]) => {
     if (Array.isArray(statsRows)) challengeStatsRows = statsRows;

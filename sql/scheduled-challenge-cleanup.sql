@@ -15,6 +15,11 @@ declare
   deleted_count integer := 0;
   step_count integer := 0;
 begin
+  -- Before weekend cards can be deleted, preserve the entire Witch Hunt result.
+  if extract(isodow from (now() at time zone 'Europe/Belgrade')) = 1 then
+    perform public.record_witch_hunt_result(((now() at time zone 'Europe/Belgrade')::date - 2));
+  end if;
+
   -- Sent invite was never accepted. After 6h it expires and the attempt returns in the app.
   delete from public.challenges
   where status = 'pending'
