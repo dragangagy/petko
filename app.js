@@ -12114,6 +12114,9 @@ function challengePendingExpired(row) {
 }
 
 function challengeExpired(row) {
+  // Zelene Witch Hunt kartice važe sve do kraja lova; ne smeju isteći
+  // usred subote ili nedelje. U ponedeljak ih zatvara finalizeExpiredChallenges.
+  if (isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(row)) return false;
   if (challengePausedForWitchHunt(row)) return false;
   const until = challengeActiveUntil(row);
   return Boolean(until && Date.now() >= until);
@@ -12508,7 +12511,7 @@ function challengeDailyLimit() {
     .reduce((sum, level) => sum + level, 0);
   const normalBonus = loadNormalChallengeBonus().bonus;
   const weekendBonus = weekendWitchChallengeBonus();
-  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus + weekendBonus + loadManualChallengeCredit());
+  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus + weekendBonus);
 }
 
 function completedCompetitiveLevelIndex() {
