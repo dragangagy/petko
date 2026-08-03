@@ -1623,7 +1623,8 @@ body[data-game-type="hall"] .listing-panel {
   content: attr(data-received-count);
   top: 3px;
   right: 3px;
-  background: #f59e0b;
+  background: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.52);
 }
 
 body[data-game-type="competitive"] .normal-stats,
