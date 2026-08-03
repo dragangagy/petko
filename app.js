@@ -13685,6 +13685,17 @@ function showFinishedWitchHuntUntilFriday() {
   return day >= 1 && day <= 4 && !isPetkoFriday();
 }
 
+function witchHuntWinnerImage(winner, window) {
+  const images = winner === "hunter"
+    ? ["avatar/Z41-b.png", "avatar/Z45-b.png"]
+    : winner === "witch"
+      ? ["avatar/Z41-a.png", "avatar/Z45-a.png", "avatar/challenge-tie-witch.png"]
+      : ["avatar/challenge-tie-witch.png"];
+  const started = Number(window?.end) || Date.now();
+  const slot = Math.max(0, Math.floor((Date.now() - started) / (3 * 60 * 60 * 1000)));
+  return images[slot % images.length];
+}
+
 function renderWeekendWitchScoreboard(rows = []) {
   if (!weekendWitchScoreboardEl) return;
   const currentWitchWindow = weekendWitchWindowContaining(new Date());
@@ -13730,15 +13741,16 @@ function renderWeekendWitchScoreboard(rows = []) {
     else witches += 1;
   });
 
+  const winningFaction = hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie";
   if (idleWitchWeekendPosterEl) {
     idleWitchWeekendPosterEl.src = showFinalWinner
-      ? (hunters > witches ? "avatar/Z45-b.png" : "avatar/challenge-tie-witch.png")
+      ? witchHuntWinnerImage(winningFaction, displayWindow)
       : "witch-weekend-poster.png";
     idleWitchWeekendPosterEl.alt = showFinalWinner ? "Pobednici Witch Hunta" : "";
   }
   if (weekendWitchWinnerEl) {
     if (showFinalWinner) {
-      const winner = hunters > witches ? "Lovci" : witches > hunters ? "Veštice" : "Nerešeno";
+      const winner = winningFaction === "hunter" ? "Lovci" : winningFaction === "witch" ? "Veštice" : "Nerešeno";
       weekendWitchWinnerEl.textContent = winner === "Nerešeno"
         ? "Witch Hunt je završen nerešeno"
         : `Pobednici ove nedelje su ${winner}`;
