@@ -601,6 +601,40 @@ body[data-word-modal-open="true"] .petko-mood span {
   padding-right: 4px;
 }
 
+.status-ad {
+  display: none;
+  min-width: 0;
+  width: 100%;
+  height: 74px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 215, 0, 0.48);
+  border-radius: 10px;
+  background: #050914;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.2);
+}
+
+.status-ad img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+body[data-status-ad="true"] .status-brand {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 6px 7px;
+}
+
+body[data-status-ad="true"] .status-logo,
+body[data-status-ad="true"] .status-signature {
+  display: none;
+}
+
+body[data-status-ad="true"] .status-ad {
+  display: block;
+}
+
 .status-logo {
   width: 62px;
   max-width: none;

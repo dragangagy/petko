@@ -18061,6 +18061,15 @@ setInterval(() => {
   updateStatusProfile();
 }, 60000);
 
+function updateStatusAdvertisement() {
+  // Reklama je vidljiva prvih pet minuta svakog punog pola sata.
+  const minute = new Date().getMinutes();
+  document.body.dataset.statusAd = minute % 30 < 5 ? "true" : "false";
+}
+
+updateStatusAdvertisement();
+setInterval(updateStatusAdvertisement, 30000);
+
 async function bootPetkoApp() {
   await loadOnlineWords().catch(() => {});
   syncWeekendWitchAvatarState();
