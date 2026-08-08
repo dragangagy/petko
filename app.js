@@ -5417,6 +5417,14 @@ const UNLOCKABLE_PROFILE_AVATARS = [
     src: `avatar/Z${number}.png`,
     unlockGroup: "streak5"
   })),
+  {
+    id: "male-50",
+    group: "male",
+    label: "Ловац",
+    src: "avatar/M50.png",
+    unlockGroup: "weekendWitch",
+    weekendWitch: true
+  },
   ...Array.from({ length: 5 }, (_, index) => ({
     id: `female-${index + 41}`,
     group: "female",
@@ -11053,7 +11061,10 @@ function isWeekendWitchAvatarId(id = "") {
 }
 
 function isWeekendHunterAvatarId(id = "") {
-  return challengeAvatarCode(profileAvatarById(id)) === "M50";
+  const clean = String(id || "").trim();
+  if (!clean) return false;
+  if (clean === "male-50" || clean.toUpperCase() === "M50") return true;
+  return challengeAvatarCode(profileAvatarById(clean)) === "M50";
 }
 
 function isWeekendEventAvatarId(id = "") {
@@ -12507,16 +12518,17 @@ function todayCompetitiveCompletedLevels() {
 }
 
 function challengeDailyLimit() {
-  if (isWeekendWitchActive()) {
-    return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + weekendWitchChallengeBonus() + loadManualChallengeCredit());
-  }
   const completed = todayCompetitiveCompletedLevels();
   const levelBonus = COMPETITIVE_LEVELS
     .slice(0, Math.max(0, Math.min(completed, COMPETITIVE_LEVELS.length)))
     .reduce((sum, level) => sum + level, 0);
   const normalBonus = loadNormalChallengeBonus().bonus;
   const weekendBonus = weekendWitchChallengeBonus();
-  return Math.min(CHALLENGE_MAX_DAILY_LIMIT, CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus + weekendBonus);
+  const manualCredit = loadManualChallengeCredit();
+  return Math.min(
+    CHALLENGE_MAX_DAILY_LIMIT,
+    CHALLENGE_BASE_DAILY_LIMIT + levelBonus + normalBonus + weekendBonus + manualCredit
+  );
 }
 
 function completedCompetitiveLevelIndex() {
@@ -14807,7 +14819,8 @@ function loadPlayerName() {
 function hasRegisteredPlayerProfile() {
   const name = loadPlayerName();
   const avatarId = String(localStorage.getItem(PROFILE_AVATAR_KEY) || "").trim();
-  return Boolean(name && profileAvatarById(avatarId));
+  if (!name || !avatarId) return false;
+  return Boolean(profileAvatarById(avatarId) || (isWeekendWitchActive() && isWeekendEventAvatarId(avatarId)));
 }
 
 function normalizePlayerName(value) {
