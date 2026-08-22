@@ -5247,6 +5247,192 @@ let WORDS = [
   "бунта",
   "ђунта",
   "бумер",
+  "алаве",
+  "аласе",
+  "аласи",
+  "аорта",
+  "аорти",
+  "багру",
+  "бадем",
+  "барок",
+  "бедом",
+  "бесну",
+  "бијте",
+  "блену",
+  "бобан",
+  "бодеш",
+  "бодља",
+  "бодљи",
+  "болид",
+  "болну",
+  "болуј",
+  "брала",
+  "брегу",
+  "брзаш",
+  "булка",
+  "бунди",
+  "буном",
+  "бутка",
+  "бучну",
+  "бушио",
+  "бушну",
+  "бујна",
+  "бујон",
+  "вагам",
+  "важно",
+  "вирне",
+  "ганеш",
+  "гауда",
+  "горке",
+  "горки",
+  "грдиш",
+  "греду",
+  "гриве",
+  "гробе",
+  "грцаш",
+  "дабру",
+  "дамир",
+  "даруј",
+  "димио",
+  "дињом",
+  "допру",
+  "дрвен",
+  "дрече",
+  "дрске",
+  "дршке",
+  "дршки",
+  "дужом",
+  "жаром",
+  "живљи",
+  "звању",
+  "зенит",
+  "инати",
+  "интро",
+  "кадим",
+  "качим",
+  "кивно",
+  "клиње",
+  "конак",
+  "конто",
+  "кочим",
+  "кроји",
+  "крпим",
+  "круто",
+  "кубна",
+  "кутку",
+  "куњао",
+  "лагио",
+  "ладим",
+  "ласту",
+  "лепиш",
+  "лигња",
+  "лишћу",
+  "ломио",
+  "макли",
+  "марже",
+  "меком",
+  "милош",
+  "мишем",
+  "миљем",
+  "млаки",
+  "мотке",
+  "музеш",
+  "мућке",
+  "навиј",
+  "навој",
+  "налив",
+  "нафти",
+  "нећка",
+  "нитна",
+  "нитне",
+  "ничем",
+  "нужда",
+  "омами",
+  "омањи",
+  "отишо",
+  "очува",
+  "пазух",
+  "пајац",
+  "перут",
+  "позни",
+  "прдне",
+  "прска",
+  "пршти",
+  "пунђа",
+  "путно",
+  "пушио",
+  "расна",
+  "ратуј",
+  "рашље",
+  "рашљу",
+  "ребус",
+  "редно",
+  "риста",
+  "роним",
+  "рошав",
+  "сабор",
+  "самуј",
+  "сарме",
+  "сатен",
+  "севам",
+  "сијам",
+  "спика",
+  "стажу",
+  "стеге",
+  "стеше",
+  "стижи",
+  "стрме",
+  "струг",
+  "телац",
+  "тесан",
+  "тешим",
+  "точен",
+  "точиш",
+  "траци",
+  "трном",
+  "убећи",
+  "умећа",
+  "унета",
+  "упади",
+  "упеца",
+  "уској",
+  "ушили",
+  "ушном",
+  "фалим",
+  "фалиш",
+  "фалта",
+  "фешта",
+  "фукса",
+  "харфе",
+  "хитар",
+  "целим",
+  "ценка",
+  "цесту",
+  "честу",
+  "чешћа",
+  "читко",
+  "чокер",
+  "чукну",
+  "чујна",
+  "шамот",
+  "шарке",
+  "шатре",
+  "шверц",
+  "шибаш",
+  "шибље",
+  "шналу",
+  "шупља",
+  "шљаке",
+  "јарки",
+  "јачег",
+  "јецам",
+  "њивом",
+  "њушио",
+  "њушиш",
+  "ћевап",
+  "ћорав",
+  "ћумез",
+  "џогер",
 ];
 
 const LOCAL_WORDS = [...WORDS];
@@ -5289,7 +5475,7 @@ const CHALLENGE_MAX_DAILY_LIMIT = 1000;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
-const CHALLENGE_SYNC_INTERVAL_MS = 3500;
+const CHALLENGE_SYNC_INTERVAL_MS = 12000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -5324,6 +5510,7 @@ const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
 const ONLINE_WORDS_KEY = "petko-online-words-v1";
+const CHALLENGE_AUX_TTL_MS = 60 * 1000;
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const BASE_PROFILE_AVATARS = [
   ...Array.from({ length: 19 }, (_, index) => ({
@@ -10748,6 +10935,192 @@ const WORD_INFO = {
   "бунта": "Падежни облик речи бунт; побуна или отпор.",
   "ђунта": "Назив за групу која преузима власт силом; варијанта речи хунта.",
   "бумер": "Разговорно: припадник старије генерације или особа старомодних ставова.",
+  "алаве": "Облик придева алав; похлепне, незасите или грамзиве.",
+  "аласе": "Облик речи алас; рибаре, људе који лове рибу.",
+  "аласи": "Множина речи алас; рибари.",
+  "аорта": "Главна артерија која из срца разноси крв по телу.",
+  "аорти": "Падежни облик речи аорта; главној артерији из срца.",
+  "багру": "Падежни облик речи багра; тамноцрвену боју или такву нијансу.",
+  "бадем": "Језгро коштичавог плода; једе се као језграсто воће.",
+  "барок": "Уметнички стил кићен и раскошан, после ренесансе.",
+  "бедом": "Падежни облик речи бед; великом муком или сиромаштвом.",
+  "бесну": "Облик придева бесан; бесну, помаману или јако љуту.",
+  "бијте": "Заповедни облик глагола бити; ударајте.",
+  "блену": "Облик глагола бленути; загледа се тупо или застане без речи.",
+  "бобан": "Мушко име; у говору и надимак.",
+  "бодеш": "Облик глагола бости; убадаш или пробадаш оштрим врхом.",
+  "бодља": "Оштра израслина којом биљка или животиња боде.",
+  "бодљи": "Падежни облик речи бодља; оштрој израслини која боде.",
+  "болид": "Тркачки аутомобил велике брзине, често формуле.",
+  "болну": "Облик придева болан; болну, која боли или пати.",
+  "болуј": "Заповедни облик глагола боловати; пати од болести.",
+  "брала": "Облик глагола брати; сакупљала плодове или цветове.",
+  "брегу": "Падежни облик речи брег; брду или узвишењу.",
+  "брзаш": "Разговорно: журиш, радиш нешто убрзано.",
+  "булка": "Пољски цвет црвених латица; булка мак.",
+  "бунди": "Падежни облик речи бунда; топлом крзненом капуту.",
+  "буном": "Падежни облик речи буна; побуном или отпором.",
+  "бутка": "Горњи део ноге живине; и облик глагола буткати.",
+  "бучну": "Облик придева бучан; бучну, која прави јаку буку.",
+  "бушио": "Облик глагола бушити; пробио рупу или отвор.",
+  "бушну": "Облик глагола бушнути; нагло пробије или пукне.",
+  "бујна": "Богата и бујна, нарочито када је реч о растињу.",
+  "бујон": "Јака супа од меса или поврћа; темељац.",
+  "вагам": "Облик глагола вагати; мерим тежину или пажљиво процењујем.",
+  "важно": "Од великог значаја; битно.",
+  "вирне": "Облик глагола вирнути; завири, кратко погледа.",
+  "ганеш": "Облик глагола ганути; дирнеш или емотивно покренеш.",
+  "гауда": "Врста полутврдог сира, најчешће жућкасте боје.",
+  "горке": "Облик придева горак; горке, непријатног горког укуса.",
+  "горки": "Облик придева горак; горки, горког укуса или сурови.",
+  "грдиш": "Облик глагола грдити; псујеш или прекореваш.",
+  "греду": "Падежни облик речи греда; дрвеној или бетонској греди.",
+  "гриве": "Множина речи грива; дуга длака на врату коња или лава.",
+  "гробе": "Облик речи гроб; место сахране.",
+  "грцаш": "Облик глагола грцати; јецаш или тешко удишеш од плача.",
+  "дабру": "Падежни облик речи дабар; глодару који гради бране.",
+  "дамир": "Мушко име.",
+  "даруј": "Заповедни облик глагола даривати; поклони.",
+  "димио": "Облик глагола димити; пуштао дим или се димио.",
+  "дињом": "Падежни облик речи диња; слатким летњим плодом.",
+  "допру": "Облик глагола допрети; стигну до неког места или сазнања.",
+  "дрвен": "Направљен од дрвета; дрвени.",
+  "дрече": "Облик глагола дречати; вичу пиштаво или непријатно.",
+  "дрске": "Облик придева дрзак; безобразне или увредљиво смеле.",
+  "дршке": "Множина речи дршка; делови за хватање на посуђу или алату.",
+  "дршки": "Падежни облик речи дршка; делу за хватање.",
+  "дужом": "Облик придева дуг; дужом, која дуже траје или је дужа.",
+  "жаром": "Падежни облик речи жар; усијаним угљевљем или великом страшћу.",
+  "живљи": "Облик придева жив; живљи, свежији или покретнији.",
+  "звању": "Падежни облик речи звање; титули, послу или позиву.",
+  "зенит": "Највиша тачка; врхунац или зенит небеског тела.",
+  "инати": "Облик речи инат; тврдоглава противљења или намера да се тера по своме.",
+  "интро": "Разговорно: уводни део песме, емисије или текста.",
+  "кадим": "Облик глагола кадити; палим тамјан или димим.",
+  "качим": "Облик глагола качити; качећи стављам нешто одозго.",
+  "кивно": "Са кивношћу; љутито или увређено.",
+  "клиње": "Облик глагола клети; псује или баца клетву.",
+  "конак": "Место где се преноћи; преноћиште.",
+  "конто": "Рачун у књиговодству или банци.",
+  "кочим": "Облик глагола кочити; успоравам или заустављам.",
+  "кроји": "Облик глагола кројити; сече материјал по облику или одређује.",
+  "крпим": "Облик глагола крпити; поправљам закрпом.",
+  "круто": "Чврсто, укочено или без попуштања.",
+  "кубна": "Која се мери кубиком; запреминска.",
+  "кутку": "Падежни облик речи кутак; малом углу или забаченом месту.",
+  "куњао": "Облик глагола куњати; дремао или био полубудан.",
+  "лагио": "Разговорно: лагао, говорио неистину.",
+  "ладим": "Облик глагола ладити; чиним хладнијим или хладим.",
+  "ласту": "Падежни облик речи ласта; птицу брзог лета.",
+  "лепиш": "Облик глагола лепити; причвршћујеш лепком.",
+  "лигња": "Морски мекушац са пипцима; једе се као јело.",
+  "лишћу": "Падежни облик речи лишће; листовима биљака.",
+  "ломио": "Облик глагола ломити; кидао или преламао.",
+  "макли": "Облик глагола маћи; померили се или склонили.",
+  "марже": "Множина речи маржа; разлике у цени или ивице.",
+  "меком": "Облик придева мек; меком, који није тврд.",
+  "милош": "Мушко име.",
+  "мишем": "Падежни облик речи миш; малим глодаром.",
+  "миљем": "Падежни облик речи миља; јединицом дужине.",
+  "млаки": "Облик придева млак; благо топли, ни хладни ни врели.",
+  "мотке": "Множина речи мотка; дугачки штапови.",
+  "музеш": "Облик глагола мусти; измузујеш млеко.",
+  "мућке": "Разговорно: ситне варалице, смицалице или мућке.",
+  "навиј": "Заповедни облик глагола навијати; намотај или подржи.",
+  "навој": "Навој на завртњу; спирални жлеб који спаја делове.",
+  "налив": "Нагло изливање воде; и део назива за наливперо.",
+  "нафти": "Падежни облик речи нафта; сировој нафти као гориву.",
+  "нећка": "Облик глагола нећкати; двоуми се, не даје јасан одговор.",
+  "нитна": "Метални клин којим се трајно спајају делови; закивак.",
+  "нитне": "Множина речи нитна; закивци.",
+  "ничем": "Облик речи ништа; ни у чему.",
+  "нужда": "Потреба, оскудица или принуда; нужник у старијем говору.",
+  "омами": "Облик глагола омамити; ошамути или опије.",
+  "омањи": "Помало мали; нешто мањи од очекиваног.",
+  "отишо": "Разговорно: отишао, напустио место.",
+  "очува": "Облик глагола очувати; сачува или заштити.",
+  "пазух": "Удубљење испод рамена; пазухо.",
+  "пајац": "Кловн; особа која се прави смешном.",
+  "перут": "Љуспице са коже главе; перут.",
+  "позни": "Који долази касно; касни.",
+  "прдне": "Облик глагола прднути; испусти ветрове.",
+  "прска": "Облик глагола прскати; шиба ситним капима или пуца.",
+  "пршти": "Облик глагола прштити; шиба варницама или ситним капима.",
+  "пунђа": "Смотуљак косе сакупљене на потиљку или темену.",
+  "путно": "Које се односи на пут или путовање.",
+  "пушио": "Облик глагола пушити; удисао дим или се димио.",
+  "расна": "Која је чисте пасмине; или се односи на расу.",
+  "ратуј": "Заповедни облик глагола ратовати; води борбу.",
+  "рашље": "Рачвасто дрво; рашље за праћку или за хватање.",
+  "рашљу": "Падежни облик речи рашље; рачвастом дрвету.",
+  "ребус": "Загонетка у сликама и знацима која се чита као реч.",
+  "редно": "По реду; које следи утврђени распоред.",
+  "риста": "Мушко име, облик имена Ристо или Христо.",
+  "роним": "Облик глагола ронити; крећем се под водом.",
+  "рошав": "Рашчупан, паласт или неравне длаке.",
+  "сабор": "Скупштина, велики збор или црквени сабор.",
+  "самуј": "Заповедни облик глагола самовати; буди сам.",
+  "сарме": "Множина речи сарма; умотано јело у лист купуса или виновог лишћа.",
+  "сатен": "Сјајна, глатка тканина.",
+  "севам": "Облик глагола севати; светлуцам или сејам муње.",
+  "сијам": "Облик глагола сијати; светлим. И стари назив за Тајланд.",
+  "спика": "Разговорно: начин говора или изражавања.",
+  "стажу": "Падежни облик речи стаж; радном искуству или периоду рада.",
+  "стеге": "Стезаљке; и притисак, стеге или ограничења.",
+  "стеше": "Облик глагола стесати; отеше или обликује стесањем.",
+  "стижи": "Заповедни облик глагола стићи; дођи, стигни.",
+  "стрме": "Облик придева стрм; стрме, нагле у нагибу.",
+  "струг": "Машина која обрађује предмет окретањем; струг.",
+  "телац": "Младо говече; теле одређеног узраста.",
+  "тесан": "Узак, збијен или који тесно пристаје.",
+  "тешим": "Облик глагола тешити; храбрим или умирујем.",
+  "точен": "Наливен или изливен; припремљен точењем.",
+  "точиш": "Облик глагола точити; наливаш или изливаш.",
+  "траци": "Облик речи трака; траке или пруге.",
+  "трном": "Падежни облик речи трн; бодљикавом израслином.",
+  "убећи": "Убећи; побећи унутра или склонити се бекством.",
+  "умећа": "Множина речи умеће; вештине или способности.",
+  "унета": "Унесена или донета унутра.",
+  "упади": "Множина речи упад; изненадни продори.",
+  "упеца": "Облик глагола упецати; ухвати на удицу или намамами.",
+  "уској": "Облик придева узак; уској улици или стази.",
+  "ушили": "Облик глагола ушити; ушили, причврстили шивењем.",
+  "ушном": "Облик придева ушни; који се односи на ухо.",
+  "фалим": "Облик глагола фалити; хвалим или недостајем.",
+  "фалиш": "Облик глагола фалити; хвалиш или недостајеш.",
+  "фалта": "Набор на тканини; превој.",
+  "фешта": "Разговорно: славље, забава или гозба.",
+  "фукса": "Биљка јарко ружичастих цветова; фуксија.",
+  "харфе": "Множина речи харфа; жичани инструменти са оквиром.",
+  "хитар": "Брз, окретан или сналажљив.",
+  "целим": "Облик глагола целити; лечим или зацељујем.",
+  "ценка": "Облик глагола ценкати; погађа се око цене.",
+  "цесту": "Падежни облик речи цеста; пут или друм.",
+  "честу": "Облик придева чест; честу, која се често јавља.",
+  "чешћа": "Која се јавља чешће; чешћа.",
+  "читко": "Лако за читање; јасно написано.",
+  "чокер": "Уска огрлица која пријања уз врат.",
+  "чукну": "Облик глагола чукнути; куцне чашом или лагано удари.",
+  "чујна": "Која се чује; гласна или јасна.",
+  "шамот": "Ватростална глина за пећи и ватросталну опеку.",
+  "шарке": "Множина речи шарка; шаре или врста змије.",
+  "шатре": "Множина речи шатра; шатори или тезге.",
+  "шверц": "Илегална трговина или преношење робе; кријумчарење.",
+  "шибаш": "Облик глагола шибати; удараш шибом или бичем.",
+  "шибље": "Ситно жбуње; ниско дрвеће.",
+  "шналу": "Падежни облик речи шнала; украсну копчу за косу.",
+  "шупља": "Која има шупљину; празна изнутра.",
+  "шљаке": "Множина речи шљака; отпад из топионице или, разговорно, безвредне ствари.",
+  "јарки": "Јарко сјајни или жестоки.",
+  "јачег": "Облик придева јак; јачег.",
+  "јецам": "Облик глагола јецати; плачем испрекидано.",
+  "њивом": "Падежни облик речи њива; обрадивим пољем.",
+  "њушио": "Облик глагола њушити; намирисао или тражио њухом.",
+  "њушиш": "Облик глагола њушити; миришеш или тражиш њухом.",
+  "ћевап": "Комад зачињеног млевеног меса печен на роштиљу.",
+  "ћорав": "Који не види на једно око; у говору и слеп за нешто.",
+  "ћумез": "Сиромашна, трошна кућица; ћумез.",
+  "џогер": "Разговорно: особа која џогира; и доњи део тренерке.",
 };
 
 const boardsEl = document.querySelector("#boards");
@@ -10882,6 +11255,9 @@ let activeChallenge = null;
 let challengePickerPlayers = [];
 let challengePickerRows = [];
 let challengeStatsRows = [];
+let challengeSyncBusy = false;
+let challengePlayersCache = { at: 0, rows: null };
+let challengeStatsCache = { at: 0, rows: null };
 let onlineNormalStatsSummary = null;
 let avatarAchievementStats = null;
 let challengePickerSelected = "";
@@ -10889,7 +11265,6 @@ let challengePickerBusy = false;
 let hallMedals = [];
 let hallMedalIndex = 0;
 let hallTouchStartX = 0;
-let challengeSyncBusy = false;
 let challengeSyncSnapshot = "";
 
 function normalize(text) {
@@ -11982,28 +12357,9 @@ function loadCachedOnlineWords() {
   }
 }
 
-async function fetchOnlineWords() {
-  if (!supabaseConfigured()) return false;
-  const query = [
-    "select=word,meaning,type,updated_at",
-    "active=eq.true",
-    "order=word.asc",
-    "limit=10000"
-  ].join("&");
-  const response = await fetch(supabaseUrl(`${wordsTable()}?${query}`), {
-    headers: supabaseHeaders()
-  });
-  if (!response.ok) return false;
-  const rows = await response.json();
-  return applyOnlineWords(rows, true);
-}
-
-async function loadOnlineWords() {
+function loadOnlineWords() {
+  // Rečnik je u igri (WORDS + WORD_INFO). Ne skidamo celu tabelu iz Supabase.
   loadCachedOnlineWords();
-  await Promise.race([
-    fetchOnlineWords().catch(() => false),
-    new Promise((resolve) => setTimeout(() => resolve(false), 2500))
-  ]);
 }
 
 function challengeCode() {
@@ -13262,10 +13618,12 @@ async function finalizeExpiredChallenges(rows = []) {
 
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
+  const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
   const query = [
-    "select=*",
+    "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at,words,creator_score,creator_attempts,creator_solved,creator_played_at,opponent_score,opponent_attempts,opponent_solved,opponent_played_at,creator_faction,opponent_faction",
+    `created_at=gte.${encodeURIComponent(since)}`,
     "order=created_at.desc",
-    "limit=1000"
+    "limit=400"
   ].join("&");
   const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
     headers: supabaseHeaders()
@@ -13742,6 +14100,31 @@ function latestSavedWitchHuntResult() {
   }) || null;
 }
 
+function tallyWeekendWitchPlayedRows(playedRows = []) {
+  let hunters = 0;
+  let witches = 0;
+  let draws = 0;
+  playedRows.forEach((row) => {
+    const creatorIsHunter = challengeRowFaction(row, "creator") === "hunter";
+    const opponentIsHunter = challengeRowFaction(row, "opponent") === "hunter";
+    // Veštica koja napadne drugu Vešticu računa se kao poražena Veštica:
+    // bez obzira na pojedinačni skor, poen ide Lovcima.
+    if (!creatorIsHunter && !opponentIsHunter) {
+      hunters += 1;
+      return;
+    }
+    const winner = challengeWinner(row);
+    if (winner === "tie") {
+      draws += 1;
+      return;
+    }
+    const winnerRole = winner === "creator" ? "creator" : "opponent";
+    if (challengeRowFaction(row, winnerRole) === "hunter") hunters += 1;
+    else witches += 1;
+  });
+  return { hunters, witches, draws };
+}
+
 function showFinishedWitchHuntUntilFriday() {
   const day = new Date().getDay();
   return day >= 1 && day <= 4 && !isPetkoFriday();
@@ -13764,7 +14147,9 @@ function renderWeekendWitchScoreboard(rows = []) {
   const finishedWindow = latestFinishedWitchHuntWindow(rows);
   const savedFinishedResult = latestSavedWitchHuntResult();
   const savedFinishedWindow = weekendResultWindow(savedFinishedResult);
-  const displayWindow = currentWitchWindow || (showFinishedWitchHuntUntilFriday() ? (savedFinishedWindow || finishedWindow) : null);
+  // Kartice te nedelje imaju prednost nad starim/fiksnim arhiviranim skorom.
+  const displayWindow = currentWitchWindow
+    || (showFinishedWitchHuntUntilFriday() ? (finishedWindow || savedFinishedWindow) : null);
   const savedResult = savedWitchHuntResultForWindow(displayWindow);
   const showFinalWinner = !currentWitchWindow && Boolean(displayWindow);
   const playedRows = Array.isArray(rows) && displayWindow
@@ -13784,30 +14169,16 @@ function renderWeekendWitchScoreboard(rows = []) {
     return;
   }
 
-  let hunters = Number(savedResult?.hunters) || 0;
-  let witches = Number(savedResult?.witches) || 0;
-  let draws = Number(savedResult?.draws) || 0;
-  const unplayed = Number(savedResult?.unplayed) || 0;
-  if (!savedResult) playedRows.forEach((row) => {
-    const creatorIsHunter = challengeRowFaction(row, "creator") === "hunter";
-    const opponentIsHunter = challengeRowFaction(row, "opponent") === "hunter";
-    // Veštica koja napadne drugu Vešticu računa se kao poražena Veštica:
-    // bez obzira na pojedinačni skor, poen ide Lovcima.
-    if (!creatorIsHunter && !opponentIsHunter) {
-      hunters += 1;
-      return;
-    }
-    const winner = challengeWinner(row);
-    if (winner === "tie") {
-      draws += 1;
-      return;
-    }
-    const winnerRole = winner === "creator" ? "creator" : "opponent";
-    if (challengeRowFaction(row, winnerRole) === "hunter") hunters += 1;
-    else witches += 1;
-  });
+  const liveTally = tallyWeekendWitchPlayedRows(playedRows);
+  const useLiveTally = playedRows.length > 0;
+  const hunters = useLiveTally ? liveTally.hunters : (Number(savedResult?.hunters) || 0);
+  const witches = useLiveTally ? liveTally.witches : (Number(savedResult?.witches) || 0);
+  const draws = useLiveTally ? liveTally.draws : (Number(savedResult?.draws) || 0);
+  const unplayed = useLiveTally ? 0 : (Number(savedResult?.unplayed) || 0);
 
-  const winningFaction = savedResult?.winner || (hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie");
+  const winningFaction = useLiveTally
+    ? (hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie")
+    : (savedResult?.winner || (hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie"));
   if (idleWitchWeekendPosterEl) {
     idleWitchWeekendPosterEl.src = showFinalWinner
       ? witchHuntWinnerImage(winningFaction, displayWindow)
@@ -14300,6 +14671,24 @@ async function syncActiveChallengeResult(rows = []) {
   }
 }
 
+async function cachedChallengePlayers(force = false) {
+  if (!force && challengePlayersCache.rows && Date.now() - challengePlayersCache.at < CHALLENGE_AUX_TTL_MS) {
+    return challengePlayersCache.rows;
+  }
+  const rows = await fetchChallengePlayers().catch(() => challengePlayersCache.rows || []);
+  if (Array.isArray(rows)) challengePlayersCache = { at: Date.now(), rows };
+  return rows;
+}
+
+async function cachedChallengeStatsRows(force = false) {
+  if (!force && challengeStatsCache.rows && Date.now() - challengeStatsCache.at < CHALLENGE_AUX_TTL_MS) {
+    return challengeStatsCache.rows;
+  }
+  const rows = await fetchChallengeStatsRows().catch(() => challengeStatsCache.rows || []);
+  if (Array.isArray(rows)) challengeStatsCache = { at: Date.now(), rows };
+  return rows;
+}
+
 async function syncChallengeState({ force = false } = {}) {
   if (!shouldPollChallengeSync() && !force) return;
   if (challengeSyncBusy) return;
@@ -14308,10 +14697,10 @@ async function syncChallengeState({ force = false } = {}) {
     await retryPendingChallengeResults().catch(() => []);
     const [players, rows, statsRows] = await Promise.all([
       gameType === "challenge" && !challengeGameOpen()
-        ? fetchChallengePlayers().catch(() => [])
+        ? cachedChallengePlayers(force).catch(() => [])
         : Promise.resolve(null),
       fetchChallengeHistory().catch(() => []),
-      fetchChallengeStatsRows().catch(() => [])
+      cachedChallengeStatsRows(force).catch(() => [])
     ]);
     if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows));
@@ -18135,7 +18524,7 @@ updateStatusAdvertisement();
 setInterval(updateStatusAdvertisement, 30000);
 
 async function bootPetkoApp() {
-  await loadOnlineWords().catch(() => {});
+  loadOnlineWords();
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
   refreshManualChallengeCredit().catch(() => {});
