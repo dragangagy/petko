@@ -1,6 +1,10 @@
 # Petko
 
-Mobile-first Serbian Cyrillic word game.
+Mobile-first Serbian Cyrillic word game (`rs.glab.petko`). Own GitHub repo and own Supabase.
+
+**Version 1.4** (store code / build **5**). Store packaging: see `STORE.md` and `release/`.
+
+Cross-device continue (Classic / Competitive / Challenge): run `sql/2026-08-23-game-sessions.sql` once in Petko Supabase, then play with the same nickname or profile link code.
 
 ## GitHub Pages
 

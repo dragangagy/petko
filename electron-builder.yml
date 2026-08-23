@@ -1,0 +1,67 @@
+appId: rs.glab.petko
+productName: Petko
+copyright: Copyright © G-Lab
+artifactName: Petko-Setup-${version}.${ext}
+
+directories:
+  output: dist
+  buildResources: electron
+
+files:
+  - package.json
+  - electron/main.js
+  - electron/icon.ico
+  - www/**/*
+  - "!node_modules/**/*"
+
+asar: true
+npmRebuild: false
+forceCodeSigning: false
+
+# Bundled Wine so NSIS can be built from macOS/Linux without a system Wine install.
+toolsets:
+  wine: "1.0.1"
+
+extraMetadata:
+  main: electron/main.js
+
+win:
+  icon: electron/icon.ico
+  executableName: Petko
+  signAndEditExecutable: true
+  signExecutable: true
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: appx
+      arch:
+        - x64
+
+appx:
+  applicationId: Petko
+  identityName: Petko
+  publisherDisplayName: G-Lab
+  displayName: Petko
+  artifactName: Petko-${version}.${ext}
+  languages:
+    - sr-Latn-CS
+    - sr-Cyrl-CS
+    - en-US
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Petko
+  uninstallDisplayName: Petko
+  installerIcon: electron/icon.ico
+  uninstallerIcon: electron/icon.ico
+  installerHeaderIcon: electron/icon.ico
+  displayLanguageSelector: false
+  installerLanguages:
+    - sr_RS
+    - en_US

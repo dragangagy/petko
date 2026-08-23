@@ -1,0 +1,4 @@
+project_id = "kfpyrajlxrucmrlhyvgr"
+
+[functions.send-push]
+verify_jwt = false

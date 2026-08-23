@@ -1,0 +1,41 @@
+{
+  "name": "petko",
+  "version": "1.4.0",
+  "private": true,
+  "author": "G-Lab",
+  "main": "electron/main.js",
+  "description": "Петко — српска ћирилична игра речи. Capacitor paketi za Google Play i App Store, Electron za Windows, PWA za Mac.",
+  "scripts": {
+    "build": "node scripts/build-www.js",
+    "build:mobile": "node scripts/build-www.js",
+    "serve": "npx --yes serve . -p 4173",
+    "assets": "npx capacitor-assets generate --iconBackgroundColor \"#0f172a\" --splashBackgroundColor \"#0f172a\"",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:sync:android": "npm run build && npx cap sync android",
+    "cap:sync:ios": "npm run build && npx cap sync ios",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "android": "npm run cap:sync:android && npx cap open android",
+    "ios": "npm run cap:sync:ios && npx cap open ios",
+    "android:debug": "npm run cap:sync:android && cd android && ./gradlew assembleDebug",
+    "android:bundle": "npm run cap:sync:android && cd android && ./gradlew bundleRelease",
+    "win:ico": "node scripts/make-win-ico.js",
+    "electron:dev": "npm run build && electron .",
+    "win:dir": "npm run build && npm run win:ico && node scripts/win-sign-env.js --win dir --x64 -p never",
+    "win:build": "npm run build && npm run win:ico && node scripts/win-sign-env.js --win nsis --x64 -p never",
+    "win:appx": "npm run build && npm run win:ico && node scripts/make-appx-assets.js && node scripts/win-sign-env.js --win dir --x64 -p never && node scripts/pack-appx-wine.js && node scripts/stage-release.js",
+    "release:stage": "node scripts/stage-release.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/ios": "^7.4.3",
+    "@capacitor/push-notifications": "^7.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.4.3",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  }
+}

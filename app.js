@@ -5668,8 +5668,13 @@ const SUPABASE_CONFIG = {
   lectorStatsTable: "lector_stats",
   playersTable: "players",
   wordReportsTable: "word_reports",
-  wordsTable: "words"
+  wordsTable: "words",
+  gameSessionsTable: "game_sessions"
 };
+const GAME_SESSION_SYNC_DEBOUNCE_MS = 900;
+const gameSessionSyncTimers = new Map();
+let gameSessionHydrateBusy = false;
+let gameSessionLastHydratedAt = 0;
 
 const WORD_INFO = {
   "авани": "Множина речи аван; посуде за туцање.",
@@ -12147,6 +12152,10 @@ function wordsTable() {
   return SUPABASE_CONFIG.wordsTable || "words";
 }
 
+function gameSessionsTable() {
+  return SUPABASE_CONFIG.gameSessionsTable || "game_sessions";
+}
+
 function emptyLectorStats() {
   return { total: 0, add: 0, remove: 0, updated_at: "" };
 }
@@ -14985,6 +14994,7 @@ async function playChallengeVs(row) {
 }
 
 async function startChallengeGame(row, role) {
+  await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   const serverRow = hydrateChallengeRow(row);
   if (!serverRow || !Array.isArray(serverRow.words) || serverRow.words.length !== CHALLENGE_WORDS) {
     renderChallengePanel("\u0418\u0437\u0430\u0437\u043e\u0432 \u043d\u0438\u0458\u0435 \u0438\u0441\u043f\u0440\u0430\u0432\u0430\u043d.");
@@ -15991,10 +16001,12 @@ function saveTodayLock(patch) {
 
 function clearCompetitiveProgress() {
   localStorage.removeItem(COMPETITIVE_PROGRESS_KEY);
+  queueGameSessionClear("competitive");
 }
 
 function clearNormalProgress() {
   localStorage.removeItem(NORMAL_PROGRESS_KEY);
+  queueGameSessionClear("normal");
 }
 
 function normalizeChallengeCode(value) {
@@ -16026,6 +16038,7 @@ function clearChallengeProgress(code = activeChallenge?.code) {
   const store = loadChallengeProgressStore();
   delete store[cleanCode];
   saveChallengeProgressStore(store);
+  queueGameSessionClear("challenge", cleanCode);
 }
 
 function loadCompetitiveProgress() {
@@ -16057,6 +16070,7 @@ function saveCompetitiveProgress() {
     updatedAt: new Date().toISOString()
   };
   localStorage.setItem(COMPETITIVE_PROGRESS_KEY, JSON.stringify(progress));
+  queueGameSessionUpsert("competitive", progress);
 }
 
 function loadNormalProgress() {
@@ -16083,6 +16097,7 @@ function saveNormalProgress() {
     updatedAt: new Date().toISOString()
   };
   localStorage.setItem(NORMAL_PROGRESS_KEY, JSON.stringify(progress));
+  queueGameSessionUpsert("normal", progress);
 }
 
 function loadChallengeProgress(code = activeChallenge?.code) {
@@ -16110,6 +16125,199 @@ function saveChallengeProgress() {
   const store = loadChallengeProgressStore();
   store[normalizeChallengeCode(activeChallenge.code)] = progress;
   saveChallengeProgressStore(store);
+  queueGameSessionUpsert("challenge", progress, activeChallenge.code);
+}
+
+function playerNicknameKey(name = loadPlayerName()) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function progressUpdatedAtMs(progress) {
+  const value = Date.parse(progress?.updatedAt || "");
+  return Number.isFinite(value) ? value : 0;
+}
+
+function preferNewerProgress(localProgress, remoteProgress) {
+  if (!remoteProgress) return localProgress || null;
+  if (!localProgress) return remoteProgress;
+  return progressUpdatedAtMs(remoteProgress) >= progressUpdatedAtMs(localProgress)
+    ? remoteProgress
+    : localProgress;
+}
+
+function gameSessionKey(mode, challengeCode = "") {
+  return `${mode}:${normalizeChallengeCode(challengeCode)}`;
+}
+
+function buildGameSessionRow(mode, progress, challengeCode = "") {
+  if (!hasRegisteredPlayerProfile()) return null;
+  const nickname = normalizePlayerName(loadPlayerName() || "");
+  if (!nickname) return null;
+  const cleanCode = mode === "challenge" ? normalizeChallengeCode(challengeCode || progress?.active?.code || "") : "";
+  if (mode === "challenge" && !cleanCode) return null;
+  return {
+    nickname,
+    nickname_key: playerNicknameKey(nickname),
+    profile_device_id: profileDeviceId(),
+    device_id: deviceId(),
+    mode,
+    challenge_code: cleanCode,
+    day: progress?.date || (mode === "competitive" ? todayId() : null),
+    status: progress?.status || "in_progress",
+    payload: progress || {},
+    updated_at: progress?.updatedAt || new Date().toISOString()
+  };
+}
+
+async function upsertGameSessionRow(row) {
+  if (!supabaseConfigured() || !row) return false;
+  const response = await fetch(
+    supabaseUrl(`${gameSessionsTable()}?on_conflict=nickname_key,mode,challenge_code`),
+    {
+      method: "POST",
+      headers: supabaseHeaders({
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      }),
+      body: JSON.stringify(row)
+    }
+  );
+  return response.ok;
+}
+
+async function deleteGameSessionRow(mode, challengeCode = "") {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return false;
+  const nicknameKey = playerNicknameKey();
+  if (!nicknameKey) return false;
+  const cleanCode = mode === "challenge" ? normalizeChallengeCode(challengeCode) : "";
+  const query = [
+    `nickname_key=eq.${encodeURIComponent(nicknameKey)}`,
+    `mode=eq.${encodeURIComponent(mode)}`,
+    `challenge_code=eq.${encodeURIComponent(cleanCode)}`
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${gameSessionsTable()}?${query}`), {
+    method: "DELETE",
+    headers: supabaseHeaders({ Prefer: "return=minimal" })
+  });
+  return response.ok;
+}
+
+function queueGameSessionUpsert(mode, progress, challengeCode = "") {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return;
+  const key = gameSessionKey(mode, challengeCode);
+  const existing = gameSessionSyncTimers.get(key);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    gameSessionSyncTimers.delete(key);
+    const row = buildGameSessionRow(mode, progress, challengeCode);
+    if (!row) return;
+    upsertGameSessionRow(row).catch(() => {});
+  }, GAME_SESSION_SYNC_DEBOUNCE_MS);
+  gameSessionSyncTimers.set(key, timer);
+}
+
+function queueGameSessionClear(mode, challengeCode = "") {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return;
+  const key = gameSessionKey(mode, challengeCode);
+  const existing = gameSessionSyncTimers.get(key);
+  if (existing) clearTimeout(existing);
+  gameSessionSyncTimers.delete(key);
+  deleteGameSessionRow(mode, challengeCode).catch(() => {});
+}
+
+function flushGameSessionUpserts() {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return;
+  for (const [key, timer] of gameSessionSyncTimers.entries()) {
+    clearTimeout(timer);
+    gameSessionSyncTimers.delete(key);
+  }
+  const competitive = loadCompetitiveProgress();
+  if (competitive) {
+    const row = buildGameSessionRow("competitive", competitive);
+    if (row) upsertGameSessionRow(row).catch(() => {});
+  }
+  const normal = loadNormalProgress();
+  if (normal) {
+    const row = buildGameSessionRow("normal", normal);
+    if (row) upsertGameSessionRow(row).catch(() => {});
+  }
+  const store = loadChallengeProgressStore();
+  Object.entries(store).forEach(([code, progress]) => {
+    if (progress?.status !== "in_progress") return;
+    const row = buildGameSessionRow("challenge", progress, code);
+    if (row) upsertGameSessionRow(row).catch(() => {});
+  });
+}
+
+async function fetchCloudGameSessions() {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return [];
+  const nicknameKey = playerNicknameKey();
+  if (!nicknameKey) return [];
+  const query = [
+    "select=mode,challenge_code,day,status,payload,updated_at,nickname,profile_device_id,device_id",
+    `nickname_key=eq.${encodeURIComponent(nicknameKey)}`,
+    "status=eq.in_progress",
+    "order=updated_at.desc"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${gameSessionsTable()}?${query}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+function applyCloudGameSessionRow(row) {
+  if (!row || row.status !== "in_progress" || !row.payload || typeof row.payload !== "object") return false;
+  const payload = { ...row.payload };
+  if (!payload.updatedAt && row.updated_at) payload.updatedAt = row.updated_at;
+  if (row.mode === "competitive") {
+    if (payload.date && payload.date !== todayId()) {
+      queueGameSessionClear("competitive");
+      return false;
+    }
+    const merged = preferNewerProgress(loadCompetitiveProgress(), payload);
+    if (!merged || merged !== payload) return false;
+    localStorage.setItem(COMPETITIVE_PROGRESS_KEY, JSON.stringify(merged));
+    return true;
+  }
+  if (row.mode === "normal") {
+    const merged = preferNewerProgress(loadNormalProgress(), payload);
+    if (!merged || merged !== payload) return false;
+    localStorage.setItem(NORMAL_PROGRESS_KEY, JSON.stringify(merged));
+    return true;
+  }
+  if (row.mode === "challenge") {
+    const code = normalizeChallengeCode(row.challenge_code || payload?.active?.code || "");
+    if (!code) return false;
+    const store = loadChallengeProgressStore();
+    const merged = preferNewerProgress(store[code], payload);
+    if (!merged || merged !== payload) return false;
+    store[code] = merged;
+    saveChallengeProgressStore(store);
+    return true;
+  }
+  return false;
+}
+
+async function hydrateGameSessionsFromCloud({ force = false } = {}) {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return false;
+  if (gameSessionHydrateBusy) return false;
+  if (!force && Date.now() - gameSessionLastHydratedAt < 2500) return false;
+  gameSessionHydrateBusy = true;
+  try {
+    flushGameSessionUpserts();
+    const rows = await fetchCloudGameSessions();
+    let changed = false;
+    rows.forEach((row) => {
+      if (applyCloudGameSessionRow(row)) changed = true;
+    });
+    gameSessionLastHydratedAt = Date.now();
+    return changed;
+  } catch {
+    return false;
+  } finally {
+    gameSessionHydrateBusy = false;
+  }
 }
 
 function restoreCompetitiveProgress(progress) {
@@ -18270,9 +18478,10 @@ async function recoverExistingPlayerProfile(name) {
   savePlayerName(name);
   updateChallengePlayerName();
   const restored = restoreLocalResultsFromOnline(rows, name);
+  await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   renderProfileModal();
   setProfileEditMode(false);
-  setProfileMessage(restored ? "Профил и скор су враћени из online базе." : "Профил је повезан са online надимком.");
+  setProfileMessage(restored ? "Профил, скор и отворене игре су враћени из online базе." : "Профил је повезан са online надимком.");
   refreshOnlineLeaderboard();
   return true;
 }
@@ -18353,10 +18562,11 @@ async function connectProfileByCode() {
   // is capped and can omit an older result when many players are active.
   const onlineRows = await fetchOnlinePlayerStats(nickname).catch(() => []);
   const restored = restoreLocalResultsFromOnline(onlineRows, nickname);
+  await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   renderProfileModal();
   setProfileEditMode(false);
   if (profileConnectInput) profileConnectInput.value = "";
-  setProfileMessage(restored ? "Профил и скор су повезани." : "Профил је повезан.");
+  setProfileMessage(restored ? "Профил, скор и отворене игре су повезани." : "Профил је повезан. Отворене игре ће се синхронизовати.");
   refreshChallengePanel();
   refreshOnlineLeaderboard();
 }
@@ -18484,24 +18694,30 @@ window.addEventListener("beforeunload", () => {
   saveCompetitiveProgress();
   saveNormalProgress();
   saveChallengeProgress();
+  flushGameSessionUpserts();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     saveCompetitiveProgress();
     saveNormalProgress();
     saveChallengeProgress();
+    flushGameSessionUpserts();
   } else {
     syncWeekendWitchAvatarState();
     updateChallengeQuota();
     maybeShowWeekendWitchOffer();
     syncChallengeState({ force: true }).catch(() => {});
+    hydrateAndMaybeResume({ force: true, resume: true }).catch(() => false);
   }
 });
 window.addEventListener("focus", () => {
   syncChallengeState({ force: true }).catch(() => {});
+  hydrateAndMaybeResume({ resume: true }).catch(() => false);
 });
 window.addEventListener("online", () => {
   syncChallengeState({ force: true }).catch(() => {});
+  flushGameSessionUpserts();
+  hydrateAndMaybeResume({ force: true, resume: true }).catch(() => false);
 });
 setInterval(updateCompetitiveCountdown, 1000);
 setInterval(notifyDailyEvents, 600000);
@@ -18523,24 +18739,60 @@ function updateStatusAdvertisement() {
 updateStatusAdvertisement();
 setInterval(updateStatusAdvertisement, 30000);
 
+function canSoftResumeSyncedProgress() {
+  if (!done && targets.length && (guesses.length || current)) return false;
+  if (document.body?.dataset?.challengePlaying === "true" && !done) return false;
+  return true;
+}
+
+function resumeBestSyncedProgress() {
+  if (!hasRegisteredPlayerProfile()) return false;
+  const competitive = loadCompetitiveProgress();
+  if (competitive) {
+    restoreCompetitiveProgress(competitive);
+    return true;
+  }
+  const store = loadChallengeProgressStore();
+  const challengeProgress = Object.values(store).find((item) => item?.status === "in_progress" && item?.active?.code);
+  if (challengeProgress) {
+    restoreChallengeProgress(challengeProgress);
+    return true;
+  }
+  const normal = loadNormalProgress();
+  if (normal) {
+    restoreNormalProgress(normal);
+    return true;
+  }
+  return false;
+}
+
+async function hydrateAndMaybeResume({ force = false, resume = false } = {}) {
+  const changed = await hydrateGameSessionsFromCloud({ force }).catch(() => false);
+  if (resume && changed && canSoftResumeSyncedProgress()) {
+    resumeBestSyncedProgress();
+  }
+  return changed;
+}
+
 async function bootPetkoApp() {
   loadOnlineWords();
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
   refreshManualChallengeCredit().catch(() => {});
+  await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {
     startGame("challenge");
-  if (challengeCodeInput) challengeCodeInput.value = incomingChallengeCode.toUpperCase();
-  renderChallengePanel(`Позвани сте на изазов ${incomingChallengeCode.toUpperCase()}. Прихвати га, па играј када желиш.`);
-  fetchChallenge(incomingChallengeCode)
-    .then((row) => {
-      if (row) renderChallengeHistoryCards([row]);
-    })
-    .catch(() => {});
-} else {
-  startGame();
-}
+    if (challengeCodeInput) challengeCodeInput.value = incomingChallengeCode.toUpperCase();
+    renderChallengePanel(`Позвани сте на изазов ${incomingChallengeCode.toUpperCase()}. Прихвати га, па играј када желиш.`);
+    fetchChallenge(incomingChallengeCode)
+      .then((row) => {
+        if (row) renderChallengeHistoryCards([row]);
+      })
+      .catch(() => {});
+  } else if (!resumeBestSyncedProgress()) {
+    startGame();
+  }
 
 const initialNormalStats = loadNormalStats();
 if (initialNormalStats.started || initialNormalStats.finished) {

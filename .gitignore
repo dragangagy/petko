@@ -2,3 +2,43 @@
 Thumbs.db
 *.log
 node_modules/
+www/
+
+# Capacitor / native build outputs
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+android/local.properties
+android/.idea/
+android/*.iml
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+
+# Signing secrets — never commit
+*.jks
+*.keystore
+android/keystore.properties
+*.p12
+*.pfx
+certs/
+*.mobileprovision
+.env
+.env.*
+
+# Electron / Windows installer output
+dist/
+
+# Staged store binaries (keep release/**/README.txt tracked)
+release/**/*.aab
+release/**/*.apk
+release/**/*.ipa
+release/**/*.exe
+release/**/*.appx
+release/**/*.msix
+release/**/*.appxbundle
+release/**/*.blockmap
+release/**/*.xcarchive/

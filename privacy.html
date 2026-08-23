@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="sr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0f172a">
+    <title>Политика приватности — Петко</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --line: rgba(148, 163, 184, 0.25);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background:
+          radial-gradient(ellipse at top, #1e3a5f 0%, transparent 55%),
+          var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.35rem;
+        letter-spacing: -0.02em;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 0.95rem;
+        margin-bottom: 1.75rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 1.75rem 0 0.6rem;
+        color: var(--accent);
+      }
+      p, li { color: var(--text); }
+      ul { padding-left: 1.2rem; }
+      li { margin: 0.35rem 0; }
+      a { color: var(--accent); }
+      .card {
+        background: color-mix(in srgb, var(--panel) 88%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 1.1rem 1.2rem;
+        margin: 1rem 0;
+      }
+      .back {
+        display: inline-block;
+        margin-bottom: 1.25rem;
+        text-decoration: none;
+        color: var(--muted);
+      }
+      .back:hover { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="back" href="./">← Петко</a>
+      <h1>Политика приватности</h1>
+      <p class="meta">
+        Петко (пакет <code>rs.glab.petko</code>)<br>
+        Последње ажурирање: 23. август 2026.<br>
+        Оператер: G-Lab — Драган Милошевић
+      </p>
+
+      <div class="card">
+        <p>
+          Ова политика објашњава које податке Петко („Апликација“) обрађује када
+          играте на вебу или у мобилној апликацији објављеној на Google Play / App Store.
+        </p>
+      </div>
+
+      <h2>1. Које податке обрађујемо</h2>
+      <p>Апликација <strong>не</strong> тражи имејл, телефон ни лозинку.</p>
+      <p>У зависности од коришћења, можемо обрађивати:</p>
+      <ul>
+        <li><strong>Надимак</strong> који изаберете за листе, изазове и профил</li>
+        <li><strong>Идентификатор уређаја / профила</strong> генерисан на уређају (није IMEI) да профил и изазови остану повезани</li>
+        <li><strong>Избор аватара</strong> и стање откључавања</li>
+        <li><strong>Податке о игри</strong> као што су скорови, покушаји, изазови и викенд резултати</li>
+        <li><strong>Локално стање игре</strong> на уређају (localStorage)</li>
+        <li><strong>Недедовршене партије</strong> (Classic / Такмичење / Изазов) ако је укључено облачно настављање</li>
+      </ul>
+
+      <h2>2. Зашто их обрађујемо</h2>
+      <ul>
+        <li>Да раде Класик, Такмичење, Изазов и медаље</li>
+        <li>Да прикажемо листе и историју изазова</li>
+        <li>Да вратимо надимак, аватар и отворену игру на другом уређају са истим надимком или кодом повезивања</li>
+      </ul>
+
+      <h2>3. Где се чувају</h2>
+      <ul>
+        <li><strong>На уређају:</strong> локално складиште за стање игре и подешавања</li>
+        <li><strong>На серверу:</strong> online функције користе Supabase (Petko пројекат) за играче, скорове, изазове и сесије</li>
+      </ul>
+      <p>
+        Online подаци везани за надимак могу бити видљиви другим играчима
+        (јавни надимци и скорови на листама).
+      </p>
+
+      <h2>4. Дељење</h2>
+      <p>
+        Не продајемо личне податке. Делимо их само колико је потребно за рад
+        Апликације (хостинг/база) или када то закон захтева.
+      </p>
+
+      <h2>5. Рекламе, аналитика и деца</h2>
+      <ul>
+        <li>Апликација не користи SDK-ове трећих страна за праћење преко других апликација.</li>
+        <li>Може приказати промотивни линк ка другим G-Lab производима.</li>
+        <li>Не прикупљамо свесно личне податке деце ради комерцијалног профилисања. Игра је за општу публику.</li>
+      </ul>
+
+      <h2>6. Чување</h2>
+      <p>
+        Локални подаци остају на уређају док не обришете складиште или не деинсталирате
+        Апликацију. Серверски записи се чувају док су потребни за листе, изазове и
+        настављање партија.
+      </p>
+
+      <h2>7. Ваши избори</h2>
+      <ul>
+        <li>Играјте са надимком по избору; не стављајте праве личне податке у надимак.</li>
+        <li>Обришите локално складиште или деинсталирајте Апликацију да уклоните локалне податке.</li>
+        <li>За брисање серверског профила/партија везаних за надимак или уређај, контактирајте нас.</li>
+      </ul>
+
+      <h2>8. Контакт</h2>
+      <p>
+        Питања о приватности или захтеви за брисање:<br>
+        <strong>G-Lab — Драган Милошевић</strong><br>
+        GitHub:
+        <a href="https://github.com/dragangagy/petko/issues">petko issues</a>
+      </p>
+    </main>
+  </body>
+</html>
