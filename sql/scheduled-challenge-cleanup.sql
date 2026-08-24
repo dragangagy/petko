@@ -14,30 +14,48 @@ as $$
 declare
   deleted_count integer := 0;
   step_count integer := 0;
+  belgrade_today date := (now() at time zone 'Europe/Belgrade')::date;
+  dow integer := extract(isodow from belgrade_today)::integer;
+  weekend_start date := belgrade_today - ((dow + 1) % 7);
 begin
-  -- Before weekend cards can be deleted, preserve the entire Witch Hunt result.
-  if extract(isodow from (now() at time zone 'Europe/Belgrade')) = 1 then
-    perform public.record_witch_hunt_result(((now() at time zone 'Europe/Belgrade')::date - 2));
-  end if;
+  -- Snapshot the current or last Witch Hunt while its cards still exist.
+  -- Saturday = this weekend, Sunday/Monday-Friday = last Saturday.
+  perform public.record_witch_hunt_result(weekend_start);
 
-  -- Sent invite was never accepted. After 6h it expires and the attempt returns in the app.
+  -- Sent invite was never accepted. After 6h it expires, except Witch Hunt
+  -- yellow cards which stay until Monday 00:00 Belgrade.
   delete from public.challenges
   where status = 'pending'
     and opponent_device is null
     and accepted_at is null
-    and created_at < now() - interval '6 hours';
+    and created_at < now() - interval '6 hours'
+    and not (
+      extract(isodow from (created_at at time zone 'Europe/Belgrade')) in (6, 7)
+      and now() < (
+        date_trunc('week', created_at at time zone 'Europe/Belgrade')
+        + interval '7 days'
+      ) at time zone 'Europe/Belgrade'
+    );
   get diagnostics step_count = row_count;
   deleted_count := deleted_count + step_count;
 
-  -- Accepted challenge has a 24h play window. After that it is no longer an active card.
+  -- Accepted challenge has a 24h play window. Witch Hunt green cards stay
+  -- until Monday 00:00 Belgrade.
   delete from public.challenges
   where status = 'accepted'
-    and coalesce(accepted_at, created_at) < now() - interval '24 hours';
+    and coalesce(accepted_at, created_at) < now() - interval '24 hours'
+    and not (
+      extract(isodow from (created_at at time zone 'Europe/Belgrade')) in (6, 7)
+      and now() < (
+        date_trunc('week', created_at at time zone 'Europe/Belgrade')
+        + interval '7 days'
+      ) at time zone 'Europe/Belgrade'
+    );
   get diagnostics step_count = row_count;
   deleted_count := deleted_count + step_count;
 
-  -- Plave rezultatne kartice su vidljive 24h. Witch Hunt kartice (subota i
-  -- nedelja po beogradskom vremenu) ostaju tokom celog lova, do ponedeljka 00:00.
+  -- Blue result cards are visible 24h. Witch Hunt results stay until the next
+  -- Saturday 00:00 Belgrade, so the scoreboard can show them all week.
   delete from public.challenges
   where status = 'played'
     and (
@@ -45,7 +63,7 @@ begin
         when extract(isodow from (created_at at time zone 'Europe/Belgrade')) in (6, 7)
           then now() >= (
             date_trunc('week', created_at at time zone 'Europe/Belgrade')
-            + interval '7 days'
+            + interval '12 days'
           ) at time zone 'Europe/Belgrade'
         else greatest(
           coalesce(creator_played_at, created_at),

@@ -5504,6 +5504,7 @@ const WEEKEND_WITCH_KEY = "petko-weekend-witch-v1";
 const WEEKEND_WITCH_PREVIOUS_AVATAR_KEY = "petko-weekend-witch-previous-avatar-v1";
 const WEEKEND_WITCH_PROMPT_KEY = "petko-weekend-witch-prompt-v1";
 const WEEKEND_WITCH_CHALLENGE_BONUS_KEY = "petko-weekend-witch-challenge-bonus-v1";
+const WEEKEND_WITCH_RESULT_CACHE_KEY = "petko-weekend-witch-result-v1";
 const WEEKEND_WITCH_CHALLENGE_INTERVAL_MS = 3 * 60 * 60 * 1000;
 const WEEKEND_WITCH_AVATAR_IDS = ["female-41", "female-42", "female-43", "female-44", "female-45"];
 const LECTOR_STATS_KEY = "petko-lector-stats-v1";
@@ -11436,6 +11437,62 @@ function weekendWitchId(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function latestWitchHuntWeekendStart(date = new Date()) {
+  const saturday = new Date(date);
+  const day = saturday.getDay();
+  const daysSinceSaturday = day === 6 ? 0 : day + 1;
+  saturday.setDate(saturday.getDate() - daysSinceSaturday);
+  const year = saturday.getFullYear();
+  const month = String(saturday.getMonth() + 1).padStart(2, "0");
+  const dayNum = String(saturday.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayNum}`;
+}
+
+function dateStampFromMs(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function witchHuntResultHasScore(result) {
+  return Boolean(result) &&
+    (Number(result.hunters) || 0) + (Number(result.witches) || 0) + (Number(result.draws) || 0) > 0;
+}
+
+function cacheWeekendWitchResult(weekendStart, result) {
+  const weekend = String(weekendStart || "").slice(0, 10);
+  if (!weekend || !witchHuntResultHasScore(result)) return;
+  localStorage.setItem(WEEKEND_WITCH_RESULT_CACHE_KEY, JSON.stringify({
+    weekend,
+    hunters: Number(result.hunters) || 0,
+    witches: Number(result.witches) || 0,
+    draws: Number(result.draws) || 0,
+    unplayed: Number(result.unplayed) || 0,
+    winner: result.winner || "tie"
+  }));
+}
+
+function cachedWeekendWitchResult(weekendStart) {
+  try {
+    const data = JSON.parse(localStorage.getItem(WEEKEND_WITCH_RESULT_CACHE_KEY) || "null");
+    if (!data || data.weekend !== String(weekendStart || "").slice(0, 10)) return null;
+    return witchHuntResultHasScore(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistLatestWitchHuntResult() {
+  if (!supabaseConfigured()) return false;
+  if (!isWeekendWitchActive() && !showFinishedWitchHuntUntilFriday()) return false;
+  return callSupabaseRpc("record_witch_hunt_result", {
+    p_weekend_start: latestWitchHuntWeekendStart()
+  });
+}
+
 function isWeekendWitchAvatarId(id = "") {
   return WEEKEND_WITCH_AVATAR_IDS.includes(String(id || "").trim());
 }
@@ -14103,9 +14160,11 @@ function savedWitchHuntResultForWindow(window) {
 
 function latestSavedWitchHuntResult() {
   const now = Date.now();
+  const lastStart = latestWitchHuntWeekendStart();
   return weekendWitchResults.find((result) => {
     const window = weekendResultWindow(result);
-    return window && window.end <= now;
+    const startDate = String(result.weekend_start || "").slice(0, 10);
+    return startDate === lastStart && window && window.end <= now;
   }) || null;
 }
 
@@ -14135,8 +14194,9 @@ function tallyWeekendWitchPlayedRows(playedRows = []) {
 }
 
 function showFinishedWitchHuntUntilFriday() {
+  if (isWeekendWitchActive()) return false;
   const day = new Date().getDay();
-  return day >= 1 && day <= 4 && !isPetkoFriday();
+  return day >= 1 && day <= 5;
 }
 
 function witchHuntWinnerImage(winner, window) {
@@ -14159,7 +14219,11 @@ function renderWeekendWitchScoreboard(rows = []) {
   // Kartice te nedelje imaju prednost nad starim/fiksnim arhiviranim skorom.
   const displayWindow = currentWitchWindow
     || (showFinishedWitchHuntUntilFriday() ? (finishedWindow || savedFinishedWindow) : null);
-  const savedResult = savedWitchHuntResultForWindow(displayWindow);
+  const weekendStart = dateStampFromMs(displayWindow?.start) || latestWitchHuntWeekendStart();
+  let savedResult = savedWitchHuntResultForWindow(displayWindow);
+  if (!witchHuntResultHasScore(savedResult)) {
+    savedResult = cachedWeekendWitchResult(weekendStart);
+  }
   const showFinalWinner = !currentWitchWindow && Boolean(displayWindow);
   const playedRows = Array.isArray(rows) && displayWindow
     ? rows.filter((row) => {
@@ -14184,10 +14248,16 @@ function renderWeekendWitchScoreboard(rows = []) {
   const witches = useLiveTally ? liveTally.witches : (Number(savedResult?.witches) || 0);
   const draws = useLiveTally ? liveTally.draws : (Number(savedResult?.draws) || 0);
   const unplayed = useLiveTally ? 0 : (Number(savedResult?.unplayed) || 0);
-
   const winningFaction = useLiveTally
     ? (hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie")
     : (savedResult?.winner || (hunters > witches ? "hunter" : witches > hunters ? "witch" : "tie"));
+  cacheWeekendWitchResult(weekendStart, {
+    hunters,
+    witches,
+    draws,
+    unplayed,
+    winner: winningFaction
+  });
   if (idleWitchWeekendPosterEl) {
     idleWitchWeekendPosterEl.src = showFinalWinner
       ? witchHuntWinnerImage(winningFaction, displayWindow)
@@ -14588,6 +14658,7 @@ function renderChallengeHistoryCards(rows = []) {
 
 async function refreshChallengeHistoryCards() {
   if (!challengeHistoryEl || !supabaseConfigured()) return;
+  await persistLatestWitchHuntResult().catch(() => false);
   const [rows, statsRows] = await Promise.all([
     fetchChallengeHistory(),
     fetchChallengeStatsRows().catch(() => []),
@@ -18801,11 +18872,11 @@ if (initialNormalStats.started || initialNormalStats.finished) {
 refreshOnlineNormalStats().catch(() => {});
 refreshAvatarAchievements({ popup: true }).catch(() => {});
 window.setTimeout(maybeShowWeekendWitchOffer, 700);
-Promise.all([
+persistLatestWitchHuntResult().catch(() => false).then(() => Promise.all([
   fetchChallengeHistory(),
   fetchChallengeStatsRows().catch(() => []),
   refreshWeekendWitchResults().catch(() => [])
-])
+]))
   .then(([rows, statsRows]) => {
     if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     updateChallengeBadge(rows);

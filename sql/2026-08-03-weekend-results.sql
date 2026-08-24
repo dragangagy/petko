@@ -1,4 +1,5 @@
 -- Petko: permanent Witch Hunt results, independent from temporary cards.
+-- Run this in the Supabase SQL editor. Safe to run more than once.
 
 create table if not exists public.weekend_results (
   weekend_start date primary key,
@@ -23,22 +24,34 @@ security definer
 set search_path = public
 as $$
 declare
+  window_start timestamptz := (p_weekend_start::timestamp at time zone 'Europe/Belgrade');
+  window_end timestamptz := ((p_weekend_start + 2)::timestamp at time zone 'Europe/Belgrade');
+  card_total integer := 0;
   hunter_total integer := 0;
   witch_total integer := 0;
   draw_total integer := 0;
   unplayed_total integer := 0;
+  existing_points integer := 0;
 begin
-  with weekend_cards as (
-    select *
-    from public.challenges
-    where created_at >= (p_weekend_start::timestamp at time zone 'Europe/Belgrade')
-      and created_at < ((p_weekend_start + 2)::timestamp at time zone 'Europe/Belgrade')
-  ), completed as (
-    select * from weekend_cards
-    where status = 'played'
-      and creator_played_at is not null
-      and opponent_played_at is not null
-  )
+  if p_weekend_start is null then
+    return;
+  end if;
+
+  select count(*) into card_total
+  from public.challenges
+  where created_at >= window_start
+    and created_at < window_end;
+
+  -- Cards already cleaned up: never replace an archived score with zeros.
+  if coalesce(card_total, 0) = 0 then
+    return;
+  end if;
+
+  select coalesce(hunters, 0) + coalesce(witches, 0) + coalesce(draws, 0)
+  into existing_points
+  from public.weekend_results
+  where weekend_start = p_weekend_start;
+
   select
     count(*) filter (where (creator_faction = 'witch' and opponent_faction = 'witch')
       or (creator_score > opponent_score and creator_faction = 'hunter')
@@ -49,13 +62,28 @@ begin
     count(*) filter (where not (creator_faction = 'witch' and opponent_faction = 'witch')
       and creator_score = opponent_score)
   into hunter_total, witch_total, draw_total
-  from completed;
+  from public.challenges
+  where created_at >= window_start
+    and created_at < window_end
+    and status = 'played'
+    and creator_played_at is not null
+    and opponent_played_at is not null;
 
   select count(*) into unplayed_total
-  from weekend_cards
-  where status <> 'played'
-     or creator_played_at is null
-     or opponent_played_at is null;
+  from public.challenges
+  where created_at >= window_start
+    and created_at < window_end
+    and (
+      status <> 'played'
+      or creator_played_at is null
+      or opponent_played_at is null
+    );
+
+  -- If finished games are already gone, keep the last real snapshot.
+  if coalesce(hunter_total, 0) + coalesce(witch_total, 0) + coalesce(draw_total, 0) = 0
+     and coalesce(existing_points, 0) > 0 then
+    return;
+  end if;
 
   insert into public.weekend_results (weekend_start, hunters, witches, draws, unplayed, winner, finalized_at, updated_at)
   values (
@@ -78,13 +106,9 @@ begin
 end;
 $$;
 
+grant execute on function public.record_witch_hunt_result(date) to anon, authenticated;
+
 -- Restored result for the Witch Hunt that was cleared before archival existed.
 insert into public.weekend_results (weekend_start, hunters, witches, draws, unplayed, winner, finalized_at)
 values ('2026-08-01', 18, 8, 11, 3, 'hunter', now())
-on conflict (weekend_start) do update set
-  hunters = excluded.hunters,
-  witches = excluded.witches,
-  draws = excluded.draws,
-  unplayed = excluded.unplayed,
-  winner = excluded.winner,
-  updated_at = now();
+on conflict (weekend_start) do nothing;
