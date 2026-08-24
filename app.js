@@ -12539,6 +12539,12 @@ function challengeActiveUntil(row) {
 
 function challengePendingUntil(row) {
   const created = Date.parse(row?.created_at || "");
+  if (!Number.isFinite(created)) return 0;
+  // Otvoreni pozivi („Чека се“) ističu tačno posle 6h zidnog vremena.
+  // Ne produžavaju se preko Witch Hunta, da se u ponedeljak ne vrate bez protivnika.
+  if (!row?.opponent_device && !row?.accepted_at && isOpenChallengeOpponent(row?.opponent)) {
+    return created + CHALLENGE_PENDING_MS;
+  }
   return challengeDeadlineWithWeekendPause(created, CHALLENGE_PENDING_MS, row);
 }
 
@@ -12549,6 +12555,15 @@ function challengePendingExpired(row) {
   if (challengePausedForWitchHunt(row)) return false;
   const until = challengePendingUntil(row);
   return Boolean(until && Date.now() >= until);
+}
+
+function challengeInvitePlayersClear(row) {
+  if (!cleanChallengeName(row?.creator)) return false;
+  if (isOpenChallengeOpponent(row?.opponent)) {
+    // Samo stvarni otvoreni poziv na čekanju; posle isteka ili bez uređaja/imena ne prikazuj.
+    return row?.status === "pending" && !row?.opponent_device && !row?.accepted_at;
+  }
+  return Boolean(cleanChallengeName(row?.opponent));
 }
 
 function challengeExpired(row) {
@@ -12752,6 +12767,8 @@ function challengeCardVisible(row) {
   if (locallyCancelledChallenge(row)) return false;
   if (challengePendingExpired(row)) return false;
   if (selfChallengeRow(row)) return false;
+  // Ne prikazuj nedovršene kartice bez jasnih igrača (npr. prazan / „Чека се“ posle vikenda).
+  if (!challengeInvitePlayersClear(row)) return false;
   if (row?.status === "pending") return true;
   const until = challengeActiveUntil(row);
   return !until || Date.now() < until;
@@ -14620,11 +14637,12 @@ function renderChallengeHistoryCards(rows = []) {
     // Rezultat je javna istorija i ostaje prikazan i kada su imena ili uredjaji naknadno spojeni.
     if (playedChallenge(row)) return true;
     if (selfChallengeRow(row)) return false;
+    if (!challengeInvitePlayersClear(row)) return false;
     return row.creator_device === profileDeviceId() ||
       row.opponent_device === profileDeviceId() ||
-      (typedCode && String(row.code || "").toUpperCase() === typedCode) ||
-      sameChallengeName(row.opponent, me) ||
-      sameChallengeName(row.creator, me);
+      (typedCode && String(row.code || "").trim().toUpperCase() === typedCode) ||
+      (cleanChallengeName(me) && sameChallengeName(row.opponent, me)) ||
+      (cleanChallengeName(me) && sameChallengeName(row.creator, me));
   });
 
   const visibleRows = currentRows
