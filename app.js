@@ -5475,8 +5475,8 @@ const CHALLENGE_MAX_DAILY_LIMIT = 1000;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
-const CHALLENGE_SYNC_INTERVAL_MS = 90000;
-const CHALLENGE_SYNC_ACTIVE_INTERVAL_MS = 45000;
+const CHALLENGE_SYNC_INTERVAL_MS = 180000;
+const CHALLENGE_SYNC_ACTIVE_INTERVAL_MS = 60000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -11487,16 +11487,9 @@ function cachedWeekendWitchResult(weekendStart) {
   }
 }
 
-let lastWitchHuntPersistAt = 0;
-
 async function persistLatestWitchHuntResult(force = false) {
-  if (!supabaseConfigured()) return false;
-  if (!isWeekendWitchActive() && !showFinishedWitchHuntUntilFriday()) return false;
-  if (!force && Date.now() - lastWitchHuntPersistAt < WEEKEND_RESULT_PERSIST_TTL_MS) return false;
-  lastWitchHuntPersistAt = Date.now();
-  return callSupabaseRpc("record_witch_hunt_result", {
-    p_weekend_start: latestWitchHuntWeekendStart()
-  });
+  // Arhivu radi cron u Supabase. Klijenti ne zovu RPC — štedi egress.
+  return false;
 }
 
 function isWeekendWitchAvatarId(id = "") {
@@ -12356,82 +12349,36 @@ function lectorStatsPersistent(rows = []) {
   return [...byName.values()];
 }
 
-async function fetchWordMeaning(word) {
-  if (!word) return "";
-  if (WORD_INFO[word]) return WORD_INFO[word];
-  if (!supabaseConfigured()) return "";
-
-  const query = `${wordsTable()}?select=meaning&word=eq.${encodeURIComponent(word)}&active=eq.true&limit=1`;
-  const response = await fetch(supabaseUrl(query), {
-    headers: supabaseHeaders()
-  });
-  if (!response.ok) return "";
-
-  const rows = await response.json();
-  const meaning = String(rows?.[0]?.meaning || "").trim();
-  if (meaning) WORD_INFO[word] = meaning;
-  return meaning;
-}
-
-function normalizeOnlineWordRows(rows = []) {
-  const byWord = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const word = normalize(row?.word || row);
-    if (word.length !== WORD_LENGTH || byWord.has(word)) return;
-    byWord.set(word, {
-      word,
-      meaning: String(row?.meaning || "").trim(),
-      type: String(row?.type || "").trim()
-    });
-  });
-  return [...byWord.values()].sort((left, right) => left.word.localeCompare(right.word, "sr"));
+function fetchWordMeaning(word) {
+  // Značenja su samo u GitHub WORD_INFO — bez Supabase words upita.
+  if (!word) return Promise.resolve("");
+  return Promise.resolve(WORD_INFO[word] || "");
 }
 
 function isKnownWord(word = "") {
   const cleanWord = normalize(word);
-  if (WORD_SET.has(cleanWord)) return true;
-  return LOCAL_WORD_SET.has(cleanWord);
+  return WORD_SET.has(cleanWord) || LOCAL_WORD_SET.has(cleanWord);
 }
 
-function applyOnlineWords(rows = [], cache = false) {
-  const normalizedRows = normalizeOnlineWordRows(rows);
-  if (normalizedRows.length < MIN_ONLINE_WORDS) {
-    onlineWordsReady = false;
-    WORDS = [...LOCAL_WORDS];
-    WORD_SET = new Set(LOCAL_WORD_SET);
-    if (cache) localStorage.removeItem(ONLINE_WORDS_KEY);
-    return false;
+function applyOnlineWords() {
+  onlineWordsReady = false;
+  WORDS = [...LOCAL_WORDS];
+  WORD_SET = new Set(LOCAL_WORD_SET);
+  try {
+    localStorage.removeItem(ONLINE_WORDS_KEY);
+  } catch {
+    /* ignore */
   }
-  const mergedWords = new Map(LOCAL_WORDS.map((word) => [word, word]));
-  normalizedRows.forEach((row) => mergedWords.set(row.word, row.word));
-  WORDS = [...mergedWords.values()].sort((left, right) => left.localeCompare(right, "sr"));
-  WORD_SET = new Set(WORDS);
-  onlineWordsReady = true;
-  normalizedRows.forEach((row) => {
-    if (row.meaning) WORD_INFO[row.word] = row.meaning;
-  });
-  saveWordDeck(loadWordDeck());
-  if (cache) {
-    localStorage.setItem(ONLINE_WORDS_KEY, JSON.stringify({
-      savedAt: new Date().toISOString(),
-      rows: normalizedRows
-    }));
-  }
-  return true;
+  return false;
 }
 
 function loadCachedOnlineWords() {
-  try {
-    const data = JSON.parse(localStorage.getItem(ONLINE_WORDS_KEY) || "null");
-    return applyOnlineWords(data?.rows || [], false);
-  } catch {
-    return false;
-  }
+  return applyOnlineWords();
 }
 
 function loadOnlineWords() {
-  // Rečnik je u igri (WORDS + WORD_INFO). Ne skidamo celu tabelu iz Supabase.
-  loadCachedOnlineWords();
+  // Rečnik živi u app.js na GitHubu. Supabase words tabela se ne vuče.
+  applyOnlineWords();
 }
 
 function challengeCode() {
@@ -13565,7 +13512,7 @@ function renderChallengePanelWords(row, solvedFlags = null) {
 async function fetchChallenge(code) {
   if (!supabaseConfigured() || !code) return null;
   const query = [
-    "select=*",
+    "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at,words,creator_score,creator_attempts,creator_solved,creator_played_at,opponent_score,opponent_attempts,opponent_solved,opponent_played_at,creator_faction,opponent_faction",
     `code=eq.${encodeURIComponent(code.toUpperCase())}`,
     "limit=1"
   ].join("&");
