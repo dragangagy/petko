@@ -5475,8 +5475,7 @@ const CHALLENGE_MAX_DAILY_LIMIT = 1000;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
-const CHALLENGE_SYNC_INTERVAL_MS = 300000;
-const CHALLENGE_SYNC_ACTIVE_INTERVAL_MS = 90000;
+const CHALLENGE_SYNC_INTERVAL_MS = 30000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -5493,7 +5492,6 @@ const PLAYER_NAME_KEY = "petko-player-name-v1";
 const PLAYER_RENAME_COUNT_KEY = "petko-player-rename-count-v1";
 const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
 const PROFILE_AVATAR_APPROVED_KEY = "petko-profile-avatar-approved-v1";
-const AVATAR_ACHIEVE_STATS_KEY = "petko-avatar-achieve-stats-v1";
 const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const PROFILE_UNLOCK_SEEN_KEY = "petko-profile-unlock-seen-v1";
 const CHALLENGE_FAVORITES_KEY = "petko-challenge-favorites-v1";
@@ -5513,8 +5511,7 @@ const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
 const ONLINE_WORDS_KEY = "petko-online-words-v1";
-const CHALLENGE_AUX_TTL_MS = 30 * 60 * 1000;
-const WEEKEND_RESULT_PERSIST_TTL_MS = 60 * 60 * 1000;
+const CHALLENGE_AUX_TTL_MS = 60 * 1000;
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const BASE_PROFILE_AVATARS = [
   ...Array.from({ length: 19 }, (_, index) => ({
@@ -11267,7 +11264,6 @@ let challengeStatsRows = [];
 let challengeSyncBusy = false;
 let challengePlayersCache = { at: 0, rows: null };
 let challengeStatsCache = { at: 0, rows: null };
-let lastChallengeHistoryRows = [];
 let onlineNormalStatsSummary = null;
 let avatarAchievementStats = null;
 let challengePickerSelected = "";
@@ -11489,9 +11485,12 @@ function cachedWeekendWitchResult(weekendStart) {
   }
 }
 
-async function persistLatestWitchHuntResult(force = false) {
-  // Arhivu radi cron u Supabase. Klijenti ne zovu RPC — štedi egress.
-  return false;
+async function persistLatestWitchHuntResult() {
+  if (!supabaseConfigured()) return false;
+  if (!isWeekendWitchActive() && !showFinishedWitchHuntUntilFriday()) return false;
+  return callSupabaseRpc("record_witch_hunt_result", {
+    p_weekend_start: latestWitchHuntWeekendStart()
+  });
 }
 
 function isWeekendWitchAvatarId(id = "") {
@@ -11898,7 +11897,7 @@ async function refreshOnlineNormalStats() {
   if (!supabaseConfigured()) return;
   const name = loadPlayerName();
   if (!name) return;
-  const rows = await fetchNormalStatsRows({ nickname: name });
+  const rows = await fetchNormalStatsRows();
   const aggregated = normalSuccessRows(rows);
   const mine = aggregated.find((row) => sameChallengeName(row.nickname, name));
   onlineNormalStatsSummary = mine
@@ -11919,71 +11918,32 @@ function saveSeenUnlockedAvatars(ids = []) {
   localStorage.setItem(PROFILE_UNLOCK_SEEN_KEY, JSON.stringify([...new Set(ids)]));
 }
 
-function loadCachedAvatarAchievementStats() {
-  try {
-    const data = JSON.parse(localStorage.getItem(AVATAR_ACHIEVE_STATS_KEY) || "null");
-    if (!data || typeof data !== "object") return emptyAvatarAchievementStats();
-    return {
-      normalStarted: Math.max(0, Number(data.normalStarted) || 0),
-      tournaments: Math.max(0, Number(data.tournaments) || 0),
-      challengeWins: Math.max(0, Number(data.challengeWins) || 0),
-      bestStreak: Math.max(0, Number(data.bestStreak) || 0)
-    };
-  } catch {
-    return emptyAvatarAchievementStats();
-  }
-}
-
-function saveCachedAvatarAchievementStats(stats = {}) {
-  const next = {
-    normalStarted: Math.max(0, Number(stats.normalStarted) || 0),
-    tournaments: Math.max(0, Number(stats.tournaments) || 0),
-    challengeWins: Math.max(0, Number(stats.challengeWins) || 0),
-    bestStreak: Math.max(0, Number(stats.bestStreak) || 0)
-  };
-  localStorage.setItem(AVATAR_ACHIEVE_STATS_KEY, JSON.stringify(next));
-  return next;
-}
-
-function mergeAvatarAchievementStats(...parts) {
-  return parts.reduce((acc, part) => ({
-    normalStarted: Math.max(acc.normalStarted, Number(part?.normalStarted) || 0),
-    tournaments: Math.max(acc.tournaments, Number(part?.tournaments) || 0),
-    challengeWins: Math.max(acc.challengeWins, Number(part?.challengeWins) || 0),
-    bestStreak: Math.max(acc.bestStreak, Number(part?.bestStreak) || 0)
-  }), emptyAvatarAchievementStats());
-}
-
 async function refreshAvatarAchievements(options = {}) {
   const name = loadPlayerName();
-  const local = emptyAvatarAchievementStats();
-  local.normalStarted = Math.max(local.normalStarted, Number(loadNormalStats()?.started) || 0);
-  const cached = loadCachedAvatarAchievementStats();
-  let stats = mergeAvatarAchievementStats(cached, local, avatarAchievementStats || {});
-
+  const stats = emptyAvatarAchievementStats();
   if (supabaseConfigured() && name) {
     const [normalRows, scoreRows, challengeRows] = await Promise.all([
-      fetchNormalStatsRows({ nickname: name }).catch(() => []),
-      fetchOnlinePlayerStats(name).catch(() => []),
-      fetchChallengeStatsRows({ focusName: name }).catch(() => [])
+      fetchNormalStatsRows().catch(() => []),
+      fetchOnlineLeaderboard().catch(() => []),
+      fetchChallengeStatsRows().catch(() => [])
     ]);
-    if (Array.isArray(challengeRows) && challengeRows.length) challengeStatsRows = challengeRows;
     const normalMine = normalSuccessRows(normalRows).find((row) => sameChallengeName(row.nickname, name));
-    const tournamentMine = Array.isArray(scoreRows) && scoreRows.length
-      ? { ...aggregatePlayerRows(scoreRows), nickname: name }
-      : null;
-    const challengeMine = normalizeChallengeWinStatsRows(challengeStatsRows || challengeRows || [])
-      .find((row) => sameChallengeName(row.nickname, name));
-    stats = mergeAvatarAchievementStats(stats, {
-      normalStarted: Number(normalMine?.started) || 0,
-      tournaments: Number(tournamentMine?.playedDays || tournamentMine?.attempts) || 0,
-      bestStreak: Number(tournamentMine?.streak) || 0,
-      challengeWins: Number(challengeMine?.wins) || 0
-    });
+    const tournamentMine = aggregateLeaderboard(scoreRows).find((row) => sameChallengeName(row.nickname, name));
+    const challengeMine = normalizeChallengeWinStatsRows(challengeRows).find((row) => sameChallengeName(row.nickname, name));
+    if (normalMine) {
+      stats.normalStarted = Math.max(stats.normalStarted, Number(normalMine.started) || 0);
+    }
+    if (tournamentMine) {
+      stats.tournaments = Math.max(stats.tournaments, Number(tournamentMine.playedDays || tournamentMine.attempts) || 0);
+      stats.bestStreak = Math.max(stats.bestStreak, Number(tournamentMine.streak) || 0);
+    }
+    if (challengeMine) {
+      stats.challengeWins = Math.max(stats.challengeWins, Number(challengeMine.wins) || 0);
+    }
   }
 
   const previousUnlocked = new Set(unlockedProfileAvatars(avatarAchievementStats).map((avatar) => avatar.id));
-  avatarAchievementStats = saveCachedAvatarAchievementStats(stats);
+  avatarAchievementStats = stats;
   const unlocked = unlockedProfileAvatars(stats);
   const seen = loadSeenUnlockedAvatars();
   const newlyUnlocked = unlocked.filter((avatar) => (
@@ -11998,14 +11958,8 @@ async function refreshAvatarAchievements(options = {}) {
       .filter((avatar) => avatar.unlockGroup && avatar.unlockGroup !== "weekendWitch")
       .map((avatar) => avatar.id)
   ]);
-  // Sačuvaj trenutni stiker ako je otključan online skorom, da ne padne na podrazumevani.
-  const currentId = localStorage.getItem(PROFILE_AVATAR_KEY);
-  if (currentId && isProfileAvatarUnlocked(profileAvatarById(currentId), stats)) {
-    saveApprovedProfileAvatarId(currentId);
-  }
   if (profileModal && !profileModal.hidden) renderProfileModal();
   if (options.popup && newlyUnlocked.length) showAvatarUnlockPopup(newlyUnlocked);
-  updateStatusProfile();
 }
 
 function showAvatarUnlockPopup(avatars = []) {
@@ -12129,7 +12083,10 @@ function bumpNormalStarted() {
   renderNormalStats();
   submitNormalStats(stats)
     .then((ok) => {
-      if (ok) refreshAvatarAchievements({ popup: true }).catch(() => {});
+      if (ok) {
+        refreshOnlineNormalStats().catch(() => {});
+        refreshAvatarAchievements({ popup: true }).catch(() => {});
+      }
     })
     .catch(() => {});
 }
@@ -12141,7 +12098,10 @@ function bumpNormalFinished() {
   renderNormalStats();
   submitNormalStats(stats)
     .then((ok) => {
-      if (ok) refreshAvatarAchievements({ popup: true }).catch(() => {});
+      if (ok) {
+        refreshOnlineNormalStats().catch(() => {});
+        refreshAvatarAchievements({ popup: true }).catch(() => {});
+      }
     })
     .catch(() => {});
 }
@@ -12390,36 +12350,82 @@ function lectorStatsPersistent(rows = []) {
   return [...byName.values()];
 }
 
-function fetchWordMeaning(word) {
-  // Značenja su samo u GitHub WORD_INFO — bez Supabase words upita.
-  if (!word) return Promise.resolve("");
-  return Promise.resolve(WORD_INFO[word] || "");
+async function fetchWordMeaning(word) {
+  if (!word) return "";
+  if (WORD_INFO[word]) return WORD_INFO[word];
+  if (!supabaseConfigured()) return "";
+
+  const query = `${wordsTable()}?select=meaning&word=eq.${encodeURIComponent(word)}&active=eq.true&limit=1`;
+  const response = await fetch(supabaseUrl(query), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) return "";
+
+  const rows = await response.json();
+  const meaning = String(rows?.[0]?.meaning || "").trim();
+  if (meaning) WORD_INFO[word] = meaning;
+  return meaning;
+}
+
+function normalizeOnlineWordRows(rows = []) {
+  const byWord = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const word = normalize(row?.word || row);
+    if (word.length !== WORD_LENGTH || byWord.has(word)) return;
+    byWord.set(word, {
+      word,
+      meaning: String(row?.meaning || "").trim(),
+      type: String(row?.type || "").trim()
+    });
+  });
+  return [...byWord.values()].sort((left, right) => left.word.localeCompare(right.word, "sr"));
 }
 
 function isKnownWord(word = "") {
   const cleanWord = normalize(word);
-  return WORD_SET.has(cleanWord) || LOCAL_WORD_SET.has(cleanWord);
+  if (WORD_SET.has(cleanWord)) return true;
+  return LOCAL_WORD_SET.has(cleanWord);
 }
 
-function applyOnlineWords() {
-  onlineWordsReady = false;
-  WORDS = [...LOCAL_WORDS];
-  WORD_SET = new Set(LOCAL_WORD_SET);
-  try {
-    localStorage.removeItem(ONLINE_WORDS_KEY);
-  } catch {
-    /* ignore */
+function applyOnlineWords(rows = [], cache = false) {
+  const normalizedRows = normalizeOnlineWordRows(rows);
+  if (normalizedRows.length < MIN_ONLINE_WORDS) {
+    onlineWordsReady = false;
+    WORDS = [...LOCAL_WORDS];
+    WORD_SET = new Set(LOCAL_WORD_SET);
+    if (cache) localStorage.removeItem(ONLINE_WORDS_KEY);
+    return false;
   }
-  return false;
+  const mergedWords = new Map(LOCAL_WORDS.map((word) => [word, word]));
+  normalizedRows.forEach((row) => mergedWords.set(row.word, row.word));
+  WORDS = [...mergedWords.values()].sort((left, right) => left.localeCompare(right, "sr"));
+  WORD_SET = new Set(WORDS);
+  onlineWordsReady = true;
+  normalizedRows.forEach((row) => {
+    if (row.meaning) WORD_INFO[row.word] = row.meaning;
+  });
+  saveWordDeck(loadWordDeck());
+  if (cache) {
+    localStorage.setItem(ONLINE_WORDS_KEY, JSON.stringify({
+      savedAt: new Date().toISOString(),
+      rows: normalizedRows
+    }));
+  }
+  return true;
 }
 
 function loadCachedOnlineWords() {
-  return applyOnlineWords();
+  try {
+    const data = JSON.parse(localStorage.getItem(ONLINE_WORDS_KEY) || "null");
+    return applyOnlineWords(data?.rows || [], false);
+  } catch {
+    return false;
+  }
 }
 
 function loadOnlineWords() {
-  // Rečnik živi u app.js na GitHubu. Supabase words tabela se ne vuče.
-  applyOnlineWords();
+  // Rečnik je u igri (WORDS + WORD_INFO). Ne skidamo celu tabelu iz Supabase.
+  loadCachedOnlineWords();
 }
 
 function challengeCode() {
@@ -12446,8 +12452,17 @@ function loadManualChallengeCredit() {
 }
 
 async function refreshManualChallengeCredit() {
-  // Bonus krediti ostaju u lokalnom kešu telefona — bez players upita.
-  const credit = loadManualChallengeCredit();
+  if (!supabaseConfigured() || !profileDeviceId()) return loadManualChallengeCredit();
+  const query = [
+    "select=challenge_bonus",
+    `device_id=eq.${encodeURIComponent(profileDeviceId())}`,
+    "limit=1"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), { headers: supabaseHeaders() });
+  if (!response.ok) return loadManualChallengeCredit();
+  const rows = await response.json();
+  const credit = Math.max(0, Number(rows?.[0]?.challenge_bonus) || 0);
+  localStorage.setItem(CHALLENGE_MANUAL_CREDIT_KEY, String(credit));
   updateChallengeQuota();
   return credit;
 }
@@ -13015,40 +13030,34 @@ async function fetchSentChallengesToday() {
   return Array.isArray(rows) ? rows.filter(challengeCountsForDailyLimit) : local;
 }
 
-function challengePlayerNamesFromRows(rows = []) {
+async function fetchChallengePlayers() {
+  if (!supabaseConfigured()) return [];
+  const playerRows = await fetchPlayerRows().catch(() => null);
+  if (Array.isArray(playerRows)) {
+    const currentName = loadPlayerName();
+    return playerRows
+      .map((row) => cleanChallengeName(row.nickname))
+      .filter((name) => name && !sameChallengeName(name, currentName))
+      .sort((a, b) => a.localeCompare(b, "sr"));
+  }
+  const [normalRows, scoreRows, challengeRows] = await Promise.all([
+    fetchNormalStatsRows().catch(() => []),
+    fetchOnlineLeaderboard().catch(() => []),
+    fetchChallengeHistory().catch(() => [])
+  ]);
   const names = new Set();
   const currentName = loadPlayerName();
-  (rows || []).forEach((row) => {
+  [...(normalRows || []), ...(scoreRows || [])].forEach((row) => {
+    const name = cleanChallengeName(row.nickname);
+    if (name && !sameChallengeName(name, currentName)) names.add(name);
+  });
+  (challengeRows || []).forEach((row) => {
     [row.creator, row.opponent].forEach((value) => {
       const name = cleanChallengeName(value);
-      if (name && name !== "Чека се" && name !== "Нови корисник" && !sameChallengeName(name, currentName)) {
-        names.add(name);
-      }
+      if (name && name !== "Чека се" && !sameChallengeName(name, currentName)) names.add(name);
     });
   });
-  loadSentChallengeRowsToday().forEach((row) => {
-    const name = cleanChallengeName(row.opponent);
-    if (name && name !== "Чека се" && !sameChallengeName(name, currentName)) names.add(name);
-  });
-  try {
-    const favorites = JSON.parse(localStorage.getItem(CHALLENGE_FAVORITES_KEY) || "[]");
-    (Array.isArray(favorites) ? favorites : []).forEach((value) => {
-      const name = cleanChallengeName(value);
-      if (name && !sameChallengeName(name, currentName)) names.add(name);
-    });
-  } catch {
-    /* ignore */
-  }
   return [...names].sort((a, b) => a.localeCompare(b, "sr"));
-}
-
-async function fetchChallengePlayers() {
-  // Bez players tabele: lista protivnika iz lokalnog keša + već učitanih izazova.
-  if (Array.isArray(lastChallengeHistoryRows) && lastChallengeHistoryRows.length) {
-    return challengePlayerNamesFromRows(lastChallengeHistoryRows);
-  }
-  const rows = await fetchChallengeHistory().catch(() => []);
-  return challengePlayerNamesFromRows(rows);
 }
 
 function renderChallengePlayers(names = []) {
@@ -13318,19 +13327,19 @@ async function openChallengePicker() {
   if (challengePickerSearch) challengePickerSearch.value = "";
   renderChallengePickerStats(challengePickerSelected);
   try {
-    const rows = Array.isArray(lastChallengeHistoryRows) && lastChallengeHistoryRows.length
-      ? lastChallengeHistoryRows
-      : await fetchChallengeHistory().catch(() => []);
-    if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
-    challengePickerRows = rows;
-    const statsRows = await cachedChallengeStatsRows(false).catch(() => challengeStatsRows || []);
-    if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
-    challengePickerPlayers = challengePlayerNamesFromRows(rows);
-    await refreshChallengePlayerAvatars(challengePickerPlayers.slice(0, 40)).catch(() => []);
+    const [players, rows, statsRows] = await Promise.all([
+      fetchChallengePlayers().catch(() => []),
+      fetchChallengeHistory().catch(() => []),
+      fetchChallengeStatsRows().catch(() => [])
+    ]);
+    challengePickerPlayers = Array.isArray(players) ? players : [];
+    challengePickerRows = Array.isArray(rows) ? rows : [];
+    challengeStatsRows = Array.isArray(statsRows) ? statsRows : [];
     renderChallengePlayers(challengePickerPlayers);
   } catch {
     challengePickerPlayers = [];
     challengePickerRows = [];
+    challengeStatsRows = [];
   }
   renderChallengePickerGrid();
 }
@@ -13550,7 +13559,7 @@ function renderChallengePanelWords(row, solvedFlags = null) {
 async function fetchChallenge(code) {
   if (!supabaseConfigured() || !code) return null;
   const query = [
-    "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at,words,creator_score,creator_attempts,creator_solved,creator_played_at,opponent_score,opponent_attempts,opponent_solved,opponent_played_at,creator_faction,opponent_faction",
+    "select=*",
     `code=eq.${encodeURIComponent(code.toUpperCase())}`,
     "limit=1"
   ].join("&");
@@ -13692,56 +13701,14 @@ async function finalizeExpiredChallenges(rows = []) {
 
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
-  const weekendWindow = isWeekendWitchActive() ? weekendWitchWindowContaining(new Date()) : null;
-  const sinceMs = weekendWindow
-    ? weekendWindow.start
-    : Date.now() - 4 * 24 * 60 * 60 * 1000;
-  const since = new Date(sinceMs).toISOString();
-  // Bez `words` — to je najveći egress. Reči se učitaju tek na flip / start igre.
-  const select = [
-    "code",
-    "day",
-    "status",
-    "creator",
-    "creator_device",
-    "opponent",
-    "opponent_device",
-    "accepted_at",
-    "created_at",
-    "creator_score",
-    "creator_attempts",
-    "creator_solved",
-    "creator_played_at",
-    "opponent_score",
-    "opponent_attempts",
-    "opponent_solved",
-    "opponent_played_at",
-    "creator_faction",
-    "opponent_faction"
-  ].join(",");
-  const filters = [
-    `select=${select}`,
+  const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+  const query = [
+    "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at,words,creator_score,creator_attempts,creator_solved,creator_played_at,opponent_score,opponent_attempts,opponent_solved,opponent_played_at,creator_faction,opponent_faction",
     `created_at=gte.${encodeURIComponent(since)}`,
     "order=created_at.desc",
-    "limit=200"
-  ];
-  const device = profileDeviceId();
-  const me = normalizePlayerName(loadPlayerName() || "");
-  // Van Witch Hunta ne vučemo cele tabele — samo moje kartice + sveži javni rezultati.
-  if (!weekendWindow && device) {
-    const parts = [
-      `creator_device.eq.${encodeURIComponent(device)}`,
-      `opponent_device.eq.${encodeURIComponent(device)}`
-    ];
-    if (me) {
-      parts.push(`creator.eq.${encodeURIComponent(me)}`);
-      parts.push(`opponent.eq.${encodeURIComponent(me)}`);
-    }
-    const playedSince = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
-    parts.push(`and(status.eq.played,created_at.gte.${encodeURIComponent(playedSince)})`);
-    filters.push(`or=(${parts.join(",")})`);
-  }
-  const response = await fetch(supabaseUrl(`${challengeTable()}?${filters.join("&")}`), {
+    "limit=400"
+  ].join("&");
+  const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
     headers: supabaseHeaders()
   });
   if (!response.ok) {
@@ -13767,25 +13734,31 @@ function mergeChallengeStatsRows(rows = []) {
 
 async function fetchChallengeStatsRows(options = {}) {
   if (!supabaseConfigured()) return [];
+  const baseQuery = [
+    "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
+    "order=last_played_at.desc.nullslast",
+    "limit=1000"
+  ].join("&");
+  const requests = [baseQuery];
   const focusName = normalizePlayerName(options.focusName ?? loadPlayerName() ?? "");
-  const query = focusName
-    ? [
+  if (focusName) {
+    const pattern = encodeURIComponent(`*${focusName}*`);
+    requests.push([
       "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
-      `or=(player_a.eq.${encodeURIComponent(focusName)},player_b.eq.${encodeURIComponent(focusName)})`,
+      `or=(player_a.ilike.${pattern},player_b.ilike.${pattern})`,
       "order=last_played_at.desc.nullslast",
-      "limit=200"
-    ].join("&")
-    : [
-      "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
-      "order=last_played_at.desc.nullslast",
-      "limit=200"
-    ].join("&");
-  const response = await fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
+      "limit=1000"
+    ].join("&"));
+  }
+  const responses = await Promise.all(requests.map((query) => fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
     headers: supabaseHeaders()
-  });
-  if (!response.ok) return [];
-  const rows = await response.json();
-  return mergeChallengeStatsRows([Array.isArray(rows) ? rows : []]);
+  })));
+  const payloads = await Promise.all(responses.map(async (response) => {
+    if (!response.ok) return [];
+    const rows = await response.json();
+    return Array.isArray(rows) ? rows : [];
+  }));
+  return mergeChallengeStatsRows(payloads);
 }
 
 async function fetchChallengeScoreStatsRows() {
@@ -14176,20 +14149,15 @@ function latestFinishedWitchHuntWindow(rows = []) {
 }
 
 let weekendWitchResults = [];
-let weekendWitchResultsAt = 0;
 
-async function refreshWeekendWitchResults(force = false) {
-  if (!supabaseConfigured()) return weekendWitchResults;
-  if (!force && weekendWitchResults.length && Date.now() - weekendWitchResultsAt < CHALLENGE_AUX_TTL_MS) {
-    return weekendWitchResults;
-  }
-  const response = await fetch(supabaseUrl(`${weekendResultsTable()}?select=weekend_start,hunters,witches,draws,unplayed,winner&order=weekend_start.desc&limit=8`), {
+async function refreshWeekendWitchResults() {
+  if (!supabaseConfigured()) return [];
+  const response = await fetch(supabaseUrl(`${weekendResultsTable()}?select=*&order=weekend_start.desc&limit=24`), {
     headers: supabaseHeaders()
   });
   if (!response.ok) return weekendWitchResults;
   const rows = await response.json();
   weekendWitchResults = Array.isArray(rows) ? rows : [];
-  weekendWitchResultsAt = Date.now();
   return weekendWitchResults;
 }
 
@@ -14399,36 +14367,16 @@ function challengeResultKey(row = {}) {
   return String(row.id || row.code || row.created_at || "");
 }
 
-function bindChallengeResultFlip(card, key, row = null) {
+function bindChallengeResultFlip(card, key) {
   let holdTimer = 0;
-  let wordsLoading = false;
   const clearHold = () => {
     window.clearTimeout(holdTimer);
     holdTimer = 0;
-  };
-  const ensureWords = async () => {
-    if (!row?.code || normalizeChallengeWords(row.words).length) return;
-    if (wordsLoading) return;
-    wordsLoading = true;
-    try {
-      const full = await fetchChallenge(row.code).catch(() => null);
-      if (full && Array.isArray(full.words)) {
-        row.words = full.words;
-        const back = card.querySelector(".challenge-result-back");
-        if (back) {
-          back.innerHTML = "";
-          back.append(createChallengeWordList(row.words));
-        }
-      }
-    } finally {
-      wordsLoading = false;
-    }
   };
   card.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     clearHold();
     heldChallengeResultKey = key;
-    ensureWords().catch(() => {});
     holdTimer = window.setTimeout(() => {
       if (heldChallengeResultKey === key) card.classList.add("show-words");
     }, 420);
@@ -14580,7 +14528,7 @@ function challengeCard(row, rows = []) {
     back.append(createChallengeWordList(row.words));
     flip.append(front, back);
     card.append(flip);
-    bindChallengeResultFlip(card, resultKey, row);
+    bindChallengeResultFlip(card, resultKey);
     return card;
   }
   if (pair) {
@@ -14728,9 +14676,13 @@ function renderChallengeHistoryCards(rows = []) {
 
 async function refreshChallengeHistoryCards() {
   if (!challengeHistoryEl || !supabaseConfigured()) return;
-  const rows = await fetchChallengeHistory().catch(() => lastChallengeHistoryRows || []);
-  if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
-  refreshWeekendWitchResults().catch(() => []);
+  await persistLatestWitchHuntResult().catch(() => false);
+  const [rows, statsRows] = await Promise.all([
+    fetchChallengeHistory(),
+    fetchChallengeStatsRows().catch(() => []),
+    refreshWeekendWitchResults().catch(() => [])
+  ]);
+  if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
   renderChallengeHistoryCards(rows);
 }
 
@@ -14780,11 +14732,10 @@ function mergeLocalChallengeRows(rows = []) {
 function shouldPollChallengeSync() {
   if (!supabaseConfigured()) return false;
   if (document.visibilityState === "hidden") return false;
-  // Samo dok je otvoren izazov ili postoji aktivna/čekajuća partija — inače keš telefona.
   if (gameType === "challenge") return true;
   if (loadActiveChallenge()?.code) return true;
   if (loadPendingChallengeCode()) return true;
-  return false;
+  return loadSentChallengeRowsToday().some(challengeSentEntryActive);
 }
 
 function mergeActiveChallengeRow(row) {
@@ -14842,24 +14793,20 @@ async function syncChallengeState({ force = false } = {}) {
   challengeSyncBusy = true;
   try {
     await retryPendingChallengeResults().catch(() => []);
-    const [rows, statsRows] = await Promise.all([
-      fetchChallengeHistory().catch(() => lastChallengeHistoryRows || []),
-      cachedChallengeStatsRows(force).catch(() => challengeStatsRows || [])
+    const [players, rows, statsRows] = await Promise.all([
+      gameType === "challenge" && !challengeGameOpen()
+        ? cachedChallengePlayers(force).catch(() => [])
+        : Promise.resolve(null),
+      fetchChallengeHistory().catch(() => []),
+      cachedChallengeStatsRows(force).catch(() => [])
     ]);
-    if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
     if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows));
-    await refreshChallengePlayerAvatars(challengePlayerNamesFromRows(finalRows).slice(0, 40)).catch(() => []);
     const snapshot = challengeSyncSnapshotFor(finalRows);
     const changed = force || snapshot !== challengeSyncSnapshot;
     if (changed) {
       challengeSyncSnapshot = snapshot;
-      if (gameType === "challenge" && !challengeGameOpen()) {
-        renderChallengePlayers(challengePlayerNamesFromRows(finalRows));
-      }
-      if (gameType === "challenge" || force) {
-        refreshWeekendWitchResults().catch(() => []);
-      }
+      if (Array.isArray(players)) renderChallengePlayers(players);
       renderChallengeHistoryCards(finalRows);
     } else {
       updateChallengeBadge(finalRows);
@@ -14886,8 +14833,11 @@ async function renderChallengeResult(row, localScore, options = {}) {
   }
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Играч 2";
-  const history = await fetchChallengeHistory().catch(() => lastChallengeHistoryRows || []);
-  if (Array.isArray(history)) lastChallengeHistoryRows = history;
+  const [history, statsRows] = await Promise.all([
+    fetchChallengeHistory(),
+    fetchChallengeStatsRows().catch(() => [])
+  ]);
+  if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
   if (!playedChallenge(row)) {
     saveActiveChallenge({
       code: row.code,
@@ -14964,7 +14914,7 @@ async function createChallenge(selectedOpponent = null) {
   }
   if (isWeekendWitchActive() && !shareAfterCreate) {
     // Resolve Supabase weekend avatars before deciding which modal to show.
-    await refreshChallengePlayerAvatars([nickname, opponent]).catch(() => []);
+    await refreshChallengePlayerAvatars().catch(() => []);
     const creatorAvatar = challengeProfileAvatar(nickname);
     const opponentAvatar = challengeProfileAvatar(opponent);
     const creatorIsHunter = challengeAvatarIsMale(creatorAvatar);
@@ -15189,9 +15139,12 @@ async function startChallengeGame(row, role) {
   modeLabelEl.textContent = "\u0418\u0437\u0430\u0437\u043e\u0432";
   messageEl.textContent = "\u0418\u0437\u0430\u0437\u043e\u0432 \u043f\u0440\u0438\u0445\u0432\u0430\u045b\u0435\u043d: 6 \u0442\u0430\u0431\u043b\u0438, 11 \u043f\u043e\u043a\u0443\u0448\u0430\u0458\u0430.";
   renderChallengePanel(`\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}.`);
-  fetchChallengeHistory()
-    .then((rows) => {
-      if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
+  Promise.all([
+    fetchChallengeHistory(),
+    fetchChallengeStatsRows().catch(() => [])
+  ])
+    .then(([rows, statsRows]) => {
+      if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
       const pair = challengePairScore(rows, creator, opponent);
       messageEl.textContent = `\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}. \u041c\u0435\u0452\u0443\u0441\u043e\u0431\u043d\u043e: ${challengePairText(pair, creator, opponent)}.`;
       renderChallengePanel(`\u0418\u0433\u0440\u0430\u0448: ${creator} \u043f\u0440\u043e\u0442\u0438\u0432 ${opponent}. \u041c\u0435\u0452\u0443\u0441\u043e\u0431\u043d\u043e: ${challengePairText(pair, creator, opponent)}.`);
@@ -15977,23 +15930,10 @@ async function fetchPlayerRows() {
   return rows;
 }
 
-async function refreshChallengePlayerAvatars(names = []) {
-  if (!supabaseConfigured()) return [];
-  const targets = [...new Set((names || []).map(cleanChallengeName).filter(Boolean))].slice(0, 8);
-  if (!targets.length) return [];
-  const orFilter = targets.map((name) => `nickname.eq.${encodeURIComponent(name)}`).join(",");
-  const query = [
-    "select=nickname,avatar_id,weekend_avatar_id,weekend_avatar_weekend,device_id",
-    `or=(${orFilter})`,
-    "limit=8"
-  ].join("&");
-  const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), {
-    headers: supabaseHeaders()
-  });
-  if (!response.ok) return [];
-  const rows = await response.json();
+async function refreshChallengePlayerAvatars() {
+  const rows = await fetchPlayerRows();
   if (Array.isArray(rows)) rows.forEach(cachePlayerAvatar);
-  return Array.isArray(rows) ? rows : [];
+  return rows;
 }
 
 async function registerPlayerName(name) {
@@ -16032,17 +15972,20 @@ async function playerNameTaken(name) {
   const clean = normalizePlayerName(name);
   const current = loadPlayerName();
   if (!supabaseConfigured() || sameChallengeName(clean, current)) return false;
-  const query = [
-    "select=nickname",
-    `nickname=eq.${encodeURIComponent(clean)}`,
-    "limit=1"
-  ].join("&");
-  const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), {
-    headers: supabaseHeaders()
-  });
-  if (!response.ok) return false;
-  const rows = await response.json();
-  return Array.isArray(rows) && rows.length > 0;
+  const playerRows = await fetchPlayerRows().catch(() => null);
+  if (Array.isArray(playerRows)) {
+    return playerRows.some((row) => sameChallengeName(row.nickname, clean));
+  }
+  const [normalRows, scoreRows, challengeRows] = await Promise.all([
+    fetchNormalStatsRows().catch(() => []),
+    fetchOnlineLeaderboard().catch(() => []),
+    fetchChallengeHistory().catch(() => [])
+  ]);
+  return [
+    ...(normalRows || []).map((row) => row.nickname),
+    ...(scoreRows || []).map((row) => row.nickname),
+    ...(challengeRows || []).flatMap((row) => [row.creator, row.opponent])
+  ].some((value) => sameChallengeName(value, clean));
 }
 
 async function savePlayerNameUnique(value) {
@@ -17409,14 +17352,13 @@ async function fetchOnlineLeaderboard() {
   return response.json();
 }
 
-async function fetchNormalStatsRows(options = {}) {
+async function fetchNormalStatsRows() {
   if (!supabaseConfigured()) return [];
-  const nickname = normalizePlayerName(options.nickname || "");
   const query = [
     "select=nickname,started,finished,updated_at",
-    nickname ? `nickname=eq.${encodeURIComponent(nickname)}` : "order=updated_at.desc",
-    nickname ? "limit=20" : "limit=1000"
-  ].filter(Boolean).join("&");
+    "order=updated_at.desc",
+    "limit=1000"
+  ].join("&");
   const response = await fetch(supabaseUrl(`${normalStatsTable()}?${query}`), {
     headers: supabaseHeaders()
   });
@@ -18602,9 +18544,7 @@ function restoreLocalResultsFromOnline(rows, nickname = loadPlayerName()) {
     .filter((result) => result.date && result.date.startsWith(year))
     .forEach((result) => {
       const old = byDate.get(result.date);
-      // Ne prepisuj lokalni detaljan rezultat slabijim „restored“ skorom.
-      if (old && !old.restored && Number(old.finalScore || 0) >= Number(result.finalScore || 0)) return;
-      if (!old || Number(result.finalScore) > Number(old.finalScore || 0)) byDate.set(result.date, result);
+      if (!old || Number(result.finalScore) > Number(old.finalScore)) byDate.set(result.date, result);
     });
   const mergedCurrentYear = [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
   const merged = [
@@ -18654,17 +18594,16 @@ async function fetchPlayerByDeviceId(targetDeviceId) {
 async function fetchCurrentPlayerProfile() {
   if (!supabaseConfigured()) return null;
   const name = normalizePlayerName(loadPlayerName() || "");
-  const select = "nickname,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend,challenge_bonus";
   const queries = [
     [
-      `select=${select}`,
+      "select=nickname,device_id,avatar_id",
       `device_id=eq.${encodeURIComponent(profileDeviceId())}`,
       "limit=1"
     ].join("&")
   ];
   if (name) {
     queries.push([
-      `select=${select}`,
+      "select=nickname,device_id,avatar_id",
       `nickname=eq.${encodeURIComponent(name)}`,
       "limit=1"
     ].join("&"));
@@ -18678,9 +18617,6 @@ async function fetchCurrentPlayerProfile() {
     if (Array.isArray(rows) && rows.length) {
       rows.forEach(cachePlayerAvatar);
       applySupabaseProfileAvatar(rows[0], name || rows[0].nickname);
-      const credit = Math.max(0, Number(rows[0].challenge_bonus) || 0);
-      localStorage.setItem(CHALLENGE_MANUAL_CREDIT_KEY, String(credit));
-      updateChallengeQuota();
       return rows[0];
     }
   }
@@ -18859,29 +18795,24 @@ document.addEventListener("visibilitychange", () => {
     syncWeekendWitchAvatarState();
     updateChallengeQuota();
     maybeShowWeekendWitchOffer();
+    syncChallengeState({ force: true }).catch(() => {});
     hydrateAndMaybeResume({ force: true, resume: true }).catch(() => false);
-    if (shouldPollChallengeSync()) syncChallengeState({ force: true }).catch(() => {});
   }
 });
 window.addEventListener("focus", () => {
+  syncChallengeState({ force: true }).catch(() => {});
   hydrateAndMaybeResume({ resume: true }).catch(() => false);
-  if (shouldPollChallengeSync()) syncChallengeState({ force: true }).catch(() => {});
 });
 window.addEventListener("online", () => {
+  syncChallengeState({ force: true }).catch(() => {});
   flushGameSessionUpserts();
   hydrateAndMaybeResume({ force: true, resume: true }).catch(() => false);
-  if (shouldPollChallengeSync()) syncChallengeState({ force: true }).catch(() => {});
 });
 setInterval(updateCompetitiveCountdown, 1000);
 setInterval(notifyDailyEvents, 600000);
-let lastChallengePollAt = 0;
 setInterval(() => {
-  const activePoll = gameType === "challenge" || Boolean(loadActiveChallenge()?.code);
-  const minGap = activePoll ? CHALLENGE_SYNC_ACTIVE_INTERVAL_MS : CHALLENGE_SYNC_INTERVAL_MS;
-  if (Date.now() - lastChallengePollAt < minGap) return;
-  lastChallengePollAt = Date.now();
   syncChallengeState().catch(() => {});
-}, CHALLENGE_SYNC_ACTIVE_INTERVAL_MS);
+}, CHALLENGE_SYNC_INTERVAL_MS);
 setInterval(() => {
   syncWeekendWitchAvatarState();
   updateChallengeQuota();
@@ -18934,11 +18865,9 @@ async function hydrateAndMaybeResume({ force = false, resume = false } = {}) {
 
 async function bootPetkoApp() {
   loadOnlineWords();
-  avatarAchievementStats = loadCachedAvatarAchievementStats();
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
   refreshManualChallengeCredit().catch(() => {});
-  await fetchCurrentPlayerProfile().catch(() => null);
   await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {
@@ -18960,14 +18889,15 @@ if (initialNormalStats.started || initialNormalStats.finished) {
 }
 refreshOnlineNormalStats().catch(() => {});
 refreshAvatarAchievements({ popup: true }).catch(() => {});
-refreshOnlineLeaderboard();
 window.setTimeout(maybeShowWeekendWitchOffer, 700);
-fetchChallengeHistory()
-  .then(async (rows) => {
-    if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
+persistLatestWitchHuntResult().catch(() => false).then(() => Promise.all([
+  fetchChallengeHistory(),
+  fetchChallengeStatsRows().catch(() => []),
+  refreshWeekendWitchResults().catch(() => [])
+]))
+  .then(([rows, statsRows]) => {
+    if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     updateChallengeBadge(rows);
-    await refreshChallengePlayerAvatars(challengePlayerNamesFromRows(rows).slice(0, 40)).catch(() => []);
-    await cachedChallengeStatsRows(false).catch(() => []);
   })
   .catch(() => {});
 
