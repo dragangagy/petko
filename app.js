@@ -5475,7 +5475,8 @@ const CHALLENGE_MAX_DAILY_LIMIT = 1000;
 const CHALLENGE_PENDING_MS = 21600000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
-const CHALLENGE_SYNC_INTERVAL_MS = 30000;
+const CHALLENGE_SYNC_INTERVAL_MS = 90000;
+const CHALLENGE_SYNC_ACTIVE_INTERVAL_MS = 45000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
 const CHALLENGE_PENDING_KEY = "petko-challenge-pending-v1";
 const CHALLENGE_ACTIVE_KEY = "petko-challenge-active-v1";
@@ -5511,7 +5512,8 @@ const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
 const ONLINE_WORDS_KEY = "petko-online-words-v1";
-const CHALLENGE_AUX_TTL_MS = 60 * 1000;
+const CHALLENGE_AUX_TTL_MS = 5 * 60 * 1000;
+const WEEKEND_RESULT_PERSIST_TTL_MS = 15 * 60 * 1000;
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const BASE_PROFILE_AVATARS = [
   ...Array.from({ length: 19 }, (_, index) => ({
@@ -11485,9 +11487,13 @@ function cachedWeekendWitchResult(weekendStart) {
   }
 }
 
-async function persistLatestWitchHuntResult() {
+let lastWitchHuntPersistAt = 0;
+
+async function persistLatestWitchHuntResult(force = false) {
   if (!supabaseConfigured()) return false;
   if (!isWeekendWitchActive() && !showFinishedWitchHuntUntilFriday()) return false;
+  if (!force && Date.now() - lastWitchHuntPersistAt < WEEKEND_RESULT_PERSIST_TTL_MS) return false;
+  lastWitchHuntPersistAt = Date.now();
   return callSupabaseRpc("record_witch_hunt_result", {
     p_weekend_start: latestWitchHuntWeekendStart()
   });
@@ -13701,14 +13707,56 @@ async function finalizeExpiredChallenges(rows = []) {
 
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
-  const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
-  const query = [
-    "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at,words,creator_score,creator_attempts,creator_solved,creator_played_at,opponent_score,opponent_attempts,opponent_solved,opponent_played_at,creator_faction,opponent_faction",
+  const weekendWindow = isWeekendWitchActive() ? weekendWitchWindowContaining(new Date()) : null;
+  const sinceMs = weekendWindow
+    ? weekendWindow.start
+    : Date.now() - 4 * 24 * 60 * 60 * 1000;
+  const since = new Date(sinceMs).toISOString();
+  // Bez `words` — to je najveći egress. Reči se učitaju tek na flip / start igre.
+  const select = [
+    "code",
+    "day",
+    "status",
+    "creator",
+    "creator_device",
+    "opponent",
+    "opponent_device",
+    "accepted_at",
+    "created_at",
+    "creator_score",
+    "creator_attempts",
+    "creator_solved",
+    "creator_played_at",
+    "opponent_score",
+    "opponent_attempts",
+    "opponent_solved",
+    "opponent_played_at",
+    "creator_faction",
+    "opponent_faction"
+  ].join(",");
+  const filters = [
+    `select=${select}`,
     `created_at=gte.${encodeURIComponent(since)}`,
     "order=created_at.desc",
-    "limit=400"
-  ].join("&");
-  const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
+    "limit=200"
+  ];
+  const device = profileDeviceId();
+  const me = normalizePlayerName(loadPlayerName() || "");
+  // Van Witch Hunta ne vučemo cele tabele — samo moje kartice + sveži javni rezultati.
+  if (!weekendWindow && device) {
+    const parts = [
+      `creator_device.eq.${encodeURIComponent(device)}`,
+      `opponent_device.eq.${encodeURIComponent(device)}`
+    ];
+    if (me) {
+      parts.push(`creator.eq.${encodeURIComponent(me)}`);
+      parts.push(`opponent.eq.${encodeURIComponent(me)}`);
+    }
+    const playedSince = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
+    parts.push(`and(status.eq.played,created_at.gte.${encodeURIComponent(playedSince)})`);
+    filters.push(`or=(${parts.join(",")})`);
+  }
+  const response = await fetch(supabaseUrl(`${challengeTable()}?${filters.join("&")}`), {
     headers: supabaseHeaders()
   });
   if (!response.ok) {
@@ -13734,31 +13782,25 @@ function mergeChallengeStatsRows(rows = []) {
 
 async function fetchChallengeStatsRows(options = {}) {
   if (!supabaseConfigured()) return [];
-  const baseQuery = [
-    "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
-    "order=last_played_at.desc.nullslast",
-    "limit=1000"
-  ].join("&");
-  const requests = [baseQuery];
   const focusName = normalizePlayerName(options.focusName ?? loadPlayerName() ?? "");
-  if (focusName) {
-    const pattern = encodeURIComponent(`*${focusName}*`);
-    requests.push([
+  const query = focusName
+    ? [
       "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
-      `or=(player_a.ilike.${pattern},player_b.ilike.${pattern})`,
+      `or=(player_a.eq.${encodeURIComponent(focusName)},player_b.eq.${encodeURIComponent(focusName)})`,
       "order=last_played_at.desc.nullslast",
-      "limit=1000"
-    ].join("&"));
-  }
-  const responses = await Promise.all(requests.map((query) => fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
+      "limit=200"
+    ].join("&")
+    : [
+      "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
+      "order=last_played_at.desc.nullslast",
+      "limit=200"
+    ].join("&");
+  const response = await fetch(supabaseUrl(`${challengeStatsTable()}?${query}`), {
     headers: supabaseHeaders()
-  })));
-  const payloads = await Promise.all(responses.map(async (response) => {
-    if (!response.ok) return [];
-    const rows = await response.json();
-    return Array.isArray(rows) ? rows : [];
-  }));
-  return mergeChallengeStatsRows(payloads);
+  });
+  if (!response.ok) return [];
+  const rows = await response.json();
+  return mergeChallengeStatsRows([Array.isArray(rows) ? rows : []]);
 }
 
 async function fetchChallengeScoreStatsRows() {
@@ -14149,15 +14191,20 @@ function latestFinishedWitchHuntWindow(rows = []) {
 }
 
 let weekendWitchResults = [];
+let weekendWitchResultsAt = 0;
 
-async function refreshWeekendWitchResults() {
-  if (!supabaseConfigured()) return [];
-  const response = await fetch(supabaseUrl(`${weekendResultsTable()}?select=*&order=weekend_start.desc&limit=24`), {
+async function refreshWeekendWitchResults(force = false) {
+  if (!supabaseConfigured()) return weekendWitchResults;
+  if (!force && weekendWitchResults.length && Date.now() - weekendWitchResultsAt < CHALLENGE_AUX_TTL_MS) {
+    return weekendWitchResults;
+  }
+  const response = await fetch(supabaseUrl(`${weekendResultsTable()}?select=weekend_start,hunters,witches,draws,unplayed,winner&order=weekend_start.desc&limit=8`), {
     headers: supabaseHeaders()
   });
   if (!response.ok) return weekendWitchResults;
   const rows = await response.json();
   weekendWitchResults = Array.isArray(rows) ? rows : [];
+  weekendWitchResultsAt = Date.now();
   return weekendWitchResults;
 }
 
@@ -14367,16 +14414,36 @@ function challengeResultKey(row = {}) {
   return String(row.id || row.code || row.created_at || "");
 }
 
-function bindChallengeResultFlip(card, key) {
+function bindChallengeResultFlip(card, key, row = null) {
   let holdTimer = 0;
+  let wordsLoading = false;
   const clearHold = () => {
     window.clearTimeout(holdTimer);
     holdTimer = 0;
+  };
+  const ensureWords = async () => {
+    if (!row?.code || normalizeChallengeWords(row.words).length) return;
+    if (wordsLoading) return;
+    wordsLoading = true;
+    try {
+      const full = await fetchChallenge(row.code).catch(() => null);
+      if (full && Array.isArray(full.words)) {
+        row.words = full.words;
+        const back = card.querySelector(".challenge-result-back");
+        if (back) {
+          back.innerHTML = "";
+          back.append(createChallengeWordList(row.words));
+        }
+      }
+    } finally {
+      wordsLoading = false;
+    }
   };
   card.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     clearHold();
     heldChallengeResultKey = key;
+    ensureWords().catch(() => {});
     holdTimer = window.setTimeout(() => {
       if (heldChallengeResultKey === key) card.classList.add("show-words");
     }, 420);
@@ -14528,7 +14595,7 @@ function challengeCard(row, rows = []) {
     back.append(createChallengeWordList(row.words));
     flip.append(front, back);
     card.append(flip);
-    bindChallengeResultFlip(card, resultKey);
+    bindChallengeResultFlip(card, resultKey, row);
     return card;
   }
   if (pair) {
@@ -18810,9 +18877,14 @@ window.addEventListener("online", () => {
 });
 setInterval(updateCompetitiveCountdown, 1000);
 setInterval(notifyDailyEvents, 600000);
+let lastChallengePollAt = 0;
 setInterval(() => {
+  const activePoll = gameType === "challenge" || Boolean(loadActiveChallenge()?.code);
+  const minGap = activePoll ? CHALLENGE_SYNC_ACTIVE_INTERVAL_MS : CHALLENGE_SYNC_INTERVAL_MS;
+  if (Date.now() - lastChallengePollAt < minGap) return;
+  lastChallengePollAt = Date.now();
   syncChallengeState().catch(() => {});
-}, CHALLENGE_SYNC_INTERVAL_MS);
+}, CHALLENGE_SYNC_ACTIVE_INTERVAL_MS);
 setInterval(() => {
   syncWeekendWitchAvatarState();
   updateChallengeQuota();
