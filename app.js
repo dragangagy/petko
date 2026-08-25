@@ -5493,6 +5493,7 @@ const PLAYER_NAME_KEY = "petko-player-name-v1";
 const PLAYER_RENAME_COUNT_KEY = "petko-player-rename-count-v1";
 const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
 const PROFILE_AVATAR_APPROVED_KEY = "petko-profile-avatar-approved-v1";
+const AVATAR_ACHIEVE_STATS_KEY = "petko-avatar-achieve-stats-v1";
 const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const PROFILE_UNLOCK_SEEN_KEY = "petko-profile-unlock-seen-v1";
 const CHALLENGE_FAVORITES_KEY = "petko-challenge-favorites-v1";
@@ -11897,7 +11898,7 @@ async function refreshOnlineNormalStats() {
   if (!supabaseConfigured()) return;
   const name = loadPlayerName();
   if (!name) return;
-  const rows = await fetchNormalStatsRows();
+  const rows = await fetchNormalStatsRows({ nickname: name });
   const aggregated = normalSuccessRows(rows);
   const mine = aggregated.find((row) => sameChallengeName(row.nickname, name));
   onlineNormalStatsSummary = mine
@@ -11918,28 +11919,71 @@ function saveSeenUnlockedAvatars(ids = []) {
   localStorage.setItem(PROFILE_UNLOCK_SEEN_KEY, JSON.stringify([...new Set(ids)]));
 }
 
+function loadCachedAvatarAchievementStats() {
+  try {
+    const data = JSON.parse(localStorage.getItem(AVATAR_ACHIEVE_STATS_KEY) || "null");
+    if (!data || typeof data !== "object") return emptyAvatarAchievementStats();
+    return {
+      normalStarted: Math.max(0, Number(data.normalStarted) || 0),
+      tournaments: Math.max(0, Number(data.tournaments) || 0),
+      challengeWins: Math.max(0, Number(data.challengeWins) || 0),
+      bestStreak: Math.max(0, Number(data.bestStreak) || 0)
+    };
+  } catch {
+    return emptyAvatarAchievementStats();
+  }
+}
+
+function saveCachedAvatarAchievementStats(stats = {}) {
+  const next = {
+    normalStarted: Math.max(0, Number(stats.normalStarted) || 0),
+    tournaments: Math.max(0, Number(stats.tournaments) || 0),
+    challengeWins: Math.max(0, Number(stats.challengeWins) || 0),
+    bestStreak: Math.max(0, Number(stats.bestStreak) || 0)
+  };
+  localStorage.setItem(AVATAR_ACHIEVE_STATS_KEY, JSON.stringify(next));
+  return next;
+}
+
+function mergeAvatarAchievementStats(...parts) {
+  return parts.reduce((acc, part) => ({
+    normalStarted: Math.max(acc.normalStarted, Number(part?.normalStarted) || 0),
+    tournaments: Math.max(acc.tournaments, Number(part?.tournaments) || 0),
+    challengeWins: Math.max(acc.challengeWins, Number(part?.challengeWins) || 0),
+    bestStreak: Math.max(acc.bestStreak, Number(part?.bestStreak) || 0)
+  }), emptyAvatarAchievementStats());
+}
+
 async function refreshAvatarAchievements(options = {}) {
-  // Bez Supabase: otključavanje avatara samo iz lokalnog keša na telefonu.
   const name = loadPlayerName();
-  const stats = emptyAvatarAchievementStats();
-  const normal = loadNormalStats();
-  stats.normalStarted = Math.max(stats.normalStarted, Number(normal?.started) || 0);
-  loadResults().forEach((result) => {
-    if (!result) return;
-    if (name && result.nickname && !sameChallengeName(result.nickname, name)) return;
-    stats.tournaments = Math.max(stats.tournaments, Number(result.playedDays || result.attempts) || 0);
-    stats.bestStreak = Math.max(stats.bestStreak, Number(result.streak) || 0);
-  });
-  if (Array.isArray(challengeStatsRows) && challengeStatsRows.length && name) {
-    const challengeMine = normalizeChallengeWinStatsRows(challengeStatsRows)
+  const local = emptyAvatarAchievementStats();
+  local.normalStarted = Math.max(local.normalStarted, Number(loadNormalStats()?.started) || 0);
+  const cached = loadCachedAvatarAchievementStats();
+  let stats = mergeAvatarAchievementStats(cached, local, avatarAchievementStats || {});
+
+  if (supabaseConfigured() && name) {
+    const [normalRows, scoreRows, challengeRows] = await Promise.all([
+      fetchNormalStatsRows({ nickname: name }).catch(() => []),
+      fetchOnlinePlayerStats(name).catch(() => []),
+      fetchChallengeStatsRows({ focusName: name }).catch(() => [])
+    ]);
+    if (Array.isArray(challengeRows) && challengeRows.length) challengeStatsRows = challengeRows;
+    const normalMine = normalSuccessRows(normalRows).find((row) => sameChallengeName(row.nickname, name));
+    const tournamentMine = Array.isArray(scoreRows) && scoreRows.length
+      ? { ...aggregatePlayerRows(scoreRows), nickname: name }
+      : null;
+    const challengeMine = normalizeChallengeWinStatsRows(challengeStatsRows || challengeRows || [])
       .find((row) => sameChallengeName(row.nickname, name));
-    if (challengeMine) {
-      stats.challengeWins = Math.max(stats.challengeWins, Number(challengeMine.wins) || 0);
-    }
+    stats = mergeAvatarAchievementStats(stats, {
+      normalStarted: Number(normalMine?.started) || 0,
+      tournaments: Number(tournamentMine?.playedDays || tournamentMine?.attempts) || 0,
+      bestStreak: Number(tournamentMine?.streak) || 0,
+      challengeWins: Number(challengeMine?.wins) || 0
+    });
   }
 
   const previousUnlocked = new Set(unlockedProfileAvatars(avatarAchievementStats).map((avatar) => avatar.id));
-  avatarAchievementStats = stats;
+  avatarAchievementStats = saveCachedAvatarAchievementStats(stats);
   const unlocked = unlockedProfileAvatars(stats);
   const seen = loadSeenUnlockedAvatars();
   const newlyUnlocked = unlocked.filter((avatar) => (
@@ -11954,8 +11998,14 @@ async function refreshAvatarAchievements(options = {}) {
       .filter((avatar) => avatar.unlockGroup && avatar.unlockGroup !== "weekendWitch")
       .map((avatar) => avatar.id)
   ]);
+  // Sačuvaj trenutni stiker ako je otključan online skorom, da ne padne na podrazumevani.
+  const currentId = localStorage.getItem(PROFILE_AVATAR_KEY);
+  if (currentId && isProfileAvatarUnlocked(profileAvatarById(currentId), stats)) {
+    saveApprovedProfileAvatarId(currentId);
+  }
   if (profileModal && !profileModal.hidden) renderProfileModal();
   if (options.popup && newlyUnlocked.length) showAvatarUnlockPopup(newlyUnlocked);
+  updateStatusProfile();
 }
 
 function showAvatarUnlockPopup(avatars = []) {
@@ -13273,7 +13323,10 @@ async function openChallengePicker() {
       : await fetchChallengeHistory().catch(() => []);
     if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
     challengePickerRows = rows;
+    const statsRows = await cachedChallengeStatsRows(false).catch(() => challengeStatsRows || []);
+    if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     challengePickerPlayers = challengePlayerNamesFromRows(rows);
+    await refreshChallengePlayerAvatars(challengePickerPlayers.slice(0, 40)).catch(() => []);
     renderChallengePlayers(challengePickerPlayers);
   } catch {
     challengePickerPlayers = [];
@@ -14789,10 +14842,14 @@ async function syncChallengeState({ force = false } = {}) {
   challengeSyncBusy = true;
   try {
     await retryPendingChallengeResults().catch(() => []);
-    // Minimalno: samo challenges tabela. Stats/players se ne vuku na svaki sync.
-    const rows = await fetchChallengeHistory().catch(() => lastChallengeHistoryRows || []);
+    const [rows, statsRows] = await Promise.all([
+      fetchChallengeHistory().catch(() => lastChallengeHistoryRows || []),
+      cachedChallengeStatsRows(force).catch(() => challengeStatsRows || [])
+    ]);
     if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
+    if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows));
+    await refreshChallengePlayerAvatars(challengePlayerNamesFromRows(finalRows).slice(0, 40)).catch(() => []);
     const snapshot = challengeSyncSnapshotFor(finalRows);
     const changed = force || snapshot !== challengeSyncSnapshot;
     if (changed) {
@@ -17352,13 +17409,14 @@ async function fetchOnlineLeaderboard() {
   return response.json();
 }
 
-async function fetchNormalStatsRows() {
+async function fetchNormalStatsRows(options = {}) {
   if (!supabaseConfigured()) return [];
+  const nickname = normalizePlayerName(options.nickname || "");
   const query = [
     "select=nickname,started,finished,updated_at",
-    "order=updated_at.desc",
-    "limit=1000"
-  ].join("&");
+    nickname ? `nickname=eq.${encodeURIComponent(nickname)}` : "order=updated_at.desc",
+    nickname ? "limit=20" : "limit=1000"
+  ].filter(Boolean).join("&");
   const response = await fetch(supabaseUrl(`${normalStatsTable()}?${query}`), {
     headers: supabaseHeaders()
   });
@@ -18544,7 +18602,9 @@ function restoreLocalResultsFromOnline(rows, nickname = loadPlayerName()) {
     .filter((result) => result.date && result.date.startsWith(year))
     .forEach((result) => {
       const old = byDate.get(result.date);
-      if (!old || Number(result.finalScore) > Number(old.finalScore)) byDate.set(result.date, result);
+      // Ne prepisuj lokalni detaljan rezultat slabijim „restored“ skorom.
+      if (old && !old.restored && Number(old.finalScore || 0) >= Number(result.finalScore || 0)) return;
+      if (!old || Number(result.finalScore) > Number(old.finalScore || 0)) byDate.set(result.date, result);
     });
   const mergedCurrentYear = [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
   const merged = [
@@ -18594,16 +18654,17 @@ async function fetchPlayerByDeviceId(targetDeviceId) {
 async function fetchCurrentPlayerProfile() {
   if (!supabaseConfigured()) return null;
   const name = normalizePlayerName(loadPlayerName() || "");
+  const select = "nickname,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend,challenge_bonus";
   const queries = [
     [
-      "select=nickname,device_id,avatar_id",
+      `select=${select}`,
       `device_id=eq.${encodeURIComponent(profileDeviceId())}`,
       "limit=1"
     ].join("&")
   ];
   if (name) {
     queries.push([
-      "select=nickname,device_id,avatar_id",
+      `select=${select}`,
       `nickname=eq.${encodeURIComponent(name)}`,
       "limit=1"
     ].join("&"));
@@ -18617,6 +18678,9 @@ async function fetchCurrentPlayerProfile() {
     if (Array.isArray(rows) && rows.length) {
       rows.forEach(cachePlayerAvatar);
       applySupabaseProfileAvatar(rows[0], name || rows[0].nickname);
+      const credit = Math.max(0, Number(rows[0].challenge_bonus) || 0);
+      localStorage.setItem(CHALLENGE_MANUAL_CREDIT_KEY, String(credit));
+      updateChallengeQuota();
       return rows[0];
     }
   }
@@ -18870,9 +18934,11 @@ async function hydrateAndMaybeResume({ force = false, resume = false } = {}) {
 
 async function bootPetkoApp() {
   loadOnlineWords();
+  avatarAchievementStats = loadCachedAvatarAchievementStats();
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
   refreshManualChallengeCredit().catch(() => {});
+  await fetchCurrentPlayerProfile().catch(() => null);
   await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {
@@ -18892,13 +18958,16 @@ const initialNormalStats = loadNormalStats();
 if (initialNormalStats.started || initialNormalStats.finished) {
   submitNormalStats(initialNormalStats).catch(() => {});
 }
+refreshOnlineNormalStats().catch(() => {});
 refreshAvatarAchievements({ popup: true }).catch(() => {});
+refreshOnlineLeaderboard();
 window.setTimeout(maybeShowWeekendWitchOffer, 700);
-// Badge: jedan lagani challenges upit na startu, bez stats/players/words tabele.
 fetchChallengeHistory()
-  .then((rows) => {
+  .then(async (rows) => {
     if (Array.isArray(rows)) lastChallengeHistoryRows = rows;
     updateChallengeBadge(rows);
+    await refreshChallengePlayerAvatars(challengePlayerNamesFromRows(rows).slice(0, 40)).catch(() => []);
+    await cachedChallengeStatsRows(false).catch(() => []);
   })
   .catch(() => {});
 
