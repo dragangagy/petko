@@ -5572,7 +5572,7 @@ const WEEKEND_WITCH_AVATAR_IDS = ["female-41", "female-42", "female-43", "female
 const LECTOR_STATS_KEY = "petko-lector-stats-v1";
 const USED_WORDS_KEY = "petko-used-words-v2";
 const WORD_DECK_KEY = "petko-word-deck-v1";
-const ONLINE_WORDS_KEY = "petko-online-words-v1";
+const ONLINE_WORDS_KEY = "petko-online-words-v2";
 const CHALLENGE_AUX_TTL_MS = 60 * 1000;
 const NOTIFICATION_SEEN_KEY = "petko-notification-seen-v1";
 const BASE_PROFILE_AVATARS = [
@@ -7310,7 +7310,7 @@ const WORD_INFO = {
   "какве": "Значење: Облик речи какав; које врсте, особине или изгледа.\n\nГраматика: Именица; номинатив; множина.",
   "какви": "Значење: Облик речи какав; које врсте, особине или изгледа.\n\nГраматика: Именица; номинатив; множина.",
   "какво": "Значење: Облик речи какав; које врсте, особине или изгледа.\n\nГраматика: Именица; номинатив; јединина; средњи род.",
-  "какву": "Значење: Облик речи какав; коју врсту, особину или појаву.\n\nГраматика: Именица; датив.",
+  "какву": "Значење: Облик речи какав; коју врсту, особину или појаву.\n\nГраматика: Придев; женски род; акузатив; јединина.",
   "калуп": "Значење: Облик у који се нешто сипа или ставља да добије форму.\n\nГраматика: Именица; номинатив; јединина; мушки род.",
   "камен": "Значење: Тврд природни материјал, део стене.\n\nГраматика: Придев; мушки род; номинатив; јединина.",
   "камин": "Значење: Огњиште или уређај у кући за ватру и грејање.\n\nГраматика: Придев; мушки род; номинатив; јединина.",
@@ -11254,6 +11254,8 @@ const WORD_INFO = {
 
 };
 
+const BOOTSTRAP_WORD_INFO = { ...WORD_INFO };
+
 const boardsEl = document.querySelector("#boards");
 const keyboardEl = document.querySelector("#keyboard");
 const template = document.querySelector("#boardTemplate");
@@ -12597,19 +12599,44 @@ function lectorStatsPersistent(rows = []) {
   return [...byName.values()];
 }
 
+function wordMeaningHasGrammar(text) {
+  return /\n\nГраматика:\s*\S/u.test(String(text || ""));
+}
+
+function mergeWordMeaning(existing = "", incoming = "") {
+  const left = String(existing || "").trim();
+  const right = String(incoming || "").trim();
+  if (!left) return right;
+  if (!right) return left;
+  const leftHasGrammar = wordMeaningHasGrammar(left);
+  const rightHasGrammar = wordMeaningHasGrammar(right);
+  if (leftHasGrammar && !rightHasGrammar) return left;
+  if (rightHasGrammar && !leftHasGrammar) return right;
+  return right.length > left.length ? right : left;
+}
+
+function embeddedWordMeaning(word) {
+  return mergeWordMeaning(BOOTSTRAP_WORD_INFO[word], WORD_INFO[word]);
+}
+
 async function fetchWordMeaning(word) {
   if (!word) return "";
-  if (WORD_INFO[word]) return WORD_INFO[word];
-  if (!supabaseConfigured()) return "";
+  let meaning = embeddedWordMeaning(word);
+  if (meaning && wordMeaningHasGrammar(meaning)) {
+    WORD_INFO[word] = meaning;
+    return meaning;
+  }
+  if (!supabaseConfigured()) return meaning || "";
 
   const query = `${wordsTable()}?select=meaning&word=eq.${encodeURIComponent(word)}&active=eq.true&limit=1`;
   const response = await fetch(supabaseUrl(query), {
     headers: supabaseHeaders()
   });
-  if (!response.ok) return "";
+  if (!response.ok) return meaning || "";
 
   const rows = await response.json();
-  const meaning = String(rows?.[0]?.meaning || "").trim();
+  const remote = String(rows?.[0]?.meaning || "").trim();
+  meaning = mergeWordMeaning(meaning, remote);
   if (meaning) WORD_INFO[word] = meaning;
   return meaning;
 }
@@ -12649,7 +12676,8 @@ function applyOnlineWords(rows = [], cache = false) {
   WORD_SET = new Set(WORDS);
   onlineWordsReady = true;
   normalizedRows.forEach((row) => {
-    if (row.meaning) WORD_INFO[row.word] = row.meaning;
+    if (!row.meaning) return;
+    WORD_INFO[row.word] = mergeWordMeaning(BOOTSTRAP_WORD_INFO[row.word], row.meaning);
   });
   saveWordDeck(loadWordDeck());
   if (cache) {
@@ -17189,7 +17217,12 @@ function showWordModal({ title, word, text, reviewText = "", buttons, modalVaria
 }
 
 function wordMeaningText(word) {
-  return WORD_INFO[word] || "Значење ове речи још није уписано. Овде ће стајати кратко објашњење када га додамо у базу.";
+  const meaning = embeddedWordMeaning(word);
+  if (meaning) {
+    WORD_INFO[word] = meaning;
+    return meaning;
+  }
+  return "Значење ове речи још није уписано. Овде ће стајати кратко објашњење када га додамо у базу.";
 }
 
 function showExistingWordReview(word) {
