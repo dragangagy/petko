@@ -5658,8 +5658,9 @@ const PROFILE_UNLOCK_GROUPS = {
 };
 const PLAYER_AVATAR_CACHE = new Map();
 const SUPABASE_CONFIG = {
-  url: "https://kfpyrajlxrucmrlhyvgr.supabase.co",
-  anonKey: "sb_publishable_bVzXHMsSYKPO2eJRPZ6a8g___kRhow0",
+  url: "http://192.168.1.6:3001",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InBldGtvLWhhIiwiaWF0IjoxNzg3NzQ0OTAyLCJleHAiOjIxMDMxMDQ5MDJ9.89GdhPNVZL1yXM_to4MBvF_M6xCwWMM97YwS56VQAaw",
+  restPrefix: "",
   table: "scores",
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
@@ -12161,7 +12162,9 @@ function supabaseConfigured() {
 }
 
 function supabaseUrl(path) {
-  return `${SUPABASE_CONFIG.url.replace(/\/$/, "")}/rest/v1/${path}`;
+  const base = SUPABASE_CONFIG.url.replace(/\/$/, "");
+  const prefix = (SUPABASE_CONFIG.restPrefix ?? "/rest/v1").replace(/\/$/, "");
+  return prefix ? `${base}${prefix}/${path}` : `${base}/${path}`;
 }
 
 function supabaseHeaders(extra = {}) {
