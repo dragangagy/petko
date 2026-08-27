@@ -5658,9 +5658,9 @@ const PROFILE_UNLOCK_GROUPS = {
 };
 const PLAYER_AVATAR_CACHE = new Map();
 const SUPABASE_CONFIG = {
-  url: "http://192.168.1.6:3001",
+  url: "https://equate-clinic-retread.ngrok-free.dev",
   anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InBldGtvLWhhIiwiaWF0IjoxNzg3NzQ0OTAyLCJleHAiOjIxMDMxMDQ5MDJ9.89GdhPNVZL1yXM_to4MBvF_M6xCwWMM97YwS56VQAaw",
-  restPrefix: "",
+  restPrefix: "/sr",
   table: "scores",
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
@@ -12168,12 +12168,16 @@ function supabaseUrl(path) {
 }
 
 function supabaseHeaders(extra = {}) {
-  return {
+  const headers = {
     apikey: SUPABASE_CONFIG.anonKey,
     Authorization: `Bearer ${SUPABASE_CONFIG.anonKey}`,
     "Content-Type": "application/json",
     ...extra
   };
+  if (/ngrok-free\.(app|dev)/i.test(SUPABASE_CONFIG.url || "")) {
+    headers["ngrok-skip-browser-warning"] = "true";
+  }
+  return headers;
 }
 
 function challengeTable() {
