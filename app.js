@@ -17176,13 +17176,64 @@ function setWordModalButtons(buttons) {
   });
 }
 
+function escapeWordCardHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function parseWordCardText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return { meaning: "", grammar: "" };
+  const labeled = raw.match(/^Значење:\s*([\s\S]*?)(?:\n\nГраматика:\s*([\s\S]*))?$/u);
+  if (labeled) {
+    return {
+      meaning: labeled[1].trim(),
+      grammar: String(labeled[2] || "").trim()
+    };
+  }
+  return { meaning: raw, grammar: "" };
+}
+
+function formatWordCardText(meaning, grammar = "") {
+  const cleanMeaning = String(meaning || "").trim();
+  const cleanGrammar = String(grammar || "").trim();
+  if (!cleanMeaning) return "";
+  if (!cleanGrammar) return cleanMeaning;
+  return `Значење: ${cleanMeaning}\n\nГраматика: ${cleanGrammar}`;
+}
+
+function renderWordCardHtml(text) {
+  const { meaning, grammar } = parseWordCardText(text);
+  const parts = [];
+  if (meaning) {
+    parts.push(
+      `<p class="word-card-section"><span class="word-card-label">Значење:</span> ${escapeWordCardHtml(meaning)}</p>`
+    );
+  }
+  if (grammar) {
+    parts.push(
+      `<p class="word-card-section"><span class="word-card-label">Граматика:</span> ${escapeWordCardHtml(grammar)}</p>`
+    );
+  }
+  if (parts.length) return parts.join("");
+  return `<p class="word-card-section">${escapeWordCardHtml(text)}</p>`;
+}
+
+function setWordModalBody(text) {
+  if (!wordModalText) return;
+  wordModalText.innerHTML = renderWordCardHtml(text);
+}
+
 function showWordModal({ title, word, text, reviewText = "", buttons, modalVariant = "" }) {
   if (!wordModal || !wordModalTitle || !wordModalWord || !wordModalText) return;
   if (modalVariant) wordModal.dataset.variant = modalVariant;
   else delete wordModal.dataset.variant;
   wordModalTitle.textContent = title;
   wordModalWord.textContent = displayWord(word);
-  wordModalText.textContent = text;
+  setWordModalBody(text);
   if (wordReviewText) {
     wordReviewText.textContent = reviewText;
     wordReviewText.hidden = !reviewText;
@@ -17226,7 +17277,7 @@ function showExistingWordReview(word) {
   fetchWordMeaning(word)
     .then((meaning) => {
       if (!meaning || !wordModal || wordModal.hidden || wordModalWord.textContent !== displayWord(word)) return;
-      wordModalText.textContent = meaning;
+      setWordModalBody(meaning);
     })
     .catch(() => {});
 }
