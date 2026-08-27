@@ -985,12 +985,33 @@ body[data-game-type="normal"] .status-panel p {
   letter-spacing: 3px;
 }
 
-.word-card p {
+.word-card p,
+.word-modal-body {
   margin: 0;
   color: rgba(255, 255, 255, 0.84);
   font-size: 14px;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.word-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.word-card-section {
+  margin: 0;
+}
+
+.word-card-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .word-review-text {
