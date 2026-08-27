@@ -12180,6 +12180,122 @@ function supabaseHeaders(extra = {}) {
   return headers;
 }
 
+const CONNECTION_OFFLINE_MESSAGES = [
+  "Комшија ти је искључио интернет. Иди куцни на врата.",
+  "Чича Јо, упали интернет на телефону! (И на рутеру, ако можеш.)",
+  "Нема мреже. Можда је комшија Мика опет копа кабл у дворишту.",
+  "Офлајн си. Провери WiFi — или питај комшију да ли је платио рачун.",
+  "Интернет је нестао. Вероватно га је комшија позајмио „само на минут“.",
+  "Нема везе. Рутер спава, или комшија тестира нови рутер.",
+  "Чича, ротирај телефон улево — можда ухватиш мрежу од комшије.",
+  "Офлајн си. Комшија каже да није дигао кабл. (Лаже.)"
+];
+
+const CONNECTION_SERVER_MESSAGES = [
+  "Вештице су ушле у серверску собу. Сервер се бави магијом уместо игром.",
+  "Пукла оптика до куће. Подаци иду пешаче — стижу кад стигну.",
+  "Сервер се прегрејао. Неко га хлади вентилатором из '95.",
+  "Серверска соба — тренутно затворена због „превентивног одмора“.",
+  "PostgreSQL је отишао на паузу. Чај у серверској.",
+  "Тунел до сервера се изгубио. Сервер можда спава — пробај за пар минута.",
+  "API не одговара. Вероватно је неко оставио врата серверске на отворено.",
+  "Сервер каже „не данас“. Покушај поново — можда се пробуди.",
+  "Home Assistant је рекао „не“. Провери да ли је сервер укључен.",
+  "Подаци су негде између рутера и базе. Стижу кад стигну."
+];
+
+const connectionOverlay = document.querySelector("#connectionOverlay");
+const connectionOverlayMessage = document.querySelector("#connectionOverlayMessage");
+const connectionOverlayRetry = document.querySelector("#connectionOverlayRetry");
+let connectionOverlayReason = "";
+let connectionCheckTimer = 0;
+let connectionCheckBusy = false;
+
+function pickConnectionMessage(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function showConnectionOverlay(reason) {
+  if (!connectionOverlay || !supabaseConfigured()) return;
+  connectionOverlayReason = reason;
+  const list = reason === "offline" ? CONNECTION_OFFLINE_MESSAGES : CONNECTION_SERVER_MESSAGES;
+  if (connectionOverlayMessage) {
+    connectionOverlayMessage.textContent = pickConnectionMessage(list);
+  }
+  connectionOverlay.hidden = false;
+  document.body.dataset.connectionBlocked = "true";
+}
+
+function hideConnectionOverlay() {
+  if (!connectionOverlay) return;
+  connectionOverlayReason = "";
+  connectionOverlay.hidden = true;
+  delete document.body.dataset.connectionBlocked;
+}
+
+async function pingSupabaseHealth() {
+  if (!supabaseConfigured()) return true;
+  if (!navigator.onLine) return false;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(supabaseUrl(`${wordsTable()}?select=id&limit=1`), {
+      headers: supabaseHeaders(),
+      signal: controller.signal,
+      cache: "no-store"
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function refreshConnectionOverlay({ forceMessage = false } = {}) {
+  if (!supabaseConfigured()) {
+    hideConnectionOverlay();
+    return true;
+  }
+  if (!navigator.onLine) {
+    if (forceMessage || connectionOverlayReason !== "offline") {
+      showConnectionOverlay("offline");
+    }
+    return false;
+  }
+  if (connectionCheckBusy) return !connectionOverlayReason;
+  connectionCheckBusy = true;
+  try {
+    const ok = await pingSupabaseHealth();
+    if (ok) {
+      hideConnectionOverlay();
+      return true;
+    }
+    if (forceMessage || connectionOverlayReason !== "server") {
+      showConnectionOverlay("server");
+    }
+    return false;
+  } finally {
+    connectionCheckBusy = false;
+  }
+}
+
+function scheduleConnectionChecks() {
+  if (!supabaseConfigured()) return;
+  window.clearInterval(connectionCheckTimer);
+  connectionCheckTimer = window.setInterval(() => {
+    refreshConnectionOverlay().catch(() => {});
+  }, 45000);
+}
+
+connectionOverlayRetry?.addEventListener("click", () => {
+  refreshConnectionOverlay({ forceMessage: true }).catch(() => {});
+});
+
+window.addEventListener("offline", () => {
+  showConnectionOverlay("offline");
+});
+
 function challengeTable() {
   return SUPABASE_CONFIG.challengeTable || "challenges";
 }
@@ -18811,6 +18927,7 @@ window.addEventListener("focus", () => {
   hydrateAndMaybeResume({ resume: true }).catch(() => false);
 });
 window.addEventListener("online", () => {
+  refreshConnectionOverlay().catch(() => {});
   syncChallengeState({ force: true }).catch(() => {});
   flushGameSessionUpserts();
   hydrateAndMaybeResume({ force: true, resume: true }).catch(() => false);
@@ -18908,6 +19025,8 @@ persistLatestWitchHuntResult().catch(() => false).then(() => Promise.all([
   })
   .catch(() => {});
 
+  refreshConnectionOverlay().catch(() => {});
+  scheduleConnectionChecks();
 }
 
 bootPetkoApp();

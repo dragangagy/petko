@@ -3954,3 +3954,69 @@ body[data-friday="true"] .tile.absent {
     font-size: clamp(15px, 4vw, 22px);
   }
 }
+
+body[data-connection-blocked="true"] .app-shell {
+  filter: blur(10px) saturate(0.88);
+  pointer-events: none;
+  user-select: none;
+}
+
+.connection-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 8, 23, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.connection-overlay[hidden] {
+  display: none;
+}
+
+.connection-overlay-card {
+  width: min(92vw, 420px);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 16px;
+  border: 1px solid rgba(255, 215, 0, 0.32);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 8, 23, 0.98));
+  box-shadow: 0 0 36px rgba(255, 215, 0, 0.14);
+  text-align: center;
+}
+
+.connection-overlay-image {
+  display: block;
+  width: min(100%, 320px);
+  max-height: 42svh;
+  object-fit: contain;
+  border-radius: 14px;
+}
+
+.connection-overlay-message {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(14px, 3.8vw, 16px);
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.connection-overlay-retry {
+  min-width: 168px;
+  padding: 11px 18px;
+  border: 1px solid rgba(255, 215, 0, 0.42);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 215, 0, 0.22), rgba(255, 215, 0, 0.08));
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.connection-overlay-retry:active {
+  transform: scale(0.98);
+}

@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=105">
     <link rel="icon" href="app-icon-store.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon-store.png">
-    <link rel="stylesheet" href="styles.css?v=226">
+    <link rel="stylesheet" href="styles.css?v=227">
   </head>
   <body>
     <div class="petko-splash" id="petkoSplash" role="dialog" aria-label="Петко" aria-modal="true">
@@ -328,6 +328,14 @@
       </article>
     </div>
 
-  <script src="app.js?v=315"></script>
+    <div class="connection-overlay" id="connectionOverlay" hidden>
+      <article class="connection-overlay-card" role="alertdialog" aria-modal="true" aria-labelledby="connectionOverlayMessage">
+        <img class="connection-overlay-image" src="offline-repair.png" alt="Петко поправља везу">
+        <p class="connection-overlay-message" id="connectionOverlayMessage"></p>
+        <button class="connection-overlay-retry" id="connectionOverlayRetry" type="button">Пробај поново</button>
+      </article>
+    </div>
+
+  <script src="app.js?v=316"></script>
   </body>
 </html>
