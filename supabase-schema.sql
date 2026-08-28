@@ -30,7 +30,8 @@ create table if not exists public.players (
   last_seen timestamptz not null default now(),
   nickname text not null,
   device_id text,
-  avatar_id text
+  avatar_id text,
+  can_edit_words boolean not null default false
 );
 
 create unique index if not exists players_nickname_unique
@@ -38,6 +39,9 @@ on public.players (lower(btrim(nickname)));
 
 alter table public.players
 add column if not exists avatar_id text;
+
+alter table public.players
+add column if not exists can_edit_words boolean not null default false;
 
 alter table public.players enable row level security;
 

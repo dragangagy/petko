@@ -259,9 +259,22 @@
 
     <div class="word-modal" id="wordModal" hidden>
       <article class="word-card" role="dialog" aria-modal="true" aria-labelledby="wordModalTitle">
-        <h2 id="wordModalTitle">Реч</h2>
+        <div class="word-card-top">
+          <h2 id="wordModalTitle">Реч</h2>
+          <span class="word-modal-edit-link is-disabled" id="wordModalEditLink" role="button" tabindex="-1" aria-disabled="true" hidden>Уреди</span>
+        </div>
         <div class="word-modal-word" id="wordModalWord"></div>
         <div class="word-modal-body" id="wordModalText"></div>
+        <div class="word-modal-edit" id="wordModalEdit" hidden>
+          <label class="word-modal-edit-label" for="wordModalEditMeaning">Значење</label>
+          <textarea class="word-modal-edit-field" id="wordModalEditMeaning" rows="4" spellcheck="true"></textarea>
+          <label class="word-modal-edit-label" for="wordModalEditGrammar">Граматика</label>
+          <textarea class="word-modal-edit-field" id="wordModalEditGrammar" rows="3" spellcheck="true"></textarea>
+          <div class="word-modal-edit-actions">
+            <span class="word-modal-edit-action" id="wordModalEditSave" role="button" tabindex="0">Сачувај</span>
+            <span class="word-modal-edit-action muted" id="wordModalEditCancel" role="button" tabindex="0">Откажи</span>
+          </div>
+        </div>
         <p class="word-review-text" id="wordReviewText"></p>
         <div class="word-modal-actions" id="wordModalActions"></div>
       </article>
@@ -336,6 +349,6 @@
       </article>
     </div>
 
-  <script src="app.js?v=318"></script>
+  <script src="app.js?v=319"></script>
   </body>
 </html>

@@ -11292,6 +11292,12 @@ const wordModalWord = document.querySelector("#wordModalWord");
 const wordModalText = document.querySelector("#wordModalText");
 const wordReviewText = document.querySelector("#wordReviewText");
 const wordModalActions = document.querySelector("#wordModalActions");
+const wordModalEditLink = document.querySelector("#wordModalEditLink");
+const wordModalEdit = document.querySelector("#wordModalEdit");
+const wordModalEditMeaning = document.querySelector("#wordModalEditMeaning");
+const wordModalEditGrammar = document.querySelector("#wordModalEditGrammar");
+const wordModalEditSave = document.querySelector("#wordModalEditSave");
+const wordModalEditCancel = document.querySelector("#wordModalEditCancel");
 const profileModal = document.querySelector("#profileModal");
 const profileCloseButton = document.querySelector("#profileCloseButton");
 const profileAvatarButton = document.querySelector("#profileAvatarButton");
@@ -11388,6 +11394,9 @@ let activeChallenge = null;
 let challengePickerPlayers = [];
 let challengePickerRows = [];
 let challengeStatsRows = [];
+let wordEditorAllowed = false;
+let wordModalMeaningEditable = false;
+let wordModalCurrentWord = "";
 let challengeSyncBusy = false;
 let challengePlayersCache = { at: 0, rows: null };
 let challengeStatsCache = { at: 0, rows: null };
@@ -16149,6 +16158,7 @@ async function saveProfileNameChange() {
   renderProfileModal();
   setProfileEditMode(false);
   setProfileMessage(`Име је промењено у ${next}.`);
+  refreshWordEditorPermission().catch(() => false);
   if (gameType === "challenge") renderChallengePanel(`Име је промењено у ${next}.`);
   refreshChallengePanel();
   refreshOnlineLeaderboard();
@@ -17174,9 +17184,106 @@ function renderSolutionsPanel(show) {
 }
 
 function closeWordModal() {
+  exitWordModalEditMode();
+  wordModalMeaningEditable = false;
+  wordModalCurrentWord = "";
+  setWordModalEditLink(false, false);
   if (wordModal) wordModal.hidden = true;
   if (wordModal) delete wordModal.dataset.variant;
   document.body.dataset.wordModalOpen = "false";
+}
+
+function setWordModalEditLink(visible, allowed) {
+  if (!wordModalEditLink) return;
+  wordModalEditLink.hidden = !visible;
+  wordModalEditLink.classList.toggle("is-disabled", !allowed);
+  wordModalEditLink.setAttribute("aria-disabled", allowed ? "false" : "true");
+  wordModalEditLink.tabIndex = visible && allowed ? 0 : -1;
+}
+
+async function refreshWordEditorPermission() {
+  wordEditorAllowed = false;
+  if (!supabaseConfigured()) return false;
+  const response = await fetch(supabaseUrl("rpc/player_can_edit_words"), {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({
+      p_nickname: normalizePlayerName(loadPlayerName() || ""),
+      p_device_id: deviceId()
+    })
+  });
+  if (!response.ok) return false;
+  const allowed = await response.json();
+  wordEditorAllowed = Boolean(allowed);
+  return wordEditorAllowed;
+}
+
+function wordModalCardEl() {
+  return wordModal?.querySelector(".word-card") || null;
+}
+
+function enterWordModalEditMode(text = "") {
+  const card = wordModalCardEl();
+  if (!wordModalEdit || !wordModalEditMeaning || !wordModalEditGrammar || !card) return;
+  const { meaning, grammar } = parseWordCardText(text);
+  wordModalEditMeaning.value = meaning;
+  wordModalEditGrammar.value = grammar;
+  wordModalEdit.hidden = false;
+  card.dataset.editMode = "true";
+  window.setTimeout(() => wordModalEditMeaning.focus(), 0);
+}
+
+function exitWordModalEditMode() {
+  const card = wordModalCardEl();
+  if (wordModalEdit) wordModalEdit.hidden = true;
+  if (wordModalEditMeaning) wordModalEditMeaning.value = "";
+  if (wordModalEditGrammar) wordModalEditGrammar.value = "";
+  if (card) delete card.dataset.editMode;
+}
+
+async function saveWordMeaningEdit(word, meaning, grammar) {
+  const formatted = formatWordCardText(meaning, grammar);
+  if (!formatted) return { ok: false, error: "missing_fields" };
+  if (!supabaseConfigured()) return { ok: false, error: "offline" };
+  const response = await fetch(supabaseUrl("rpc/update_word_meaning"), {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({
+      p_word: word,
+      p_meaning: formatted,
+      p_nickname: normalizePlayerName(loadPlayerName() || ""),
+      p_device_id: deviceId()
+    })
+  });
+  if (!response.ok) return { ok: false, error: "request_failed" };
+  const payload = await response.json().catch(() => ({}));
+  if (!payload?.ok) return payload || { ok: false, error: "forbidden" };
+  WORD_INFO[word] = formatted;
+  BOOTSTRAP_WORD_INFO[word] = formatted;
+  return { ok: true, meaning: formatted };
+}
+
+async function handleWordModalEditSave() {
+  const word = wordModalCurrentWord;
+  if (!word || !wordEditorAllowed) return;
+  const meaning = String(wordModalEditMeaning?.value || "").trim();
+  const grammar = String(wordModalEditGrammar?.value || "").trim();
+  if (!meaning) {
+    messageEl.textContent = "Унеси значење пре чувања.";
+    return;
+  }
+  if (wordModalEditSave) wordModalEditSave.textContent = "Чувам...";
+  const result = await saveWordMeaningEdit(word, meaning, grammar);
+  if (wordModalEditSave) wordModalEditSave.textContent = "Сачувај";
+  if (!result.ok) {
+    messageEl.textContent = result.error === "forbidden"
+      ? "Немаш дозволу за уређивање значења."
+      : "Чување није успело.";
+    return;
+  }
+  exitWordModalEditMode();
+  setWordModalBody(result.meaning || formatWordCardText(meaning, grammar));
+  messageEl.textContent = "Значење је сачувано.";
 }
 
 function setWordModalButtons(buttons) {
@@ -17243,8 +17350,11 @@ function setWordModalBody(text) {
   wordModalText.innerHTML = renderWordCardHtml(text);
 }
 
-function showWordModal({ title, word, text, reviewText = "", buttons, modalVariant = "" }) {
+function showWordModal({ title, word, text, reviewText = "", buttons, modalVariant = "", meaningEditable = false }) {
   if (!wordModal || !wordModalTitle || !wordModalWord || !wordModalText) return;
+  exitWordModalEditMode();
+  wordModalMeaningEditable = meaningEditable;
+  wordModalCurrentWord = meaningEditable ? String(word || "") : "";
   if (modalVariant) wordModal.dataset.variant = modalVariant;
   else delete wordModal.dataset.variant;
   wordModalTitle.textContent = title;
@@ -17255,6 +17365,7 @@ function showWordModal({ title, word, text, reviewText = "", buttons, modalVaria
     wordReviewText.hidden = !reviewText;
   }
   setWordModalButtons(buttons);
+  setWordModalEditLink(meaningEditable, meaningEditable && wordEditorAllowed);
   wordModal.hidden = false;
   document.body.dataset.wordModalOpen = "true";
 }
@@ -17274,6 +17385,7 @@ function showExistingWordReview(word) {
     title: "Објашњење речи",
     word,
     text: fallbackText,
+    meaningEditable: true,
     reviewText: "Да ли је ова реч сувишна, непримерена или неисправна и треба да се уклони?",
     buttons: [
       {
@@ -17294,6 +17406,12 @@ function showExistingWordReview(word) {
       }
     ]
   });
+  refreshWordEditorPermission()
+    .catch(() => false)
+    .finally(() => {
+      if (!wordModal || wordModal.hidden || wordModalCurrentWord !== word) return;
+      setWordModalEditLink(true, wordEditorAllowed);
+    });
 
   fetchWordMeaning(word)
     .then((meaning) => {
@@ -18823,6 +18941,33 @@ if (wordModal) {
   });
 }
 
+function bindWordModalEditAction(el, handler) {
+  if (!el) return;
+  el.addEventListener("click", handler);
+  el.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handler();
+    }
+  });
+}
+
+bindWordModalEditAction(wordModalEditLink, () => {
+  if (!wordModalMeaningEditable || !wordEditorAllowed || !wordModalCurrentWord) return;
+  enterWordModalEditMode(embeddedWordMeaning(wordModalCurrentWord) || wordMeaningText(wordModalCurrentWord));
+});
+
+bindWordModalEditAction(wordModalEditSave, () => {
+  handleWordModalEditSave().catch(() => {
+    if (wordModalEditSave) wordModalEditSave.textContent = "Сачувај";
+    messageEl.textContent = "Чување није успело.";
+  });
+});
+
+bindWordModalEditAction(wordModalEditCancel, () => {
+  exitWordModalEditMode();
+});
+
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
@@ -19282,6 +19427,7 @@ if (initialNormalStats.started || initialNormalStats.finished) {
 }
 refreshOnlineNormalStats().catch(() => {});
 refreshAvatarAchievements({ popup: true }).catch(() => {});
+refreshWordEditorPermission().catch(() => false);
 window.setTimeout(maybeShowWeekendWitchOffer, 700);
 persistLatestWitchHuntResult().catch(() => false).then(() => Promise.all([
   fetchChallengeHistory(),

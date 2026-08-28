@@ -970,11 +970,92 @@ body[data-game-type="normal"] .status-panel p {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.56), 0 0 28px rgba(56, 189, 248, 0.16);
 }
 
+.word-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .word-card h2 {
   margin: 0;
   color: var(--cyan);
   font-size: 18px;
   font-weight: 950;
+}
+
+.word-modal-edit-link {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #7dd3fc;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.word-modal-edit-link.is-disabled {
+  color: rgba(148, 163, 184, 0.42);
+  text-decoration: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+.word-modal-edit {
+  display: grid;
+  gap: 8px;
+}
+
+.word-modal-edit-label {
+  color: #bae6fd;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.word-modal-edit-field {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 10px;
+  background: rgba(2, 8, 23, 0.72);
+  color: #f8fafc;
+  font: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.word-modal-edit-field:focus {
+  outline: 2px solid rgba(56, 189, 248, 0.45);
+  outline-offset: 1px;
+}
+
+.word-modal-edit-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+}
+
+.word-modal-edit-action {
+  color: #7dd3fc;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.word-modal-edit-action.muted {
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.word-card[data-edit-mode="true"] .word-modal-body,
+.word-card[data-edit-mode="true"] .word-review-text,
+.word-card[data-edit-mode="true"] .word-modal-actions {
+  display: none;
 }
 
 .word-modal-word {
