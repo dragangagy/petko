@@ -1003,7 +1003,11 @@ body[data-game-type="normal"] .status-panel p {
   pointer-events: none;
 }
 
-.word-modal-edit {
+.word-modal-edit[hidden] {
+  display: none !important;
+}
+
+.word-modal-edit:not([hidden]) {
   display: grid;
   gap: 8px;
 }
