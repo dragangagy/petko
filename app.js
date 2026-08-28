@@ -13433,10 +13433,11 @@ function toggleChallengeFavorite(name) {
 
 function challengePairAggregate(first, second, rows = challengeStatsRows) {
   if (!first || !second || !Array.isArray(rows) || !rows.length) return null;
-  const row = rows.find((item) => (
+  const matches = rows.filter((item) => (
     (sameChallengeName(item.player_a, first) && sameChallengeName(item.player_b, second)) ||
     (sameChallengeName(item.player_a, second) && sameChallengeName(item.player_b, first))
   ));
+  const row = matches.sort((a, b) => (Number(b.total_games) || 0) - (Number(a.total_games) || 0))[0];
   if (!row) return null;
   const firstIsA = sameChallengeName(row.player_a, first);
   const aWins = Number(row.player_a_wins) || 0;
@@ -13999,10 +14000,52 @@ function mergeChallengeStatsRows(rows = []) {
   const merged = new Map();
   rows.flat().forEach((row) => {
     if (!row || typeof row !== "object") return;
-    const a = normalizePlayerName(row.player_a || "").toLowerCase();
-    const b = normalizePlayerName(row.player_b || "").toLowerCase();
-    if (!a || !b) return;
-    merged.set(`${a}::${b}`, row);
+    const aRaw = normalizePlayerName(row.player_a || "");
+    const bRaw = normalizePlayerName(row.player_b || "");
+    const a = aRaw.toLocaleLowerCase("sr");
+    const b = bRaw.toLocaleLowerCase("sr");
+    if (!a || !b || a === b) return;
+    const key = a <= b ? `${a}::${b}` : `${b}::${a}`;
+    const firstIsA = a <= b;
+    const normalized = firstIsA
+      ? {
+          player_a: aRaw,
+          player_b: bRaw,
+          player_a_wins: Number(row.player_a_wins) || 0,
+          player_b_wins: Number(row.player_b_wins) || 0,
+          draws: Number(row.draws) || 0,
+          player_a_sent: Number(row.player_a_sent) || 0,
+          player_b_sent: Number(row.player_b_sent) || 0,
+          total_games: Number(row.total_games) || 0,
+          last_played_at: row.last_played_at || ""
+        }
+      : {
+          player_a: bRaw,
+          player_b: aRaw,
+          player_a_wins: Number(row.player_b_wins) || 0,
+          player_b_wins: Number(row.player_a_wins) || 0,
+          draws: Number(row.draws) || 0,
+          player_a_sent: Number(row.player_b_sent) || 0,
+          player_b_sent: Number(row.player_a_sent) || 0,
+          total_games: Number(row.total_games) || 0,
+          last_played_at: row.last_played_at || ""
+        };
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, normalized);
+      return;
+    }
+    merged.set(key, {
+      player_a: current.player_a,
+      player_b: current.player_b,
+      player_a_wins: current.player_a_wins + normalized.player_a_wins,
+      player_b_wins: current.player_b_wins + normalized.player_b_wins,
+      draws: current.draws + normalized.draws,
+      player_a_sent: current.player_a_sent + normalized.player_a_sent,
+      player_b_sent: current.player_b_sent + normalized.player_b_sent,
+      total_games: current.total_games + normalized.total_games,
+      last_played_at: [current.last_played_at, normalized.last_played_at].filter(Boolean).sort().pop() || ""
+    });
   });
   return [...merged.values()];
 }
@@ -17900,12 +17943,30 @@ function challengeStrongScoreRows(rows) {
 }
 
 function normalizeChallengeScoreStatsRows(rows = []) {
-  return rows.map((row) => ({
-    nickname: (row.nickname || "Играч").trim() || "Играч",
-    best: Number(row.best_score) || 0,
-    bestCount: Math.max(1, Number(row.best_score_count) || 1),
-    bestAt: row.last_at || ""
-  }));
+  const byName = new Map();
+  rows.forEach((row) => {
+    const nickname = (row.nickname || "Играч").trim() || "Играч";
+    const key = nickname.toLocaleLowerCase("sr");
+    const best = Number(row.best_score) || 0;
+    const bestCount = Math.max(1, Number(row.best_score_count) || 1);
+    const bestAt = row.last_at || "";
+    const current = byName.get(key);
+    if (!current) {
+      byName.set(key, { nickname, best, bestCount, bestAt });
+      return;
+    }
+    if (best > current.best) {
+      current.nickname = nickname;
+      current.best = best;
+      current.bestCount = bestCount;
+      current.bestAt = bestAt;
+    } else if (best === current.best) {
+      current.bestCount += bestCount;
+      if (bestAt && (!current.bestAt || bestAt > current.bestAt)) current.bestAt = bestAt;
+      if (nickname.length > current.nickname.length) current.nickname = nickname;
+    }
+  });
+  return [...byName.values()];
 }
 
 function normalizeChallengeWinStatsRows(rows = []) {
