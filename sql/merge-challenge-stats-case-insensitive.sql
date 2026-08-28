@@ -86,22 +86,42 @@ with normalized as (
     updated_at
   from public.challenge_stats
 ),
-grouped as (
+ranked as (
   select
     lower(raw_a) as key_a,
     lower(raw_b) as key_b,
-    (array_agg(raw_a order by total_games desc, updated_at desc))[1] as player_a,
-    (array_agg(raw_b order by total_games desc, updated_at desc))[1] as player_b,
-    sum(norm_a_wins)::integer as player_a_wins,
-    sum(norm_b_wins)::integer as player_b_wins,
-    sum(draws)::integer as draws,
-    sum(norm_a_sent)::integer as player_a_sent,
-    sum(norm_b_sent)::integer as player_b_sent,
-    sum(total_games)::integer as total_games,
-    max(last_played_at) as last_played_at,
-    max(updated_at) as updated_at
+    raw_a,
+    raw_b,
+    norm_a_wins,
+    norm_b_wins,
+    draws,
+    norm_a_sent,
+    norm_b_sent,
+    total_games,
+    last_played_at,
+    updated_at,
+    row_number() over (
+      partition by lower(raw_a), lower(raw_b)
+      order by total_games desc, last_played_at desc nulls last, updated_at desc nulls last, id desc
+    ) as rn
   from normalized
-  group by lower(raw_a), lower(raw_b)
+),
+grouped as (
+  select
+    key_a,
+    key_b,
+    raw_a as player_a,
+    raw_b as player_b,
+    norm_a_wins as player_a_wins,
+    norm_b_wins as player_b_wins,
+    draws,
+    norm_a_sent as player_a_sent,
+    norm_b_sent as player_b_sent,
+    total_games,
+    last_played_at,
+    updated_at
+  from ranked
+  where rn = 1
 )
 select
   public.challenge_canonical_name(player_a) as player_a,

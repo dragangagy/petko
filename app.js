@@ -14044,16 +14044,20 @@ function mergeChallengeStatsRows(rows = []) {
       merged.set(key, normalized);
       return;
     }
+    const keep = normalized.total_games > current.total_games
+      || (normalized.total_games === current.total_games && String(normalized.last_played_at) > String(current.last_played_at))
+      ? normalized
+      : current;
     merged.set(key, {
-      player_a: current.player_a,
-      player_b: current.player_b,
-      player_a_wins: current.player_a_wins + normalized.player_a_wins,
-      player_b_wins: current.player_b_wins + normalized.player_b_wins,
-      draws: current.draws + normalized.draws,
-      player_a_sent: current.player_a_sent + normalized.player_a_sent,
-      player_b_sent: current.player_b_sent + normalized.player_b_sent,
-      total_games: current.total_games + normalized.total_games,
-      last_played_at: [current.last_played_at, normalized.last_played_at].filter(Boolean).sort().pop() || ""
+      player_a: keep.player_a || current.player_a,
+      player_b: keep.player_b || current.player_b,
+      player_a_wins: keep.player_a_wins,
+      player_b_wins: keep.player_b_wins,
+      draws: keep.draws,
+      player_a_sent: keep.player_a_sent,
+      player_b_sent: keep.player_b_sent,
+      total_games: keep.total_games,
+      last_played_at: keep.last_played_at || current.last_played_at || ""
     });
   });
   return [...merged.values()];
@@ -18393,7 +18397,9 @@ async function renderHallOfFame() {
     const leaderboard = aggregateLeaderboard(rows);
     const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
     const onlineChallengeWinRows = normalizeChallengeWinStatsRows(Array.isArray(challengeStatsRows) ? challengeStatsRows : []);
-    const challengeLeaders = mergeChallengeWinLeaderRows(onlineChallengeWinRows, challengeStats(challengeRowsSafe));
+    const challengeLeaders = onlineChallengeWinRows.length
+      ? onlineChallengeWinRows
+      : challengeStats(challengeRowsSafe);
     const onlineChallengeScoreRows = normalizeChallengeScoreStatsRows(Array.isArray(challengeScoreRows) ? challengeScoreRows : []);
     const challengeStrongLeaders = onlineChallengeScoreRows.length
       ? onlineChallengeScoreRows
