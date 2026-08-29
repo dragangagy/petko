@@ -970,11 +970,96 @@ body[data-game-type="normal"] .status-panel p {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.56), 0 0 28px rgba(56, 189, 248, 0.16);
 }
 
+.word-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .word-card h2 {
   margin: 0;
   color: var(--cyan);
   font-size: 18px;
   font-weight: 950;
+}
+
+.word-modal-edit-link {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #7dd3fc;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.word-modal-edit-link.is-disabled {
+  color: rgba(148, 163, 184, 0.42);
+  text-decoration: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+.word-modal-edit[hidden] {
+  display: none !important;
+}
+
+.word-modal-edit:not([hidden]) {
+  display: grid;
+  gap: 8px;
+}
+
+.word-modal-edit-label {
+  color: #bae6fd;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.word-modal-edit-field {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 10px;
+  background: rgba(2, 8, 23, 0.72);
+  color: #f8fafc;
+  font: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.word-modal-edit-field:focus {
+  outline: 2px solid rgba(56, 189, 248, 0.45);
+  outline-offset: 1px;
+}
+
+.word-modal-edit-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+}
+
+.word-modal-edit-action {
+  color: #7dd3fc;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.word-modal-edit-action.muted {
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.word-card[data-edit-mode="true"] .word-modal-body,
+.word-card[data-edit-mode="true"] .word-review-text,
+.word-card[data-edit-mode="true"] .word-modal-actions {
+  display: none;
 }
 
 .word-modal-word {
@@ -985,12 +1070,33 @@ body[data-game-type="normal"] .status-panel p {
   letter-spacing: 3px;
 }
 
-.word-card p {
+.word-card p,
+.word-modal-body {
   margin: 0;
   color: rgba(255, 255, 255, 0.84);
   font-size: 14px;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.word-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.word-card-section {
+  margin: 0;
+}
+
+.word-card-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .word-review-text {
@@ -1730,7 +1836,28 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .idle-petk
   padding-top: 0;
 }
 
-body[data-game-type="challenge"][data-challenge-cards="true"] .idle-petko {
+body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .challenge-panel {
+  flex-shrink: 0;
+  min-height: min-content;
+}
+
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(62svh, 520px);
+  overflow-y: auto;
+}
+
+body[data-game-type="challenge"] .challenge-history:not(:empty) {
+  min-height: min-content;
+}
+
+body[data-game-type="challenge"][data-challenge-loading="true"]:not([data-challenge-playing="true"]) .idle-witch-weekend-poster,
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-witch-weekend-poster {
+  display: none !important;
+}
+
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
   display: none;
 }
 
@@ -3953,4 +4080,70 @@ body[data-friday="true"] .tile.absent {
     height: clamp(25px, 4.45svh, 34px);
     font-size: clamp(15px, 4vw, 22px);
   }
+}
+
+body[data-connection-blocked="true"] .app-shell {
+  filter: blur(10px) saturate(0.88);
+  pointer-events: none;
+  user-select: none;
+}
+
+.connection-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 8, 23, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.connection-overlay[hidden] {
+  display: none;
+}
+
+.connection-overlay-card {
+  width: min(92vw, 420px);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 16px;
+  border: 1px solid rgba(255, 215, 0, 0.32);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 8, 23, 0.98));
+  box-shadow: 0 0 36px rgba(255, 215, 0, 0.14);
+  text-align: center;
+}
+
+.connection-overlay-image {
+  display: block;
+  width: min(100%, 320px);
+  max-height: 42svh;
+  object-fit: contain;
+  border-radius: 14px;
+}
+
+.connection-overlay-message {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(14px, 3.8vw, 16px);
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.connection-overlay-retry {
+  min-width: 168px;
+  padding: 11px 18px;
+  border: 1px solid rgba(255, 215, 0, 0.42);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 215, 0, 0.22), rgba(255, 215, 0, 0.08));
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.connection-overlay-retry:active {
+  transform: scale(0.98);
 }
