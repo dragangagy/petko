@@ -13830,12 +13830,41 @@ async function fetchChallenge(code) {
 }
 
 async function updateChallenge(code, patch) {
-  const response = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(code)}`), {
-    method: "PATCH",
-    headers: supabaseHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify(patch)
-  });
-  if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
+  const normalizedCode = normalizeChallengeCode(code);
+  if (!normalizedCode) throw new Error("Нема кода изазова.");
+  const body = { code: normalizedCode, ...patch };
+  const prefer = "resolution=merge-duplicates,return=representation";
+  let response;
+  try {
+    // POST upsert works through Cloudflare; PATCH often fails after ngrok cutover.
+    response = await fetch(supabaseUrl(`${challengeTable()}?on_conflict=code`), {
+      method: "POST",
+      headers: supabaseHeaders({ Prefer: prefer }),
+      body: JSON.stringify(body)
+    });
+  } catch (error) {
+    throw new Error(error?.message || "Мрежа није доступна.");
+  }
+  if (!response.ok) {
+    let patchResponse;
+    try {
+      patchResponse = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(normalizedCode)}`), {
+        method: "PATCH",
+        headers: supabaseHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify(patch)
+      });
+    } catch {}
+    if (patchResponse?.ok) {
+      const patchRows = await patchResponse.json().catch(() => []);
+      if (Array.isArray(patchRows) && patchRows[0]) return hydrateChallengeRow(patchRows[0]);
+    }
+    throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
+  }
+  const rows = await response.json().catch(() => []);
+  if (!Array.isArray(rows) || !rows[0]) {
+    throw new Error("Изазов није уписан.");
+  }
+  return hydrateChallengeRow(rows[0]);
 }
 
 async function retryPendingChallengeResults() {
@@ -14907,14 +14936,14 @@ function challengeCard(row, rows = []) {
       const accept = document.createElement("button");
       accept.type = "button";
       accept.textContent = "Прихвати изазов";
-      accept.addEventListener("click", () => acceptChallenge(row.code, { play: false, name: nameInput?.value || "" }).catch(() => renderChallengePanel("Прихватање изазова није успело.")));
+      accept.addEventListener("click", () => acceptChallenge(row.code, { play: false, name: nameInput?.value || "" }).catch((error) => renderChallengePanel(error?.message || "Прихватање изазова није успело.")));
       actions.append(accept);
     }
     if (canPlay) {
       const play = document.createElement("button");
       play.type = "button";
       play.textContent = "Настави изазов";
-      play.addEventListener("click", () => acceptChallenge(row.code, { play: true }).catch(() => renderChallengePanel("Покретање изазова није успело.")));
+      play.addEventListener("click", () => acceptChallenge(row.code, { play: true }).catch((error) => renderChallengePanel(error?.message || "Покретање изазова није успело.")));
       actions.append(play);
       const surrender = document.createElement("button");
       surrender.type = "button";
@@ -15502,29 +15531,44 @@ async function acceptChallenge(codeInput = "", options = {}) {
     return;
   }
   if (row.status === "pending") {
-    let requestedName = cleanChallengeName(options.name || loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || "");
+    const invitedOpponent = isOpenChallengeOpponent(row.opponent) ? "" : cleanChallengeName(row.opponent);
+    const requestedName = cleanChallengeName(
+      invitedOpponent || options.name || loadPlayerName() || (playerNameInput ? playerNameInput.value : "") || ""
+    );
     if (!requestedName) {
       renderChallengePanel("Уреди профил и упиши име пре прихватања изазова.");
       openProfileModal();
       return;
     }
-    if (await playerNameTaken(requestedName)) {
+    const acceptedName = await claimChallengePlayerName(requestedName, invitedOpponent);
+    if (!acceptedName) {
       renderChallengePanel(`Надимак "${requestedName}" већ постоји. Пробај други назив.`);
       if (playerNameInput) playerNameInput.value = loadPlayerName();
       return;
     }
-    const acceptedName = await savePlayerNameUnique(requestedName);
-    if (!acceptedName) {
-      renderChallengePanel(`Надимак "${requestedName}" већ постоји. Пробај други назив.`);
+    let acceptedRow;
+    try {
+      acceptedRow = await updateChallenge(code, {
+        status: "accepted",
+        opponent: isOpenChallengeOpponent(row.opponent) ? acceptedName : row.opponent,
+        opponent_device: profileDeviceId(),
+        opponent_faction: challengeFactionFromAvatar(currentProfileAvatar()),
+        accepted_at: new Date().toISOString()
+      });
+    } catch (error) {
+      renderChallengePanel(error?.message || "Прихватање изазова није успело.");
       return;
     }
-    await updateChallenge(code, {
-      status: "accepted",
-      opponent: isOpenChallengeOpponent(row.opponent) ? acceptedName : row.opponent,
-      opponent_device: profileDeviceId(),
-      opponent_faction: challengeFactionFromAvatar(currentProfileAvatar()),
-      accepted_at: new Date().toISOString()
-    });
+    if (acceptedRow?.status === "accepted") {
+      if (!playNow) {
+        renderChallengePanel("Изазов је прихваћен. Картица је зелена и активна 24h.");
+        renderChallengeHistoryCards([acceptedRow]);
+        await refreshChallengeLobby().catch(() => {});
+        return;
+      }
+      await startChallengeGame(acceptedRow, "opponent");
+      return;
+    }
   }
   const accepted = await fetchChallenge(code);
   if (!playNow) {
@@ -16305,6 +16349,33 @@ async function playerNameTaken(name) {
     ...(scoreRows || []).map((row) => row.nickname),
     ...(challengeRows || []).flatMap((row) => [row.creator, row.opponent])
   ].some((value) => sameChallengeName(value, clean));
+}
+
+async function claimChallengePlayerName(name, invitedOpponent = "") {
+  const clean = normalizePlayerName(name);
+  const invited = cleanChallengeName(invitedOpponent);
+  const acceptingDirectedInvite = invited && sameChallengeName(clean, invited);
+  const previous = loadPlayerName();
+
+  if (acceptingDirectedInvite) {
+    if (previous && sameChallengeName(clean, previous)) {
+      await syncCurrentPlayerDevice().catch(() => false);
+      return previous;
+    }
+    const registered = await registerPlayerName(clean).catch(() => null);
+    if (registered === true) return savePlayerName(clean);
+    if (registered === false) {
+      const encodedName = encodeURIComponent(clean);
+      const patched = await patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, {
+        device_id: deviceId()
+      });
+      if (patched) return savePlayerName(clean);
+    }
+    if (playerNameInput) playerNameInput.value = previous;
+    return "";
+  }
+
+  return savePlayerNameUnique(clean);
 }
 
 async function savePlayerNameUnique(value) {
@@ -18882,7 +18953,7 @@ if (challengePickerSubmit) {
 
 if (acceptChallengeButton) {
   acceptChallengeButton.addEventListener("click", () => {
-    acceptChallenge("", { play: false }).catch(() => renderChallengePanel("Прихватање изазова није успело."));
+    acceptChallenge("", { play: false }).catch((error) => renderChallengePanel(error?.message || "Прихватање изазова није успело."));
   });
 }
 
