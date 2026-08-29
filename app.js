@@ -5689,9 +5689,9 @@ const PROFILE_UNLOCK_GROUPS = {
 };
 const PLAYER_AVATAR_CACHE = new Map();
 const SUPABASE_CONFIG = {
-  url: "https://equate-clinic-retread.ngrok-free.dev",
+  url: "https://api.g-lab.rs",
   anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InBldGtvLWhhIiwiaWF0IjoxNzg3NzQ0OTAyLCJleHAiOjIxMDMxMDQ5MDJ9.89GdhPNVZL1yXM_to4MBvF_M6xCwWMM97YwS56VQAaw",
-  restPrefix: "/sr",
+  restPrefix: "",
   table: "scores",
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
