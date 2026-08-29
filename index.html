@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=105">
     <link rel="icon" href="app-icon-store.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon-store.png">
-    <link rel="stylesheet" href="styles.css?v=235">
+    <link rel="stylesheet" href="styles.css?v=236">
   </head>
   <body>
     <div class="petko-splash" id="petkoSplash" role="dialog" aria-label="Петко" aria-modal="true">
@@ -101,15 +101,16 @@
         </div>
       </section>
 
-      <section class="idle-petko" aria-hidden="true">
-        <img class="idle-petko-competitive" src="22.png" alt="">
-        <img class="idle-petko-challenge" src="18.png" alt="">
-        <div class="weekend-witch-scoreboard" id="weekendWitchScoreboard" hidden></div>
-        <img class="idle-witch-weekend-poster" src="witch-weekend-poster.png" alt="">
-        <div class="weekend-witch-winner" id="weekendWitchWinner" hidden></div>
+      <section class="challenge-lobby" id="challengeLobby">
+        <section class="idle-petko" aria-hidden="true">
+          <img class="idle-petko-competitive" src="22.png" alt="">
+          <img class="idle-petko-challenge" src="18.png" alt="">
+          <div class="weekend-witch-scoreboard" id="weekendWitchScoreboard" hidden></div>
+          <img class="idle-witch-weekend-poster" src="witch-weekend-poster.png" alt="">
+          <div class="weekend-witch-winner" id="weekendWitchWinner" hidden></div>
+        </section>
+        <div class="challenge-history" id="challengeHistory"></div>
       </section>
-
-      <div class="challenge-history" id="challengeHistory"></div>
 
       <section class="hall-panel" id="hallPanel" hidden aria-live="polite">
         <div class="hall-head">
@@ -350,6 +351,6 @@
       </article>
     </div>
 
-  <script src="app.js?v=341"></script>
+  <script src="app.js?v=342"></script>
   </body>
 </html>
