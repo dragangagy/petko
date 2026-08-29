@@ -14466,7 +14466,8 @@ async function refreshWeekendWitchResults() {
   return weekendWitchResults;
 }
 
-function weekendResultWindow(result = {}) {
+function weekendResultWindow(result) {
+  if (!result || typeof result !== "object") return null;
   const start = Date.parse(`${String(result.weekend_start || "").slice(0, 10)}T00:00:00`);
   if (!Number.isFinite(start)) return null;
   return { start, end: start + (2 * 24 * 60 * 60 * 1000) };
@@ -14475,6 +14476,7 @@ function weekendResultWindow(result = {}) {
 function savedWitchHuntResultForWindow(window) {
   if (!window) return null;
   return weekendWitchResults.find((result) => {
+    if (!result) return false;
     const savedWindow = weekendResultWindow(result);
     return savedWindow && savedWindow.start === window.start;
   }) || null;
@@ -14484,6 +14486,7 @@ function latestSavedWitchHuntResult() {
   const now = Date.now();
   const lastStart = latestWitchHuntWeekendStart();
   return weekendWitchResults.find((result) => {
+    if (!result) return false;
     const window = weekendResultWindow(result);
     const startDate = String(result.weekend_start || "").slice(0, 10);
     return startDate === lastStart && window && window.end <= now;
@@ -19426,7 +19429,11 @@ persistLatestWitchHuntResult().catch(() => false).then(() => Promise.all([
 ]))
   .then(([rows, statsRows]) => {
     if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
-    updateChallengeBadge(rows);
+    if (Array.isArray(rows)) {
+      challengeRowsCache = rows;
+      updateChallengeBadge(rows);
+      if (gameType === "challenge") renderChallengeHistoryCards(rows);
+    }
   })
   .catch(() => {});
 
