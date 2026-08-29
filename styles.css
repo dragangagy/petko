@@ -1982,7 +1982,7 @@ body[data-game-type="challenge"][data-challenge-weekend-poster="true"]:not([data
   flex: 1 1 auto;
   height: auto;
   min-height: 0;
-  grid-template-columns: minmax(48px, 0.72fr) minmax(130px, 260px) minmax(48px, 0.72fr);
+  grid-template-columns: minmax(48px, 0.72fr) minmax(195px, 390px) minmax(48px, 0.72fr);
   align-items: start;
   align-content: start;
   column-gap: 2px;
@@ -2002,16 +2002,16 @@ body[data-game-type="challenge"][data-challenge-weekend-poster="true"]:not([data
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: clamp(180px, 32svh, 260px);
+  max-height: clamp(270px, 48svh, 390px);
   object-fit: contain;
 }
 
 body[data-game-type="challenge"][data-challenge-weekend-poster="true"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-witch-weekend-poster {
-  max-height: clamp(120px, 20svh, 170px);
+  max-height: clamp(180px, 30svh, 255px);
 }
 
 body[data-game-type="challenge"][data-challenge-weekend-poster="true"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
-  grid-template-columns: minmax(36px, 0.68fr) minmax(96px, 190px) minmax(36px, 0.68fr);
+  grid-template-columns: minmax(36px, 0.68fr) minmax(144px, 285px) minmax(36px, 0.68fr);
   row-gap: 0;
   padding-top: 2px;
 }
