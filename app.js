@@ -14725,6 +14725,8 @@ function challengeResultKey(row = {}) {
 
 function bindChallengeResultFlip(card, key) {
   let holdTimer = 0;
+  let startX = 0;
+  let startY = 0;
   const clearHold = () => {
     window.clearTimeout(holdTimer);
     holdTimer = 0;
@@ -14732,11 +14734,19 @@ function bindChallengeResultFlip(card, key) {
   card.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     clearHold();
+    startX = event.clientX;
+    startY = event.clientY;
     heldChallengeResultKey = key;
     holdTimer = window.setTimeout(() => {
       if (heldChallengeResultKey === key) card.classList.add("show-words");
     }, 420);
   });
+  card.addEventListener("pointermove", (event) => {
+    if (!holdTimer) return;
+    if (Math.abs(event.clientX - startX) > 8 || Math.abs(event.clientY - startY) > 8) clearHold();
+  });
+  card.addEventListener("pointerup", clearHold);
+  card.addEventListener("pointercancel", clearHold);
   card.addEventListener("contextmenu", (event) => {
     if (heldChallengeResultKey === key || card.classList.contains("show-words")) event.preventDefault();
   });
