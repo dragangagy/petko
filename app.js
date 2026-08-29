@@ -13829,42 +13829,58 @@ async function fetchChallenge(code) {
   return Array.isArray(rows) && rows[0] ? hydrateChallengeRow(rows[0]) : null;
 }
 
-async function updateChallenge(code, patch) {
+async function updateChallenge(code, patch, sourceRow = null) {
   const normalizedCode = normalizeChallengeCode(code);
   if (!normalizedCode) throw new Error("Нема кода изазова.");
-  const body = { code: normalizedCode, ...patch };
-  const prefer = "resolution=merge-duplicates,return=representation";
+
+  const readUpdatedRows = async (response) => {
+    if (!response?.ok) return null;
+    const rows = await response.json().catch(() => []);
+    return Array.isArray(rows) && rows[0] ? hydrateChallengeRow(rows[0]) : null;
+  };
+
   let response;
   try {
-    // POST upsert works through Cloudflare; PATCH often fails after ngrok cutover.
+    response = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(normalizedCode)}`), {
+      method: "PATCH",
+      headers: supabaseHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify(patch)
+    });
+  } catch (error) {
+    throw new Error(error?.message || "Мрежа није доступна.");
+  }
+  let updated = await readUpdatedRows(response);
+  if (updated) return updated;
+
+  const row = sourceRow || await fetchChallenge(normalizedCode).catch(() => null);
+  if (!row?.creator || !Array.isArray(row.words) || !row.words.length) {
+    throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
+  }
+
+  const body = {
+    code: normalizedCode,
+    day: row.day,
+    creator: row.creator,
+    creator_device: row.creator_device,
+    creator_faction: row.creator_faction,
+    opponent: row.opponent,
+    opponent_faction: row.opponent_faction,
+    status: row.status,
+    words: row.words,
+    ...patch
+  };
+  try {
     response = await fetch(supabaseUrl(`${challengeTable()}?on_conflict=code`), {
       method: "POST",
-      headers: supabaseHeaders({ Prefer: prefer }),
+      headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=representation" }),
       body: JSON.stringify(body)
     });
   } catch (error) {
     throw new Error(error?.message || "Мрежа није доступна.");
   }
-  if (!response.ok) {
-    let patchResponse;
-    try {
-      patchResponse = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(normalizedCode)}`), {
-        method: "PATCH",
-        headers: supabaseHeaders({ Prefer: "return=representation" }),
-        body: JSON.stringify(patch)
-      });
-    } catch {}
-    if (patchResponse?.ok) {
-      const patchRows = await patchResponse.json().catch(() => []);
-      if (Array.isArray(patchRows) && patchRows[0]) return hydrateChallengeRow(patchRows[0]);
-    }
-    throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
-  }
-  const rows = await response.json().catch(() => []);
-  if (!Array.isArray(rows) || !rows[0]) {
-    throw new Error("Изазов није уписан.");
-  }
-  return hydrateChallengeRow(rows[0]);
+  updated = await readUpdatedRows(response);
+  if (updated) return updated;
+  throw new Error(await supabaseErrorMessage(response, "Изазов није уписан."));
 }
 
 async function retryPendingChallengeResults() {
@@ -15554,7 +15570,7 @@ async function acceptChallenge(codeInput = "", options = {}) {
         opponent_device: profileDeviceId(),
         opponent_faction: challengeFactionFromAvatar(currentProfileAvatar()),
         accepted_at: new Date().toISOString()
-      });
+      }, row);
     } catch (error) {
       renderChallengePanel(error?.message || "Прихватање изазова није успело.");
       return;
