@@ -13581,6 +13581,7 @@ function challengeNotificationRows(rows = []) {
   const me = loadPlayerName();
   return rows.filter((row) => {
     if (playedChallenge(row)) return false;
+    if (String(row?.status || "").toLowerCase() === "played") return false;
     if (selfChallengeRow(row)) return false;
     if (!challengeCardVisible(row)) return false;
     const mineByDevice = row.creator_device === profileDeviceId() || row.opponent_device === profileDeviceId();
@@ -14144,21 +14145,11 @@ function challengeScoreboardResult(row) {
 }
 
 function playedChallenge(row) {
-  const creatorPlayed = challengeSidePlayed(row, "creator");
-  const opponentPlayed = challengeSidePlayed(row, "opponent");
-  if (creatorPlayed && opponentPlayed) return true;
-  if (String(row?.status || "").toLowerCase() === "played") {
-    return creatorPlayed || opponentPlayed;
-  }
-  return false;
+  return challengeSidePlayed(row, "creator") && challengeSidePlayed(row, "opponent");
 }
 
 function challengeWinner(row) {
   if (!playedChallenge(row)) return null;
-  const creatorPlayed = challengeSidePlayed(row, "creator");
-  const opponentPlayed = challengeSidePlayed(row, "opponent");
-  if (creatorPlayed && !opponentPlayed) return "creator";
-  if (opponentPlayed && !creatorPlayed) return "opponent";
   const creatorScore = Number(row.creator_score) || 0;
   const opponentScore = Number(row.opponent_score) || 0;
   if (creatorScore === opponentScore) return "tie";
@@ -15041,8 +15032,8 @@ function renderChallengeHistoryCards(rows = []) {
       return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
     })
     .slice(0, 12);
-  const resultRows = challengeRowsForPlayer(rows)
-    .filter(playedChallenge)
+  const resultRows = rows
+    .filter((row) => playedChallenge(row) && challengeCardVisible(row))
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
