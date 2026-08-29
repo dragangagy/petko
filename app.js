@@ -11335,6 +11335,7 @@ let wordEditorAllowed = false;
 let wordModalMeaningEditable = false;
 let wordModalCurrentWord = "";
 let challengeSyncBusy = false;
+let challengeSyncQueuedForce = false;
 let challengePlayersCache = { at: 0, rows: null };
 let challengeStatsCache = { at: 0, rows: null };
 let onlineNormalStatsSummary = null;
@@ -13583,6 +13584,24 @@ function challengeNotificationRows(rows = []) {
   });
 }
 
+function challengeRowsForPlayer(rows = []) {
+  const me = loadPlayerName();
+  const typedCode = normalizeChallengeCode(
+    challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || ""
+  );
+  return rows.filter((row) => {
+    if (typedCode && normalizeChallengeCode(row.code) === typedCode) return challengeCardVisible(row);
+    if (playedChallenge(row)) {
+      return challengeCardVisible(row) && (
+        row.creator_device === profileDeviceId() ||
+        row.opponent_device === profileDeviceId() ||
+        (cleanChallengeName(me) && (sameChallengeName(row.opponent, me) || sameChallengeName(row.creator, me)))
+      );
+    }
+    return challengeNotificationRows([row]).length > 0;
+  });
+}
+
 function updateChallengeBadge(rows = []) {
   const button = typeButtons.find((item) => item.dataset.type === "challenge");
   if (!button) return;
@@ -14917,21 +14936,7 @@ function renderChallengeHistoryCards(rows = []) {
   updateChallengeBadge(rows);
   notifyChallengeEvents(rows);
   updateChallengeQuota(sentChallengeRowsFromHistory(rows));
-  const me = loadPlayerName();
-  const typedCode = String(challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || "").trim().toUpperCase();
-  const currentRows = rows.filter((row) => {
-    // Rezultat je javna istorija i ostaje prikazan i kada su imena ili uredjaji naknadno spojeni.
-    if (playedChallenge(row)) return true;
-    if (selfChallengeRow(row)) return false;
-    if (!challengeInvitePlayersClear(row)) return false;
-    return row.creator_device === profileDeviceId() ||
-      row.opponent_device === profileDeviceId() ||
-      (typedCode && String(row.code || "").trim().toUpperCase() === typedCode) ||
-      (cleanChallengeName(me) && sameChallengeName(row.opponent, me)) ||
-      (cleanChallengeName(me) && sameChallengeName(row.creator, me));
-  });
-
-  const visibleRows = currentRows
+  const visibleRows = challengeRowsForPlayer(rows)
     .filter((row) => (row.creator || row.opponent) && challengeCardVisible(row));
   const inviteRows = visibleRows
     .filter((row) => !playedChallenge(row))
@@ -14959,6 +14964,13 @@ function renderChallengeHistoryCards(rows = []) {
     const defaultOpen = isWeekendWitchActive() && (key === "active" || key === "pending") && sectionRows.length > 0;
     challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, defaultOpen));
   });
+  if (!challengeHistoryEl.childElementCount && inviteRows.length) {
+    const flat = document.createElement("div");
+    flat.className = "challenge-section-body";
+    inviteRows.forEach((row) => flat.append(challengeCard(row, rows)));
+    challengeHistoryEl.append(flat);
+    challengeVisibleCardCount = inviteRows.length + resultRows.length;
+  }
   syncChallengeIdlePetkoState();
 }
 
@@ -15077,7 +15089,10 @@ async function cachedChallengeStatsRows(force = false) {
 
 async function syncChallengeState({ force = false } = {}) {
   if (!shouldPollChallengeSync() && !force) return;
-  if (challengeSyncBusy) return;
+  if (challengeSyncBusy) {
+    if (force) challengeSyncQueuedForce = true;
+    return;
+  }
   challengeSyncBusy = true;
   try {
     await retryPendingChallengeResults().catch(() => []);
@@ -15104,7 +15119,12 @@ async function syncChallengeState({ force = false } = {}) {
     await syncActiveChallengeResult(finalRows);
   } finally {
     challengeSyncBusy = false;
-    if (challengeLobbyOpen()) syncChallengeIdlePetkoState();
+    if (challengeSyncQueuedForce) {
+      challengeSyncQueuedForce = false;
+      syncChallengeState({ force: true }).catch(() => {});
+    } else if (challengeLobbyOpen()) {
+      syncChallengeIdlePetkoState();
+    }
   }
 }
 
