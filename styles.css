@@ -1853,10 +1853,6 @@ body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challeng
   touch-action: pan-y;
 }
 
-body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-section-body {
-  touch-action: pan-x pan-y;
-}
-
 body[data-game-type="challenge"] .challenge-history:not(:empty) {
   min-height: min-content;
 }
@@ -2565,24 +2561,8 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-section-body {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y;
-  padding: 2px 2px 6px;
-  scrollbar-width: thin;
-}
-
-.challenge-section-body .challenge-card {
-  flex: 0 0 calc(100% - 2px);
-  max-width: calc(100% - 2px);
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+  display: grid;
+  gap: 7px;
 }
 
 .challenge-section-body[hidden] {

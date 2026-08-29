@@ -15026,17 +15026,6 @@ function renderChallengeHistoryCards(rows = []) {
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
   challengeVisibleCardCount = inviteRows.length + resultRows.length;
-  const witchStripRows = isWeekendWitchActive()
-    ? [...activeRows, ...pendingRows, ...resultRows]
-    : [];
-  if (witchStripRows.length) {
-    const strip = document.createElement("div");
-    strip.className = "challenge-section-body challenge-section-body-combined";
-    witchStripRows.forEach((row) => strip.append(challengeCard(row, rows)));
-    challengeHistoryEl.append(strip);
-    syncChallengeIdlePetkoState();
-    return;
-  }
   const sections = [
     ["active", "Активни изазови", activeRows],
     ["pending", "Изазови на чекању", pendingRows],
