@@ -11336,6 +11336,7 @@ let wordModalMeaningEditable = false;
 let wordModalCurrentWord = "";
 let challengeSyncBusy = false;
 let challengeSyncQueuedForce = false;
+let challengeRowsCache = [];
 let challengePlayersCache = { at: 0, rows: null };
 let challengeStatsCache = { at: 0, rows: null };
 let onlineNormalStatsSummary = null;
@@ -14936,10 +14937,8 @@ function renderChallengeHistoryCards(rows = []) {
   updateChallengeBadge(rows);
   notifyChallengeEvents(rows);
   updateChallengeQuota(sentChallengeRowsFromHistory(rows));
-  const visibleRows = challengeRowsForPlayer(rows)
-    .filter((row) => (row.creator || row.opponent) && challengeCardVisible(row));
-  const inviteRows = visibleRows
-    .filter((row) => !playedChallenge(row))
+  const notificationRows = challengeNotificationRows(rows);
+  const inviteRows = notificationRows
     .sort((a, b) => {
       const stateOrder = { accepted: 0, pending: 1, played: 2 };
       const stateDiff = stateOrder[challengeCardState(a)] - stateOrder[challengeCardState(b)];
@@ -14949,7 +14948,7 @@ function renderChallengeHistoryCards(rows = []) {
       return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
     })
     .slice(0, 12);
-  const resultRows = visibleRows
+  const resultRows = challengeRowsForPlayer(rows)
     .filter(playedChallenge)
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
@@ -15105,6 +15104,7 @@ async function syncChallengeState({ force = false } = {}) {
     ]);
     if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
     const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows));
+    challengeRowsCache = finalRows;
     const snapshot = challengeSyncSnapshotFor(finalRows);
     const changed = force || snapshot !== challengeSyncSnapshot;
     const shouldRenderCards = changed || challengeLobbyOpen();
@@ -15367,6 +15367,7 @@ function exitChallengeToLobby() {
   document.body.dataset.challengeLoading = "true";
   syncChallengeIdlePetkoState();
   if (challengeCodeInput && activeChallenge) challengeCodeInput.value = "";
+  if (challengeRowsCache.length) renderChallengeHistoryCards(challengeRowsCache);
   refreshChallengeLobby()
     .catch(() => {})
     .finally(() => {
