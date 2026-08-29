@@ -12314,7 +12314,6 @@ async function pingSupabaseHealth() {
   const timer = window.setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(supabaseUrl(`${wordsTable()}?select=id&limit=1`), {
-      headers: supabaseHeaders(),
       signal: controller.signal,
       cache: "no-store"
     });

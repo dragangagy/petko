@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache-v295";
+const CACHE_NAME = "petko-cache-v296";
 
 const ASSETS = [
   "./",
@@ -222,9 +222,20 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// App shell must always come from network so API URL updates are not stuck in SW cache.
+function isAppShellRequest(url) {
+  return /\/(app\.js|index\.html|sw\.js)$/.test(url.pathname);
+}
+
 // Uvek prvo pokusaj mrezu, pa tek onda kes
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const url = new URL(event.request.url);
+  if (isAppShellRequest(url)) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   event.respondWith(
     fetch(event.request)
