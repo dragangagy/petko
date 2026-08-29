@@ -1836,7 +1836,12 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .idle-petk
   padding-top: 0;
 }
 
-body[data-game-type="challenge"][data-challenge-cards="true"] .idle-petko {
+body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .challenge-panel {
+  flex-shrink: 0;
+  min-height: min-content;
+}
+
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
   display: none;
 }
 

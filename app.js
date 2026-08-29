@@ -14395,6 +14395,7 @@ function createChallengeWordList(words = [], options = {}) {
 }
 
 let heldChallengeResultKey = "";
+let challengeVisibleCardCount = 0;
 let challengeSectionState = loadChallengeSectionState();
 
 function loadChallengeSectionState() {
@@ -14618,8 +14619,8 @@ function renderWeekendWitchScoreboard(rows = []) {
 function syncChallengeIdlePetkoState() {
   if (!challengeHistoryEl) return;
   const sections = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"));
-  const hasCards = sections.some((section) => section.children.length);
-  // Witch Hunt poster samo kada stvarno nema kartica — ne i kada su sekcije samo zatvorene.
+  const hasCards = challengeVisibleCardCount > 0 ||
+    sections.some((section) => section.children.length);
   document.body.dataset.challengeCards = hasCards ? "true" : "false";
   document.body.dataset.challengeWeekendPoster =
     (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) && !hasCards ? "true" : "false";
@@ -14935,6 +14936,7 @@ function renderChallengeHistoryCards(rows = []) {
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
+  challengeVisibleCardCount = inviteRows.length + resultRows.length;
   const sections = [
     ["active", "Активни изазови", activeRows],
     ["pending", "Изазови на чекању", pendingRows],
