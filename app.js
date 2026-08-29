@@ -13044,8 +13044,13 @@ function loadSentChallengeRowsToday() {
       if (active.length !== data.entries.length) {
         localStorage.setItem(CHALLENGE_SENT_KEY, JSON.stringify({ entries: active }));
       }
+      const weekendWindow = isWeekendWitchActive() ? weekendWitchWindowContaining(new Date()) : null;
       return active
-        .filter((entry) => String(entry.day || entry.created_at || entry.sentAt || "").slice(0, 10) === todayId())
+        .filter((entry) => {
+          const stamp = String(entry.day || entry.created_at || entry.sentAt || "").slice(0, 10);
+          if (weekendWindow) return challengeIsCurrentWitchHuntRow(entry);
+          return stamp === todayId();
+        })
         .map((entry) => ({
           code: entry.code || "",
           day: entry.day || todayId(),
@@ -14612,13 +14617,12 @@ function renderWeekendWitchScoreboard(rows = []) {
 
 function syncChallengeIdlePetkoState() {
   if (!challengeHistoryEl) return;
-  // Zatvorene sekcije ne pokrivaju Witch Hunt poster i konačni rezultat.
-  // Tek kada igrač stvarno otvori karticu, poster se privremeno skloni.
-  const hasOpenCards = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"))
-    .some((section) => section.children.length && !section.hidden);
-  document.body.dataset.challengeCards = hasOpenCards ? "true" : "false";
+  const sections = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"));
+  const hasCards = sections.some((section) => section.children.length);
+  // Witch Hunt poster samo kada stvarno nema kartica — ne i kada su sekcije samo zatvorene.
+  document.body.dataset.challengeCards = hasCards ? "true" : "false";
   document.body.dataset.challengeWeekendPoster =
-    (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) && !hasOpenCards ? "true" : "false";
+    (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) && !hasCards ? "true" : "false";
 }
 
 function releaseChallengeResultFlip() {
@@ -14937,7 +14941,8 @@ function renderChallengeHistoryCards(rows = []) {
     ["played", "Одиграни изазови", resultRows]
   ].filter(([, , sectionRows]) => sectionRows.length);
   sections.forEach(([key, title, sectionRows]) => {
-    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, false));
+    const defaultOpen = isWeekendWitchActive() && (key === "active" || key === "pending") && sectionRows.length > 0;
+    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, defaultOpen));
   });
   syncChallengeIdlePetkoState();
 }

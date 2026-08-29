@@ -71,3 +71,6 @@ $$;
 
 grant execute on function public.player_can_edit_words(text, text) to anon;
 grant execute on function public.update_word_meaning(text, text, text, text) to anon;
+
+-- PostgREST caches the schema; reload so new RPC endpoints are exposed:
+-- NOTIFY pgrst, 'reload schema';
