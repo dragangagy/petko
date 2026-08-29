@@ -1842,23 +1842,36 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .challenge
 }
 
 body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-panel {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
-  max-height: min(62svh, 520px);
+  max-height: none;
+  overflow: visible;
+}
+
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-history {
+  max-height: min(34svh, 280px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 body[data-game-type="challenge"] .challenge-history:not(:empty) {
   min-height: min-content;
 }
 
-body[data-game-type="challenge"][data-challenge-loading="true"]:not([data-challenge-playing="true"]) .idle-witch-weekend-poster,
-body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-witch-weekend-poster {
+body[data-game-type="challenge"][data-challenge-loading="true"]:not([data-challenge-playing="true"]) .idle-witch-weekend-poster {
   display: none !important;
 }
 
-body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko-challenge {
   display: none;
+}
+
+body[data-game-type="challenge"][data-challenge-cards="true"][data-challenge-weekend-poster="true"]:not([data-challenge-playing="true"]) .idle-petko {
+  display: grid;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
 }
 
 body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-competitive,
@@ -1991,6 +2004,24 @@ body[data-game-type="challenge"][data-challenge-weekend-poster="true"]:not([data
   max-width: 100%;
   max-height: clamp(180px, 32svh, 260px);
   object-fit: contain;
+}
+
+body[data-game-type="challenge"][data-challenge-weekend-poster="true"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-witch-weekend-poster {
+  max-height: clamp(120px, 20svh, 170px);
+}
+
+body[data-game-type="challenge"][data-challenge-weekend-poster="true"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
+  grid-template-columns: minmax(36px, 0.68fr) minmax(96px, 190px) minmax(36px, 0.68fr);
+  row-gap: 0;
+  padding-top: 2px;
+}
+
+body[data-game-type="challenge"][data-challenge-weekend-poster="true"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .weekend-witch-tally {
+  font-size: 20px;
+}
+
+body[data-game-type="challenge"][data-challenge-weekend-poster="true"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .weekend-witch-faction-name {
+  font-size: clamp(10px, 2.8vw, 14px);
 }
 
 body[data-game-type="challenge"][data-challenge-weekend-poster="true"]:not([data-challenge-playing="true"]) .weekend-witch-scoreboard:not([hidden]) {
@@ -2471,14 +2502,22 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   display: grid;
   gap: 6px;
   padding: 6px;
+  flex-shrink: 0;
+  align-content: start;
   border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.48);
   box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.04);
 }
 
+.challenge-section.collapsed {
+  gap: 0;
+  padding-bottom: 6px;
+}
+
 .challenge-section-toggle {
   min-height: 32px;
+  max-height: 32px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
@@ -2492,6 +2531,12 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   font-size: 12px;
   font-weight: 950;
   text-align: left;
+}
+
+.challenge-section-toggle > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .challenge-section-count {

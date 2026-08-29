@@ -14706,7 +14706,7 @@ function syncChallengeIdlePetkoState() {
   const loading = document.body.dataset.challengeLoading === "true";
   document.body.dataset.challengeCards = hasCards ? "true" : "false";
   document.body.dataset.challengeWeekendPoster =
-    !loading && (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) && !hasCards ? "true" : "false";
+    !loading && (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) ? "true" : "false";
 }
 
 function releaseChallengeResultFlip() {
