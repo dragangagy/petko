@@ -12344,9 +12344,8 @@ async function refreshConnectionOverlay({ forceMessage = false } = {}) {
       hideConnectionOverlay();
       return true;
     }
-    if (forceMessage || connectionOverlayReason !== "server") {
-      showConnectionOverlay("server");
-    }
+    // Do not block gameplay on API health failures; sync calls surface errors separately.
+    hideConnectionOverlay();
     return false;
   } finally {
     connectionCheckBusy = false;
@@ -12362,7 +12361,9 @@ function scheduleConnectionChecks() {
 }
 
 connectionOverlayRetry?.addEventListener("click", () => {
-  refreshConnectionOverlay({ forceMessage: true }).catch(() => {});
+  refreshConnectionOverlay({ forceMessage: true }).then((ok) => {
+    if (!ok) showConnectionOverlay("server");
+  }).catch(() => showConnectionOverlay("server"));
 });
 
 window.addEventListener("offline", () => {
