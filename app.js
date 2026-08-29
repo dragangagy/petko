@@ -13982,8 +13982,8 @@ function confirmCancelPendingChallenge(row) {
 async function finalizeExpiredChallenges(rows = []) {
   const patchedRows = [];
   for (const row of rows) {
-    const creatorPlayed = challengePlayedAt(row, "creator");
-    const opponentPlayed = challengePlayedAt(row, "opponent");
+    const creatorPlayed = challengeSidePlayed(row, "creator");
+    const opponentPlayed = challengeSidePlayed(row, "opponent");
     const witchWindow = weekendWitchWindowContaining(row?.created_at || row?.day);
     const witchHuntEnded = Boolean(witchWindow && Date.now() >= witchWindow.end);
     // Kada se Witch Hunt završi, odigrana strana automatski pobeđuje
@@ -13998,8 +13998,7 @@ async function finalizeExpiredChallenges(rows = []) {
       status: "played",
       [`${missingRole}_score`]: 0,
       [`${missingRole}_attempts`]: 0,
-      [`${missingRole}_solved`]: 0,
-      [`${missingRole}_played_at`]: new Date().toISOString()
+      [`${missingRole}_solved`]: 0
     };
     try {
       await updateChallenge(row.code, patch);
@@ -14134,15 +14133,25 @@ async function fetchChallengeScoreStatsRows() {
   return Array.isArray(rows) ? rows : [];
 }
 
+function challengeSidePlayed(row, role) {
+  if (!challengePlayedAt(row, role)) return false;
+  return (Number(row?.[`${role}_attempts`]) || 0) > 0;
+}
+
 function playedChallenge(row) {
-  if (String(row?.status || "").toLowerCase() === "played") return true;
-  return challengePlayedAt(row, "creator") && challengePlayedAt(row, "opponent");
+  const creatorPlayed = challengeSidePlayed(row, "creator");
+  const opponentPlayed = challengeSidePlayed(row, "opponent");
+  if (creatorPlayed && opponentPlayed) return true;
+  if (String(row?.status || "").toLowerCase() === "played") {
+    return creatorPlayed || opponentPlayed;
+  }
+  return false;
 }
 
 function challengeWinner(row) {
   if (!playedChallenge(row)) return null;
-  const creatorPlayed = challengePlayedAt(row, "creator");
-  const opponentPlayed = challengePlayedAt(row, "opponent");
+  const creatorPlayed = challengeSidePlayed(row, "creator");
+  const opponentPlayed = challengeSidePlayed(row, "opponent");
   if (creatorPlayed && !opponentPlayed) return "creator";
   if (opponentPlayed && !creatorPlayed) return "opponent";
   const creatorScore = Number(row.creator_score) || 0;
@@ -14206,7 +14215,7 @@ function hydrateChallengeRow(row) {
 }
 
 function challengeRowLabel(row, role) {
-  if (!challengePlayedAt(row, role)) return "није одиграно";
+  if (!challengeSidePlayed(row, role)) return "није одиграо";
   const rawScore = row?.[`${role}_score`];
   const rawSolved = row?.[`${role}_solved`];
   const rawAttempts = row?.[`${role}_attempts`];
@@ -14418,6 +14427,7 @@ function renderChallengeVsAvatar(target, name = "") {
 }
 
 function challengeResultLine(row, role, name) {
+  const played = challengeSidePlayed(row, role);
   const score = Number(row?.[`${role}_score`]);
   const solved = Number(row?.[`${role}_solved`]);
   const attempts = Number(row?.[`${role}_attempts`]);
@@ -14426,11 +14436,13 @@ function challengeResultLine(row, role, name) {
   const player = document.createElement("strong");
   player.textContent = `${name}:`;
   const details = document.createElement("span");
-  details.textContent = [
-    Number.isFinite(score) ? `${formatScore(score)} поена` : "0 поена",
-    Number.isFinite(solved) ? `${formatScore(solved)}/6 табли` : "0/6 табли",
-    Number.isFinite(attempts) ? `${formatScore(attempts)}/11` : "0/11"
-  ].join(" · ");
+  details.textContent = played
+    ? [
+        Number.isFinite(score) ? `${formatScore(score)} поена` : "-",
+        Number.isFinite(solved) ? `${formatScore(solved)}/6 табли` : "-",
+        Number.isFinite(attempts) ? `${formatScore(attempts)}/11` : "-"
+      ].join(" · ")
+    : "није одиграо";
   line.append(player, details);
   return line;
 }
@@ -14765,9 +14777,12 @@ function bindChallengeResultFlip(card, key) {
 }
 
 function challengeHistorySection(key, title, rows, allRows, defaultOpen = false) {
-  const section = document.createElement("section");
+  const group = document.createElement("div");
   const open = challengeSectionOpen(key, defaultOpen);
-  section.className = `challenge-section challenge-section-${key} ${open ? "open" : "collapsed"}`;
+  group.className = `challenge-section-group challenge-section-group-${key} ${open ? "open" : "collapsed"}`;
+
+  const menu = document.createElement("section");
+  menu.className = `challenge-section challenge-section-${key}`;
 
   const toggle = document.createElement("button");
   toggle.type = "button";
@@ -14790,17 +14805,18 @@ function challengeHistorySection(key, title, rows, allRows, defaultOpen = false)
   rows.forEach((row) => body.append(challengeCard(row, allRows)));
 
   toggle.addEventListener("click", () => {
-    const nextOpen = section.classList.contains("collapsed");
-    section.classList.toggle("collapsed", !nextOpen);
-    section.classList.toggle("open", nextOpen);
+    const nextOpen = group.classList.contains("collapsed");
+    group.classList.toggle("collapsed", !nextOpen);
+    group.classList.toggle("open", nextOpen);
     body.hidden = !nextOpen;
     toggle.setAttribute("aria-expanded", String(nextOpen));
     setChallengeSectionOpen(key, nextOpen);
     syncChallengeIdlePetkoState();
   });
 
-  section.append(toggle, body);
-  return section;
+  menu.append(toggle);
+  group.append(menu, body);
+  return group;
 }
 
 function challengeNameWithAvatar(name) {

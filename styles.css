@@ -1848,7 +1848,13 @@ body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challeng
   overflow: visible;
 }
 
+body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
+  overflow: visible;
+}
+
 body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-history {
+  grid-column: 1 / -1;
+  width: 100%;
   overflow: visible;
   touch-action: pan-y;
 }
@@ -2496,21 +2502,30 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   gap: 7px;
 }
 
-.challenge-section {
+.challenge-section-group {
   display: grid;
   gap: 6px;
-  padding: 6px;
+}
+
+.challenge-section-group.collapsed {
+  gap: 0;
+}
+
+.challenge-section {
+  display: grid;
+  gap: 0;
+  padding: 0;
   flex-shrink: 0;
   align-content: start;
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.48);
-  box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.04);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .challenge-section.collapsed {
   gap: 0;
-  padding-bottom: 6px;
+  padding-bottom: 0;
 }
 
 .challenge-section-toggle {
@@ -2557,6 +2572,10 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-section.collapsed .challenge-section-arrow {
+  transform: rotate(-90deg);
+}
+
+.challenge-section-group.collapsed .challenge-section-arrow {
   transform: rotate(-90deg);
 }
 
