@@ -13595,6 +13595,17 @@ function updateChallengeBadge(rows = []) {
   if (waitingForMe) button.dataset.receivedCount = String(waitingForMe);
   else delete button.dataset.receivedCount;
   delete button.dataset.count;
+  syncChallengeIdlePetkoState();
+}
+
+function challengeBadgeCount() {
+  const button = typeButtons.find((item) => item.dataset.type === "challenge");
+  if (!button) return 0;
+  return (Number(button.dataset.sentCount) || 0) + (Number(button.dataset.receivedCount) || 0);
+}
+
+function challengeLobbyOpen() {
+  return gameType === "challenge" && !challengeGameOpen();
 }
 
 function notificationSeenIds() {
@@ -14620,10 +14631,12 @@ function syncChallengeIdlePetkoState() {
   if (!challengeHistoryEl) return;
   const sections = Array.from(challengeHistoryEl.querySelectorAll(".challenge-section-body"));
   const hasCards = challengeVisibleCardCount > 0 ||
-    sections.some((section) => section.children.length);
+    sections.some((section) => section.children.length) ||
+    challengeBadgeCount() > 0;
+  const loading = document.body.dataset.challengeLoading === "true";
   document.body.dataset.challengeCards = hasCards ? "true" : "false";
   document.body.dataset.challengeWeekendPoster =
-    (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) && !hasCards ? "true" : "false";
+    !loading && (isWeekendWitchActive() || showFinishedWitchHuntUntilFriday()) && !hasCards ? "true" : "false";
 }
 
 function releaseChallengeResultFlip() {
@@ -15079,7 +15092,8 @@ async function syncChallengeState({ force = false } = {}) {
     const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows));
     const snapshot = challengeSyncSnapshotFor(finalRows);
     const changed = force || snapshot !== challengeSyncSnapshot;
-    if (changed) {
+    const shouldRenderCards = changed || challengeLobbyOpen();
+    if (shouldRenderCards) {
       challengeSyncSnapshot = snapshot;
       if (Array.isArray(players)) renderChallengePlayers(players);
       renderChallengeHistoryCards(finalRows);
@@ -15090,6 +15104,7 @@ async function syncChallengeState({ force = false } = {}) {
     await syncActiveChallengeResult(finalRows);
   } finally {
     challengeSyncBusy = false;
+    if (challengeLobbyOpen()) syncChallengeIdlePetkoState();
   }
 }
 
@@ -15329,11 +15344,15 @@ function exitChallengeToLobby() {
   tryButton.textContent = `0/${CHALLENGE_ATTEMPTS}`;
   updateScoreDisplay();
   renderChallengePanel();
-  // Prikazi vikend poster odmah dok se online kartice ucitavaju. Kada se
-  // kartice vrate, renderChallengeHistoryCards ce ga sam sakriti.
+  document.body.dataset.challengeLoading = "true";
   syncChallengeIdlePetkoState();
   if (challengeCodeInput && activeChallenge) challengeCodeInput.value = "";
-  refreshChallengeLobby().catch(() => {});
+  refreshChallengeLobby()
+    .catch(() => {})
+    .finally(() => {
+      document.body.dataset.challengeLoading = "false";
+      syncChallengeIdlePetkoState();
+    });
 }
 
 function wait(ms) {
