@@ -13583,6 +13583,7 @@ async function openChallengePicker() {
 function challengeNotificationRows(rows = []) {
   const me = loadPlayerName();
   return rows.filter((row) => {
+    if (!challengeHistoryComplete(row)) return false;
     if (playedChallenge(row)) return false;
     if (selfChallengeRow(row)) return false;
     if (!challengeCardVisible(row)) return false;
@@ -13598,6 +13599,7 @@ function challengeRowsForPlayer(rows = []) {
     challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || ""
   );
   return rows.filter((row) => {
+    if (!challengeHistoryComplete(row)) return false;
     if (typedCode && normalizeChallengeCode(row.code) === typedCode) return challengeCardVisible(row);
     if (playedChallenge(row)) {
       return challengeCardVisible(row) && (
@@ -14138,14 +14140,21 @@ function challengeSidePlayed(row, role) {
   return (Number(row?.[`${role}_attempts`]) || 0) > 0;
 }
 
-function playedChallenge(row) {
-  const creatorPlayed = challengeSidePlayed(row, "creator");
-  const opponentPlayed = challengeSidePlayed(row, "opponent");
-  if (creatorPlayed && opponentPlayed) return true;
+function challengeHistoryComplete(row) {
+  if (String(row?.status || "").toLowerCase() !== "played") return true;
+  return challengeSidePlayed(row, "creator") && challengeSidePlayed(row, "opponent");
+}
+
+function challengeScoreboardResult(row) {
+  if (challengeSidePlayed(row, "creator") && challengeSidePlayed(row, "opponent")) return true;
   if (String(row?.status || "").toLowerCase() === "played") {
-    return creatorPlayed || opponentPlayed;
+    return challengeSidePlayed(row, "creator") || challengeSidePlayed(row, "opponent");
   }
   return false;
+}
+
+function playedChallenge(row) {
+  return challengeSidePlayed(row, "creator") && challengeSidePlayed(row, "opponent");
 }
 
 function challengeWinner(row) {
@@ -14624,7 +14633,7 @@ function renderWeekendWitchScoreboard(rows = []) {
   const playedRows = Array.isArray(rows) && displayWindow
     ? rows.filter((row) => {
       const sentAt = Date.parse(row?.created_at || row?.day || "");
-      return playedChallenge(row) && Number.isFinite(sentAt) && sentAt >= displayWindow.start && sentAt < displayWindow.end;
+      return challengeScoreboardResult(row) && Number.isFinite(sentAt) && sentAt >= displayWindow.start && sentAt < displayWindow.end;
     })
     : [];
   if ((!isWeekendWitchActive() && !showFinalWinner) || !displayWindow) {
@@ -14776,46 +14785,24 @@ function bindChallengeResultFlip(card, key) {
   });
 }
 
-function challengeHistorySection(key, title, rows, allRows, defaultOpen = false) {
+function challengeHistorySection(key, title, rows, allRows) {
   const group = document.createElement("div");
-  const open = challengeSectionOpen(key, defaultOpen);
-  group.className = `challenge-section-group challenge-section-group-${key} ${open ? "open" : "collapsed"}`;
+  group.className = `challenge-section-group challenge-section-group-${key}`;
 
-  const menu = document.createElement("section");
-  menu.className = `challenge-section challenge-section-${key}`;
-
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "challenge-section-toggle";
-  toggle.setAttribute("aria-expanded", String(open));
-
-  const label = document.createElement("span");
-  label.textContent = title;
+  const label = document.createElement("div");
+  label.className = `challenge-section-label challenge-section-label-${key}`;
+  const labelText = document.createElement("span");
+  labelText.textContent = title;
   const count = document.createElement("span");
   count.className = "challenge-section-count";
   count.textContent = String(rows.length);
-  const arrow = document.createElement("span");
-  arrow.className = "challenge-section-arrow";
-  arrow.textContent = "⌄";
-  toggle.append(label, count, arrow);
+  label.append(labelText, count);
 
   const body = document.createElement("div");
   body.className = "challenge-section-body";
-  body.hidden = !open;
   rows.forEach((row) => body.append(challengeCard(row, allRows)));
 
-  toggle.addEventListener("click", () => {
-    const nextOpen = group.classList.contains("collapsed");
-    group.classList.toggle("collapsed", !nextOpen);
-    group.classList.toggle("open", nextOpen);
-    body.hidden = !nextOpen;
-    toggle.setAttribute("aria-expanded", String(nextOpen));
-    setChallengeSectionOpen(key, nextOpen);
-    syncChallengeIdlePetkoState();
-  });
-
-  menu.append(toggle);
-  group.append(menu, body);
+  group.append(label, body);
   return group;
 }
 
@@ -15048,9 +15035,7 @@ function renderChallengeHistoryCards(rows = []) {
     ["played", "Одиграни изазови", resultRows]
   ].filter(([, , sectionRows]) => sectionRows.length);
   sections.forEach(([key, title, sectionRows]) => {
-    const defaultOpen = isWeekendWitchActive() && sectionRows.length > 0 &&
-      (key === "active" || key === "pending" || key === "played");
-    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, defaultOpen));
+    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows));
   });
   if (!challengeHistoryEl.childElementCount && (inviteRows.length || resultRows.length)) {
     const flat = document.createElement("div");

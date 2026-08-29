@@ -1848,13 +1848,7 @@ body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challeng
   overflow: visible;
 }
 
-body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
-  overflow: visible;
-}
-
 body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-history {
-  grid-column: 1 / -1;
-  width: 100%;
   overflow: visible;
   touch-action: pan-y;
 }
@@ -2507,25 +2501,47 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   gap: 6px;
 }
 
-.challenge-section-group.collapsed {
-  gap: 0;
-}
-
-.challenge-section {
+.challenge-section-label {
+  min-height: 32px;
   display: grid;
-  gap: 0;
-  padding: 0;
-  flex-shrink: 0;
-  align-content: start;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  border-radius: 8px;
+  background: rgba(8, 13, 27, 0.54);
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 950;
 }
 
-.challenge-section.collapsed {
-  gap: 0;
-  padding-bottom: 0;
+.challenge-section-label > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.challenge-section-label-active {
+  border-color: rgba(34, 197, 94, 0.34);
+  color: #22c55e;
+}
+
+.challenge-section-label-active .challenge-section-count {
+  background: #22c55e;
+}
+
+.challenge-section-label-pending {
+  border-color: rgba(255, 215, 0, 0.38);
+  color: var(--gold);
+}
+
+.challenge-section-label-pending .challenge-section-count {
+  background: var(--gold);
+}
+
+.challenge-section-label-played {
+  border-color: rgba(56, 189, 248, 0.26);
 }
 
 .challenge-section-toggle {
