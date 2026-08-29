@@ -1777,6 +1777,10 @@ body:not([data-game-type="challenge"]) .challenge-panel {
   display: none;
 }
 
+body:not([data-game-type="challenge"]) .challenge-history {
+  display: none;
+}
+
 .challenge-panel[hidden] {
   display: none;
 }
@@ -1846,17 +1850,6 @@ body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challeng
   min-height: 0;
   max-height: none;
   overflow: visible;
-}
-
-body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-lobby {
-  display: grid;
-  gap: 6px;
-  flex: 0 0 auto;
-}
-
-body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .idle-petko {
-  flex: 0 0 auto !important;
-  min-height: 0;
 }
 
 body[data-game-type="challenge"][data-challenge-cards="true"]:not([data-challenge-playing="true"]) .challenge-history {
