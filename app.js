@@ -12662,7 +12662,8 @@ function challengeUrl(code) {
 }
 
 function challengeIsActive(row) {
-  const activeStatus = row?.status === "accepted" || row?.status === "played";
+  if (String(row?.status || "").toLowerCase() === "played") return false;
+  const activeStatus = row?.status === "accepted";
   return activeStatus && !playedChallenge(row) && !challengePausedForWitchHunt(row) && Date.now() < challengeActiveUntil(row);
 }
 
@@ -12799,10 +12800,12 @@ function challengeExpired(row) {
 }
 
 function challengePlayedSortTime(row) {
-  const times = [row?.creator_played_at, row?.opponent_played_at, row?.updated_at, row?.created_at]
+  const times = [row?.creator_played_at, row?.opponent_played_at, row?.updated_at, row?.created_at, row?.accepted_at]
     .map((value) => Date.parse(value || ""))
     .filter(Number.isFinite);
-  return times.length ? Math.max(...times) : 0;
+  if (times.length) return Math.max(...times);
+  if (String(row?.status || "").toLowerCase() === "played") return Date.now();
+  return 0;
 }
 
 function challengeExpirySortTime(row) {
@@ -12975,10 +12978,14 @@ function locallyCancelledChallenge(rowOrCode) {
 function challengeCardVisible(row) {
   if (!row) return false;
   if (playedChallenge(row)) {
-    // Plavi rezultat traje 24h. Za vreme Witch Hunta vide se samo rezultati tog vikenda,
-    // sve do ponedeljka kada se automatski sklone.
+    // Plavi rezultat traje 24h. Za vreme Witch Hunta vide se do ponedeljka,
+    // pa ostaju vidljivi celu radnu nedelju posle završetka vikenda.
     const witchWindow = weekendWitchWindowContaining(row?.created_at || row?.day);
-    if (witchWindow) return Date.now() >= witchWindow.start && Date.now() < witchWindow.end;
+    if (witchWindow && challengeIsWitchHuntRow(row)) {
+      if (Date.now() >= witchWindow.start && Date.now() < witchWindow.end) return true;
+      if (showFinishedWitchHuntUntilFriday()) return true;
+      return false;
+    }
     if (isWeekendWitchActive()) return false;
     return Date.now() < challengePlayedSortTime(row) + CHALLENGE_ACTIVE_MS;
   }
@@ -14128,13 +14135,18 @@ async function fetchChallengeScoreStatsRows() {
 }
 
 function playedChallenge(row) {
+  if (String(row?.status || "").toLowerCase() === "played") return true;
   return challengePlayedAt(row, "creator") && challengePlayedAt(row, "opponent");
 }
 
 function challengeWinner(row) {
   if (!playedChallenge(row)) return null;
-  const creatorScore = Number(row.creator_score);
-  const opponentScore = Number(row.opponent_score);
+  const creatorPlayed = challengePlayedAt(row, "creator");
+  const opponentPlayed = challengePlayedAt(row, "opponent");
+  if (creatorPlayed && !opponentPlayed) return "creator";
+  if (opponentPlayed && !creatorPlayed) return "opponent";
+  const creatorScore = Number(row.creator_score) || 0;
+  const opponentScore = Number(row.opponent_score) || 0;
   if (creatorScore === opponentScore) return "tie";
   return creatorScore > opponentScore ? "creator" : "opponent";
 }
@@ -15014,19 +15026,31 @@ function renderChallengeHistoryCards(rows = []) {
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
   challengeVisibleCardCount = inviteRows.length + resultRows.length;
+  const witchStripRows = isWeekendWitchActive()
+    ? [...activeRows, ...pendingRows, ...resultRows]
+    : [];
+  if (witchStripRows.length) {
+    const strip = document.createElement("div");
+    strip.className = "challenge-section-body challenge-section-body-combined";
+    witchStripRows.forEach((row) => strip.append(challengeCard(row, rows)));
+    challengeHistoryEl.append(strip);
+    syncChallengeIdlePetkoState();
+    return;
+  }
   const sections = [
     ["active", "Активни изазови", activeRows],
     ["pending", "Изазови на чекању", pendingRows],
     ["played", "Одиграни изазови", resultRows]
   ].filter(([, , sectionRows]) => sectionRows.length);
   sections.forEach(([key, title, sectionRows]) => {
-    const defaultOpen = isWeekendWitchActive() && (key === "active" || key === "pending") && sectionRows.length > 0;
+    const defaultOpen = isWeekendWitchActive() && sectionRows.length > 0 &&
+      (key === "active" || key === "pending" || key === "played");
     challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, defaultOpen));
   });
-  if (!challengeHistoryEl.childElementCount && inviteRows.length) {
+  if (!challengeHistoryEl.childElementCount && (inviteRows.length || resultRows.length)) {
     const flat = document.createElement("div");
     flat.className = "challenge-section-body";
-    inviteRows.forEach((row) => flat.append(challengeCard(row, rows)));
+    [...inviteRows, ...resultRows].forEach((row) => flat.append(challengeCard(row, rows)));
     challengeHistoryEl.append(flat);
     challengeVisibleCardCount = inviteRows.length + resultRows.length;
   }
