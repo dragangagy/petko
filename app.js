@@ -14137,11 +14137,7 @@ function challengeSidePlayed(row, role) {
 }
 
 function challengeScoreboardResult(row) {
-  if (challengeSidePlayed(row, "creator") && challengeSidePlayed(row, "opponent")) return true;
-  if (String(row?.status || "").toLowerCase() === "played") {
-    return challengeSidePlayed(row, "creator") || challengeSidePlayed(row, "opponent");
-  }
-  return false;
+  return playedChallenge(row);
 }
 
 function playedChallenge(row) {
@@ -14565,6 +14561,7 @@ function tallyWeekendWitchPlayedRows(playedRows = []) {
   let witches = 0;
   let draws = 0;
   playedRows.forEach((row) => {
+    if (!playedChallenge(row)) return;
     const creatorIsHunter = challengeRowFaction(row, "creator") === "hunter";
     const opponentIsHunter = challengeRowFaction(row, "opponent") === "hunter";
     // Veštica koja napadne drugu Vešticu računa se kao poražena Veštica:
@@ -14574,6 +14571,7 @@ function tallyWeekendWitchPlayedRows(playedRows = []) {
       return;
     }
     const winner = challengeWinner(row);
+    if (!winner) return;
     if (winner === "tie") {
       draws += 1;
       return;
