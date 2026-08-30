@@ -14088,15 +14088,25 @@ async function fetchChallengeHistoryRequests() {
     "order=created_at.desc",
     "limit=200"
   ];
+  const openBase = [
+    `select=${CHALLENGE_HISTORY_COLUMNS}`,
+    "order=created_at.desc",
+    "limit=100"
+  ];
   const queries = [];
   const orFilter = challengeHistoryOrFilter();
   if (orFilter) queries.push([...base.slice(0, 1), orFilter, ...base.slice(1)].join("&"));
-  // Svi otvoreni pozivi moraju stici u app; filtriranje po igracu radi kasnije u UI.
+  // Svi otvoreni pozivi (žute) i prihvaćeni (zelene) — bez datuma, da ništa ne ispada iz prikaza.
   queries.push([
-    ...base.slice(0, 1),
+    ...openBase.slice(0, 1),
     "status=eq.pending",
     "opponent_device=is.null",
-    ...base.slice(1)
+    ...openBase.slice(1)
+  ].join("&"));
+  queries.push([
+    ...openBase.slice(0, 1),
+    "status=eq.accepted",
+    ...openBase.slice(1)
   ].join("&"));
   queries.push([...base.slice(0, 1), "status=eq.played", ...base.slice(1)].join("&"));
   const typedCode = normalizeChallengeCode(
@@ -15128,8 +15138,7 @@ function renderChallengeHistoryCards(rows = []) {
       const expiryDiff = challengeExpirySortTime(a) - challengeExpirySortTime(b);
       if (expiryDiff) return expiryDiff;
       return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
-    })
-    .slice(0, 12);
+    });
   const resultRows = rows
     .filter((row) => playedChallenge(row) && challengeCardVisible(row))
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
