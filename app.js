@@ -17484,15 +17484,17 @@ function setWordModalEditLink(visible, allowed) {
 async function refreshWordEditorPermission() {
   wordEditorAllowed = false;
   if (!supabaseConfigured()) return false;
-  const response = await fetch(supabaseUrl("rpc/player_can_edit_words"), {
-    method: "POST",
-    headers: supabaseJsonHeaders(),
-    body: JSON.stringify({
-      p_nickname: normalizePlayerName(loadPlayerName() || ""),
-      p_device_id: deviceId()
-    })
+  const params = new URLSearchParams({
+    p_nickname: normalizePlayerName(loadPlayerName() || ""),
+    p_device_id: deviceId()
   });
-  if (!response.ok) return false;
+  const response = await fetch(supabaseUrl(`rpc/player_can_edit_words?${params}`), {
+    headers: supabaseHeaders()
+  });
+  if (!response.ok) {
+    console.warn("Petko: word editor permission check failed.", response.status);
+    return false;
+  }
   const allowed = await response.json();
   wordEditorAllowed = Boolean(allowed);
   return wordEditorAllowed;
@@ -17524,7 +17526,36 @@ function exitWordModalEditMode() {
 async function saveWordMeaningEdit(word, meaning, grammar) {
   const formatted = formatWordCardText(meaning, grammar);
   if (!formatted) return { ok: false, error: "missing_fields" };
-  if (!supabaseConfigured()) return { ok: false, error: "offline" };
+  if (!supabaseConfigured() || !wordEditorAllowed) return { ok: false, error: "forbidden" };
+
+  const patchResponse = await fetch(
+    supabaseUrl(`${wordsTable()}?word=eq.${encodeURIComponent(word)}`),
+    {
+      method: "PATCH",
+      headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ meaning: formatted, updated_at: new Date().toISOString() })
+    }
+  );
+  if (patchResponse.ok) {
+    WORD_INFO[word] = formatted;
+    BOOTSTRAP_WORD_INFO[word] = formatted;
+    return { ok: true, meaning: formatted };
+  }
+
+  const upsertResponse = await fetch(
+    supabaseUrl(`${wordsTable()}?on_conflict=word`),
+    {
+      method: "POST",
+      headers: supabaseJsonHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+      body: JSON.stringify({ word, meaning: formatted, active: true })
+    }
+  );
+  if (upsertResponse.ok) {
+    WORD_INFO[word] = formatted;
+    BOOTSTRAP_WORD_INFO[word] = formatted;
+    return { ok: true, meaning: formatted };
+  }
+
   const response = await fetch(supabaseUrl("rpc/update_word_meaning"), {
     method: "POST",
     headers: supabaseJsonHeaders(),
