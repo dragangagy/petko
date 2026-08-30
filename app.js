@@ -5503,8 +5503,10 @@ const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
 const CHALLENGE_BASE_DAILY_LIMIT = 1;
 const CHALLENGE_MAX_DAILY_LIMIT = 1000;
-const CHALLENGE_PENDING_MS = 86400000;
-const CHALLENGE_ACTIVE_MS = 86400000;
+const CHALLENGE_PENDING_MS = 12 * 60 * 60 * 1000;
+const CHALLENGE_WITCH_PENDING_MS = 48 * 60 * 60 * 1000;
+const CHALLENGE_ACTIVE_MS = 24 * 60 * 60 * 1000;
+const CHALLENGE_PLAYED_DISPLAY_MS = 24 * 60 * 60 * 1000;
 const CHALLENGE_VS_MS = 3000;
 const CHALLENGE_SYNC_INTERVAL_MS = 30000;
 const CHALLENGE_SENT_KEY = "petko-challenge-sent-v1";
@@ -12757,6 +12759,10 @@ function challengeDeadlineWithWeekendPause(base, duration, row) {
   return deadline;
 }
 
+function challengePendingDuration(row) {
+  return challengeIsWitchHuntRow(row) ? CHALLENGE_WITCH_PENDING_MS : CHALLENGE_PENDING_MS;
+}
+
 function challengeActiveUntil(row) {
   const accepted = Date.parse(row?.accepted_at || "");
   const created = Date.parse(row?.created_at || "");
@@ -12767,18 +12773,26 @@ function challengeActiveUntil(row) {
 function challengePendingUntil(row) {
   const created = Date.parse(row?.created_at || "");
   if (!Number.isFinite(created)) return 0;
-  // Otvoreni pozivi („Чека се“) ističu tačno posle 6h zidnog vremena.
-  // Ne produžavaju se preko Witch Hunta, da se u ponedeljak ne vrate bez protivnika.
-  if (!row?.opponent_device && !row?.accepted_at && isOpenChallengeOpponent(row?.opponent)) {
-    return created + CHALLENGE_PENDING_MS;
-  }
-  return challengeDeadlineWithWeekendPause(created, CHALLENGE_PENDING_MS, row);
+  const duration = challengePendingDuration(row);
+  // Witch Hunt žute: 48h, bez pauze radnim danom (nastaju subotom/nedeljom).
+  if (challengeIsWitchHuntRow(row)) return created + duration;
+  return challengeDeadlineWithWeekendPause(created, duration, row);
+}
+
+function challengePlayedVisibleUntil(row) {
+  const playedAt = challengePlayedSortTime(row);
+  if (!Number.isFinite(playedAt)) return 0;
+  return challengeDeadlineWithWeekendPause(playedAt, CHALLENGE_PLAYED_DISPLAY_MS, row);
 }
 
 function challengePendingExpired(row) {
   if (row?.status !== "pending" || row?.opponent_device || row?.accepted_at) return false;
-  // Žute Witch Hunt kartice traju do kraja lova, bez roka u satima.
-  if (isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(row)) return false;
+  // Witch Hunt žute: važe 48h i ne brišu se tokom lova; posle vikenda više ne važe.
+  if (challengeIsWitchHuntRow(row)) {
+    if (isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(row)) return false;
+    const until = challengePendingUntil(row);
+    return !until || Date.now() >= until;
+  }
   if (challengePausedForWitchHunt(row)) return false;
   const until = challengePendingUntil(row);
   return Boolean(until && Date.now() >= until);
@@ -12815,6 +12829,7 @@ function challengeExpirySortTime(row) {
   const state = challengeCardState(row);
   if (state === "accepted") return challengeActiveUntil(row);
   if (state === "pending") return challengePendingUntil(row);
+  if (playedChallenge(row) && !challengeIsWitchHuntRow(row)) return challengePlayedVisibleUntil(row);
   return challengePlayedSortTime(row);
 }
 
@@ -12981,13 +12996,13 @@ function locallyCancelledChallenge(rowOrCode) {
 function challengeCardVisible(row) {
   if (!row) return false;
   if (playedChallenge(row)) {
-    const witchWindow = weekendWitchWindowContaining(row?.created_at || row?.day);
-    if (witchWindow && challengeIsWitchHuntRow(row)) {
-      if (Date.now() >= witchWindow.start && Date.now() < witchWindow.end) return true;
-      return Date.now() < challengePlayedSortTime(row) + CHALLENGE_ACTIVE_MS;
+    // Witch Hunt plave: samo subota–nedelja; posle vikenda ostaje samo tabla dole (pon–pet).
+    if (challengeIsWitchHuntRow(row)) {
+      return isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(row);
     }
+    // Radni dan: plavi prikaz 24h, pauzira se preko vikenda i nastavlja u ponedeljak.
     if (isWeekendWitchActive()) return false;
-    return Date.now() < challengePlayedSortTime(row) + CHALLENGE_ACTIVE_MS;
+    return Date.now() < challengePlayedVisibleUntil(row);
   }
   // Vikend pozivi se gase čim se lov završi.
   if (challengeIsWitchHuntRow(row) && (!isWeekendWitchActive() || !challengeIsCurrentWitchHuntRow(row))) return false;
@@ -13188,12 +13203,17 @@ function challengeSentEntryActive(entry) {
   const created = Date.parse(entry?.created_at || entry?.sentAt || "");
   if (!Number.isFinite(created)) return false;
   if (isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(entry)) return entry?.status !== "cancelled";
-  const pendingUntil = created + CHALLENGE_PENDING_MS;
-  const activeUntil = created + CHALLENGE_ACTIVE_MS;
   const status = entry?.status || "pending";
   if (status === "cancelled") return false;
-  if (status === "accepted" || status === "played") return Date.now() < activeUntil;
-  return Date.now() < pendingUntil;
+  if (status === "played") {
+    if (challengeIsWitchHuntRow(entry)) {
+      return isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(entry);
+    }
+    return Date.now() < challengePlayedVisibleUntil(entry);
+  }
+  if (status === "accepted") return Date.now() < challengeActiveUntil(entry);
+  const until = challengePendingUntil(entry);
+  return Date.now() < until;
 }
 
 function dailyChallengeCount(rows = []) {
@@ -15063,7 +15083,7 @@ function challengeCard(row, rows = []) {
     : challengeIsActive(row)
       ? `Зелена карта важи још ${challengeCountdownText(row)}`
       : isWeekendWitchActive() && challengeIsWitchHuntRow(row)
-        ? "Жута карта важи до краја Witch Hunta"
+        ? "Жута карта важи до краја Witch Hunta (48h)"
       : role === "creator"
         ? `Чека се да ${otherPlayer} прихвати · истиче за ${pendingCountdown}`
         : `Прихватите изазов да се отвори игра · истиче за ${pendingCountdown}`;
