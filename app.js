@@ -13659,16 +13659,20 @@ async function openChallengePicker() {
   renderChallengePickerGrid();
 }
 
-function challengeNotificationRows(rows = []) {
+function challengeRowMine(row) {
   const me = loadPlayerName();
+  const mineByDevice = row?.creator_device === profileDeviceId() || row?.opponent_device === profileDeviceId();
+  const mineByName = me && (challengeNameMatches(row?.opponent, me) || challengeNameMatches(row?.creator, me));
+  return mineByDevice || mineByName;
+}
+
+function challengeNotificationRows(rows = []) {
   return rows.filter((row) => {
     if (playedChallenge(row)) return false;
     if (String(row?.status || "").toLowerCase() === "played") return false;
     if (selfChallengeRow(row)) return false;
     if (!challengeCardVisible(row)) return false;
-    const mineByDevice = row.creator_device === profileDeviceId() || row.opponent_device === profileDeviceId();
-    const mineByName = me && (challengeNameMatches(row.opponent, me) || challengeNameMatches(row.creator, me));
-    return mineByDevice || mineByName;
+    return challengeRowMine(row);
   });
 }
 
@@ -14311,6 +14315,7 @@ function challengeScoreboardResult(row) {
 }
 
 function playedChallenge(row) {
+  if (String(row?.status || "").toLowerCase() === "played") return true;
   return challengeSidePlayed(row, "creator") && challengeSidePlayed(row, "opponent");
 }
 
@@ -15200,7 +15205,7 @@ function renderChallengeHistoryCards(rows = []) {
       return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
     });
   const resultRows = rows
-    .filter((row) => playedChallenge(row) && challengeCardVisible(row))
+    .filter((row) => playedChallenge(row) && challengeCardVisible(row) && challengeRowMine(row))
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
