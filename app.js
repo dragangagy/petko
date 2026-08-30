@@ -11947,7 +11947,7 @@ async function submitNormalStats(stats = loadNormalStats()) {
   if (!supabaseConfigured()) return false;
   const response = await fetch(supabaseUrl(`${normalStatsTable()}?on_conflict=device_id`), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
     body: JSON.stringify({
       nickname: loadPlayerName() || "Играч",
       device_id: deviceId(),
@@ -12241,10 +12241,7 @@ function supabaseUrl(path) {
 }
 
 function supabaseHeaders(extra = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...extra
-  };
+  const headers = { ...extra };
   const key = SUPABASE_CONFIG.anonKey;
   if (key) {
     headers.apikey = key;
@@ -12254,6 +12251,10 @@ function supabaseHeaders(extra = {}) {
     headers["ngrok-skip-browser-warning"] = "true";
   }
   return headers;
+}
+
+function supabaseJsonHeaders(extra = {}) {
+  return supabaseHeaders({ "Content-Type": "application/json", ...extra });
 }
 
 const CONNECTION_OFFLINE_MESSAGES = [
@@ -12432,7 +12433,7 @@ async function submitLectorStats(stats = loadLectorStats()) {
   if (!supabaseConfigured()) return false;
   const response = await fetch(supabaseUrl(`${lectorStatsTable()}?on_conflict=device_id`), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
     body: JSON.stringify({
       nickname: loadPlayerName() || "Играч",
       device_id: deviceId(),
@@ -12459,7 +12460,7 @@ async function submitWordReport(word, action, source) {
   if (!supabaseConfigured() || !word) return false;
   const response = await fetch(supabaseUrl(wordReportsTable()), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify({
       word,
       action,
@@ -13711,7 +13712,7 @@ async function registerNativePushDevice(token) {
   const platform = capacitor?.getPlatform?.() || "web";
   const response = await fetch(supabaseUrl("push_devices?on_conflict=token"), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
     body: JSON.stringify({
       token,
       platform,
@@ -13884,7 +13885,7 @@ async function updateChallenge(code, patch, sourceRow = null) {
     try {
       const upsertResponse = await fetch(supabaseUrl(`${challengeTable()}?on_conflict=code`), {
         method: "POST",
-        headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=representation" }),
+        headers: supabaseJsonHeaders({ Prefer: "resolution=merge-duplicates,return=representation" }),
         body: JSON.stringify(body)
       });
       const updated = await readUpdatedRows(upsertResponse);
@@ -13898,7 +13899,7 @@ async function updateChallenge(code, patch, sourceRow = null) {
   try {
     const patchResponse = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(normalizedCode)}`), {
       method: "PATCH",
-      headers: supabaseHeaders({ Prefer: "return=representation" }),
+      headers: supabaseJsonHeaders({ Prefer: "return=representation" }),
       body: JSON.stringify(patch)
     });
     const updated = await readUpdatedRows(patchResponse);
@@ -13942,7 +13943,7 @@ async function retryPendingChallengeResults() {
 async function deleteChallenge(code) {
   const response = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(code)}`), {
     method: "DELETE",
-    headers: supabaseHeaders({ Prefer: "return=minimal" })
+    headers: supabaseJsonHeaders({ Prefer: "return=minimal" })
   });
   if (!response.ok) throw new Error(await supabaseErrorMessage(response, "Изазов није обрисан."));
 }
@@ -15442,7 +15443,7 @@ async function createChallenge(selectedOpponent = null) {
   try {
     response = await fetch(supabaseUrl(challengeTable()), {
       method: "POST",
-      headers: supabaseHeaders({ Prefer: "return=minimal" }),
+      headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
       body: JSON.stringify({
         code,
         day: todayId(),
@@ -16354,7 +16355,7 @@ async function patchSupabaseRows(path, body) {
   if (!supabaseConfigured()) return false;
   const response = await fetch(supabaseUrl(path), {
     method: "PATCH",
-    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify(body)
   });
   return response.ok;
@@ -16364,7 +16365,7 @@ async function callSupabaseRpc(functionName, body = {}) {
   if (!supabaseConfigured()) return false;
   const response = await fetch(supabaseUrl(`rpc/${functionName}`), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify(body)
   });
   return response.ok;
@@ -16455,7 +16456,7 @@ async function registerPlayerName(name) {
   const clean = normalizePlayerName(name);
   const response = await fetch(supabaseUrl(playersTable()), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify({
       nickname: clean,
       device_id: deviceId(),
@@ -16805,7 +16806,7 @@ async function upsertGameSessionRow(row) {
     supabaseUrl(`${gameSessionsTable()}?on_conflict=nickname_key,mode,challenge_code`),
     {
       method: "POST",
-      headers: supabaseHeaders({
+      headers: supabaseJsonHeaders({
         Prefer: "resolution=merge-duplicates,return=minimal"
       }),
       body: JSON.stringify(row)
@@ -16826,7 +16827,7 @@ async function deleteGameSessionRow(mode, challengeCode = "") {
   ].join("&");
   const response = await fetch(supabaseUrl(`${gameSessionsTable()}?${query}`), {
     method: "DELETE",
-    headers: supabaseHeaders({ Prefer: "return=minimal" })
+    headers: supabaseJsonHeaders({ Prefer: "return=minimal" })
   });
   return response.ok;
 }
@@ -17419,7 +17420,7 @@ async function refreshWordEditorPermission() {
   if (!supabaseConfigured()) return false;
   const response = await fetch(supabaseUrl("rpc/player_can_edit_words"), {
     method: "POST",
-    headers: supabaseHeaders(),
+    headers: supabaseJsonHeaders(),
     body: JSON.stringify({
       p_nickname: normalizePlayerName(loadPlayerName() || ""),
       p_device_id: deviceId()
@@ -17460,7 +17461,7 @@ async function saveWordMeaningEdit(word, meaning, grammar) {
   if (!supabaseConfigured()) return { ok: false, error: "offline" };
   const response = await fetch(supabaseUrl("rpc/update_word_meaning"), {
     method: "POST",
-    headers: supabaseHeaders(),
+    headers: supabaseJsonHeaders(),
     body: JSON.stringify({
       p_word: word,
       p_meaning: formatted,
@@ -18036,7 +18037,7 @@ async function submitOnlineResult(result) {
   if (!supabaseConfigured() || !isFinalResult(result)) return false;
   const response = await fetch(supabaseUrl(SUPABASE_CONFIG.table), {
     method: "POST",
-    headers: supabaseHeaders({ Prefer: "return=minimal" }),
+    headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
     body: JSON.stringify(onlineScorePayload(result))
   });
   if (!response.ok) throw new Error("Supabase submit failed");
