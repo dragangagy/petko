@@ -5503,7 +5503,7 @@ const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
 const CHALLENGE_BASE_DAILY_LIMIT = 1;
 const CHALLENGE_MAX_DAILY_LIMIT = 1000;
-const CHALLENGE_PENDING_MS = 21600000;
+const CHALLENGE_PENDING_MS = 86400000;
 const CHALLENGE_ACTIVE_MS = 86400000;
 const CHALLENGE_VS_MS = 3000;
 const CHALLENGE_SYNC_INTERVAL_MS = 30000;
@@ -5690,8 +5690,8 @@ const PROFILE_UNLOCK_GROUPS = {
 const PLAYER_AVATAR_CACHE = new Map();
 const SUPABASE_CONFIG = {
   url: "https://api.g-lab.rs",
-  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InBldGtvLWhhIiwiaWF0IjoxNzg3NzQ0OTAyLCJleHAiOjIxMDMxMDQ5MDJ9.89GdhPNVZL1yXM_to4MBvF_M6xCwWMM97YwS56VQAaw",
   restPrefix: "",
+  anonKey: "",
   table: "scores",
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
@@ -12230,7 +12230,6 @@ function updateCompetitiveCountdown() {
 function supabaseConfigured() {
   return Boolean(
     SUPABASE_CONFIG.url &&
-    SUPABASE_CONFIG.anonKey &&
     SUPABASE_CONFIG.anonKey !== "PASTE_SB_PUBLISHABLE_KEY_HERE"
   );
 }
@@ -12243,11 +12242,14 @@ function supabaseUrl(path) {
 
 function supabaseHeaders(extra = {}) {
   const headers = {
-    apikey: SUPABASE_CONFIG.anonKey,
-    Authorization: `Bearer ${SUPABASE_CONFIG.anonKey}`,
     "Content-Type": "application/json",
     ...extra
   };
+  const key = SUPABASE_CONFIG.anonKey;
+  if (key) {
+    headers.apikey = key;
+    headers.Authorization = `Bearer ${key}`;
+  }
   if (/ngrok-free\.(app|dev)/i.test(SUPABASE_CONFIG.url || "")) {
     headers["ngrok-skip-browser-warning"] = "true";
   }
@@ -12834,8 +12836,8 @@ function challengeRole(row) {
   const me = loadPlayerName();
   if (row?.creator_device && row.creator_device === profileDeviceId()) return "creator";
   if (row?.opponent_device && row.opponent_device === profileDeviceId()) return "opponent";
-  if (sameChallengeName(row?.opponent, me)) return "opponent";
-  if (sameChallengeName(row?.creator, me)) return "creator";
+  if (challengeNameMatches(row?.opponent, me)) return "opponent";
+  if (challengeNameMatches(row?.creator, me)) return "creator";
   return "";
 }
 
@@ -12989,7 +12991,8 @@ function challengeCardVisible(row) {
   // Vikend pozivi se gase čim se lov završi.
   if (challengeIsWitchHuntRow(row) && (!isWeekendWitchActive() || !challengeIsCurrentWitchHuntRow(row))) return false;
   // Stari pozivi su sacuvani, ali se za vreme Witch Hunta ne prikazuju niti im istice vreme.
-  if (challengePausedForWitchHunt(row)) return false;
+  // Zuti pending pozivi moraju ostati vidljivi da bi ih protivnik mogao prihvatiti.
+  if (challengePausedForWitchHunt(row) && row?.status !== "pending") return false;
   if (row?.status === "cancelled") return false;
   if (locallyCancelledChallenge(row)) return false;
   if (challengePendingExpired(row)) return false;
@@ -13149,6 +13152,24 @@ function cleanChallengeName(value) {
 
 function sameChallengeName(left, right) {
   return cleanChallengeName(left).toLocaleLowerCase("sr") === cleanChallengeName(right).toLocaleLowerCase("sr");
+}
+
+function challengeNameMatches(storedName, profileName) {
+  if (sameChallengeName(storedName, profileName)) return true;
+  const stored = cleanChallengeName(storedName);
+  const me = cleanChallengeName(profileName);
+  if (!stored || !me) return false;
+  const guestMatch = stored.match(/^Играч\s+(.+)$/i);
+  return Boolean(guestMatch && sameChallengeName(guestMatch[1], me));
+}
+
+function postgrestEqValue(value) {
+  const text = cleanChallengeName(value);
+  if (!text) return "";
+  if (/[",()]/.test(text) || /\s/.test(text)) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return encodeURIComponent(text);
 }
 
 function isOpenChallengeOpponent(value) {
@@ -13585,7 +13606,7 @@ function challengeNotificationRows(rows = []) {
     if (selfChallengeRow(row)) return false;
     if (!challengeCardVisible(row)) return false;
     const mineByDevice = row.creator_device === profileDeviceId() || row.opponent_device === profileDeviceId();
-    const mineByName = me && (sameChallengeName(row.opponent, me) || sameChallengeName(row.creator, me));
+    const mineByName = me && (challengeNameMatches(row.opponent, me) || challengeNameMatches(row.creator, me));
     return mineByDevice || mineByName;
   });
 }
@@ -14008,25 +14029,103 @@ async function finalizeExpiredChallenges(rows = []) {
   return patchedRows;
 }
 
+const CHALLENGE_HISTORY_COLUMNS = [
+  "code",
+  "day",
+  "status",
+  "creator",
+  "creator_device",
+  "opponent",
+  "opponent_device",
+  "accepted_at",
+  "created_at",
+  "words",
+  "creator_score",
+  "creator_attempts",
+  "creator_solved",
+  "creator_played_at",
+  "opponent_score",
+  "opponent_attempts",
+  "opponent_solved",
+  "opponent_played_at",
+  "creator_faction",
+  "opponent_faction"
+].join(",");
+
+function mergeChallengeHistoryRows(rows = []) {
+  const byCode = new Map();
+  rows.flat().forEach((row) => {
+    const code = normalizeChallengeCode(row?.code);
+    if (code) byCode.set(code, row);
+  });
+  return [...byCode.values()].sort(
+    (a, b) => (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0)
+  );
+}
+
+function challengeHistoryOrFilter() {
+  const parts = [];
+  const device = profileDeviceId();
+  if (device) {
+    parts.push(`creator_device.eq.${encodeURIComponent(device)}`);
+    parts.push(`opponent_device.eq.${encodeURIComponent(device)}`);
+  }
+  const me = loadPlayerName();
+  if (me) {
+    parts.push(`creator.eq.${postgrestEqValue(me)}`);
+    parts.push(`opponent.eq.${postgrestEqValue(me)}`);
+  }
+  return parts.length ? `or=(${parts.join(",")})` : "";
+}
+
+async function fetchChallengeHistoryRequests() {
+  const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+  const sinceFilter = `created_at=gte.${encodeURIComponent(since)}`;
+  const base = [
+    `select=${CHALLENGE_HISTORY_COLUMNS}`,
+    sinceFilter,
+    "order=created_at.desc",
+    "limit=200"
+  ];
+  const queries = [];
+  const orFilter = challengeHistoryOrFilter();
+  if (orFilter) queries.push([...base.slice(0, 1), orFilter, ...base.slice(1)].join("&"));
+  // Svi otvoreni pozivi moraju stici u app; filtriranje po igracu radi kasnije u UI.
+  queries.push([
+    ...base.slice(0, 1),
+    "status=eq.pending",
+    "opponent_device=is.null",
+    ...base.slice(1)
+  ].join("&"));
+  queries.push([...base.slice(0, 1), "status=eq.played", ...base.slice(1)].join("&"));
+  const typedCode = normalizeChallengeCode(
+    challengeCodeInput?.value || loadPendingChallengeCode() || loadActiveChallenge()?.code || ""
+  );
+  if (typedCode) {
+    queries.push([
+      `select=${CHALLENGE_HISTORY_COLUMNS}`,
+      `code=eq.${encodeURIComponent(typedCode)}`,
+      "limit=1"
+    ].join("&"));
+  }
+  return Promise.all(queries.map((query) => fetch(supabaseUrl(`${challengeTable()}?${query}`), {
+    headers: supabaseHeaders()
+  })));
+}
+
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
-  const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
-  const query = [
-    "select=code,day,status,creator,creator_device,opponent,opponent_device,accepted_at,created_at,words,creator_score,creator_attempts,creator_solved,creator_played_at,opponent_score,opponent_attempts,opponent_solved,opponent_played_at,creator_faction,opponent_faction",
-    `created_at=gte.${encodeURIComponent(since)}`,
-    "order=created_at.desc",
-    "limit=400"
-  ].join("&");
-  const response = await fetch(supabaseUrl(`${challengeTable()}?${query}`), {
-    headers: supabaseHeaders()
-  });
-  if (!response.ok) {
-    const details = await response.text().catch(() => "");
-    console.warn("Petko: challenge history request failed.", response.status, details);
-    return [];
-  }
-  const rows = await response.json();
-  return Array.isArray(rows) ? rows : [];
+  const responses = await fetchChallengeHistoryRequests().catch(() => []);
+  const payloads = await Promise.all(responses.map(async (response) => {
+    if (!response?.ok) {
+      const details = await response.text().catch(() => "");
+      console.warn("Petko: challenge history request failed.", response?.status, details);
+      return [];
+    }
+    const rows = await response.json();
+    return Array.isArray(rows) ? rows : [];
+  }));
+  return mergeChallengeHistoryRows(payloads);
 }
 
 function mergeChallengeStatsRows(rows = []) {
@@ -15043,7 +15142,7 @@ function renderChallengeHistoryCards(rows = []) {
   ].filter(([, , sectionRows]) => sectionRows.length);
   sections.forEach(([key, title, sectionRows]) => {
     const defaultOpen = sectionRows.length > 0 &&
-      (key === "played" || (isWeekendWitchActive() && (key === "active" || key === "pending")));
+      (key === "pending" || key === "played" || (isWeekendWitchActive() && (key === "active" || key === "pending")));
     challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, defaultOpen));
   });
   if (!challengeHistoryEl.childElementCount && (inviteRows.length || resultRows.length)) {
@@ -15117,7 +15216,8 @@ function shouldPollChallengeSync() {
   if (gameType === "challenge") return true;
   if (loadActiveChallenge()?.code) return true;
   if (loadPendingChallengeCode()) return true;
-  return loadSentChallengeRowsToday().some(challengeSentEntryActive);
+  if (loadSentChallengeRowsToday().some(challengeSentEntryActive)) return true;
+  return hasRegisteredPlayerProfile();
 }
 
 function mergeActiveChallengeRow(row) {
@@ -15191,8 +15291,8 @@ async function syncChallengeState({ force = false } = {}) {
     const snapshot = challengeSyncSnapshotFor(finalRows);
     const changed = force || snapshot !== challengeSyncSnapshot;
     const shouldRenderCards = changed || challengeLobbyOpen();
+    if (changed) challengeSyncSnapshot = snapshot;
     if (shouldRenderCards) {
-      challengeSyncSnapshot = snapshot;
       if (Array.isArray(players)) renderChallengePlayers(players);
       renderChallengeHistoryCards(finalRows);
     } else {
@@ -19549,12 +19649,13 @@ persistLatestWitchHuntResult().catch(() => false).then(() => Promise.all([
   fetchChallengeStatsRows().catch(() => []),
   refreshWeekendWitchResults().catch(() => [])
 ]))
-  .then(([rows, statsRows]) => {
+  .then(async ([rows, statsRows]) => {
     if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
-    if (Array.isArray(rows)) {
-      challengeRowsCache = rows;
-      updateChallengeBadge(rows);
-      if (gameType === "challenge") renderChallengeHistoryCards(rows);
+    const finalRows = mergeLocalChallengeRows(await finalizeExpiredChallenges(rows).catch(() => rows));
+    challengeRowsCache = finalRows;
+    updateChallengeBadge(finalRows);
+    if (challengeLobbyOpen()) {
+      renderChallengeHistoryCards(finalRows);
     }
   })
   .catch(() => {});
