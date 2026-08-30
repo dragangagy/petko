@@ -13283,51 +13283,15 @@ function sentChallengeRowsFromHistory(rows = []) {
   );
 }
 
-function challengeSentStatusBreakdown(sentRows = []) {
-  const breakdown = { pending: 0, active: 0, played: 0, expired: 0, total: 0 };
-  sentRows.forEach((row) => {
-    if (!challengeCountsForDailyLimit(row)) return;
-    breakdown.total += 1;
-    if (playedChallenge(row)) {
-      breakdown.played += 1;
-      return;
-    }
-    if (challengeIsActive(row)) {
-      breakdown.active += 1;
-      return;
-    }
-    if (row?.status === "pending" && !row?.opponent_device) {
-      if (challengePendingExpired(row)) breakdown.expired += 1;
-      else breakdown.pending += 1;
-      return;
-    }
-    breakdown.expired += 1;
-  });
-  return breakdown;
-}
-
-function formatChallengeQuotaText(sentRows = [], limit = 1) {
-  const breakdown = challengeSentStatusBreakdown(sentRows);
-  const sent = Math.min(breakdown.total, limit);
-  const parts = [`Послато ${sent}/${limit}`];
-  if (breakdown.pending) parts.push(`${breakdown.pending} на чекању`);
-  if (breakdown.active) parts.push(`${breakdown.active} прихваћено`);
-  if (breakdown.played) parts.push(`${breakdown.played} одиграно`);
-  if (breakdown.expired) parts.push(`${breakdown.expired} истекло`);
-  return parts.join(" · ");
-}
-
 function updateChallengeQuota(rows = null) {
   if (!challengeQuotaEl) return;
   const sentRows = Array.isArray(rows)
     ? rows
     : loadSentChallengeRowsToday().filter(challengeCountsForDailyLimit);
   const limit = challengeDailyLimit();
-  const breakdown = challengeSentStatusBreakdown(sentRows);
-  challengeQuotaEl.textContent = formatChallengeQuotaText(sentRows, limit);
-  challengeQuotaEl.title = breakdown.played
-    ? "Одиграни изазови су у плавој секцији испод"
-    : "";
+  const sent = Math.min(dailyChallengeCount(sentRows), limit);
+  challengeQuotaEl.textContent = `Послато ${sent}/${limit}`;
+  challengeQuotaEl.removeAttribute("title");
 }
 
 async function fetchSentChallengesToday() {
@@ -15234,7 +15198,7 @@ function renderChallengeHistoryCards(rows = []) {
   const sections = [
     ["active", "Активни изазови", activeRows],
     ["pending", "Изазови на чекању", pendingRows],
-    ["played", "Одиграни изазови (плаво)", resultRows]
+    ["played", "Одиграни изазови", resultRows]
   ].filter(([, , sectionRows]) => sectionRows.length);
   sections.forEach(([key, title, sectionRows]) => {
     const defaultOpen = sectionRows.length > 0 &&
