@@ -14656,6 +14656,10 @@ function loadChallengeSectionState() {
   return {};
 }
 
+function resetChallengeSectionState() {
+  challengeSectionState = {};
+}
+
 function saveChallengeSectionState() {}
 
 function challengeSectionOpen(key, defaultOpen = false) {
@@ -15201,9 +15205,7 @@ function renderChallengeHistoryCards(rows = []) {
     ["played", "Одиграни изазови", resultRows]
   ].filter(([, , sectionRows]) => sectionRows.length);
   sections.forEach(([key, title, sectionRows]) => {
-    const defaultOpen = sectionRows.length > 0 &&
-      (key === "pending" || key === "played" || (isWeekendWitchActive() && (key === "active" || key === "pending")));
-    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, defaultOpen));
+    challengeHistoryEl.append(challengeHistorySection(key, title, sectionRows, rows, false));
   });
   if (!challengeHistoryEl.childElementCount && (inviteRows.length || resultRows.length)) {
     const flat = document.createElement("div");
@@ -15577,6 +15579,7 @@ function showChallengeIntro() {
 
 function exitChallengeToLobby() {
   saveChallengeProgress();
+  resetChallengeSectionState();
   gameType = "challenge";
   activeChallenge = loadActiveChallenge();
   competitiveIntro = false;
