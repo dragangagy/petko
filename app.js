@@ -15205,7 +15205,7 @@ function renderChallengeHistoryCards(rows = []) {
       return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
     });
   const resultRows = rows
-    .filter((row) => playedChallenge(row) && challengeCardVisible(row) && challengeRowMine(row))
+    .filter((row) => playedChallenge(row) && challengeCardVisible(row))
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
   const pendingRows = inviteRows.filter((row) => challengeCardState(row) !== "accepted");
