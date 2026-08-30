@@ -2085,10 +2085,11 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 .challenge-quota {
   width: 100%;
   min-width: 0;
-  height: 36px;
+  min-height: 36px;
+  height: auto;
   display: grid;
   place-items: center;
-  padding: 0 9px;
+  padding: 6px 9px;
   border: 1px solid rgba(56, 189, 248, 0.22);
   border-radius: 7px;
   background: rgba(2, 8, 23, 0.38);
@@ -2096,6 +2097,7 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   font-size: 10px;
   font-weight: 950;
   text-align: center;
+  line-height: 1.35;
 }
 
 .challenge-hint {

@@ -13271,11 +13271,51 @@ function sentChallengeRowsFromHistory(rows = []) {
   );
 }
 
+function challengeSentStatusBreakdown(sentRows = []) {
+  const breakdown = { pending: 0, active: 0, played: 0, expired: 0, total: 0 };
+  sentRows.forEach((row) => {
+    if (!challengeCountsForDailyLimit(row)) return;
+    breakdown.total += 1;
+    if (playedChallenge(row)) {
+      breakdown.played += 1;
+      return;
+    }
+    if (challengeIsActive(row)) {
+      breakdown.active += 1;
+      return;
+    }
+    if (row?.status === "pending" && !row?.opponent_device) {
+      if (challengePendingExpired(row)) breakdown.expired += 1;
+      else breakdown.pending += 1;
+      return;
+    }
+    breakdown.expired += 1;
+  });
+  return breakdown;
+}
+
+function formatChallengeQuotaText(sentRows = [], limit = 1) {
+  const breakdown = challengeSentStatusBreakdown(sentRows);
+  const sent = Math.min(breakdown.total, limit);
+  const parts = [`Послато ${sent}/${limit}`];
+  if (breakdown.pending) parts.push(`${breakdown.pending} на чекању`);
+  if (breakdown.active) parts.push(`${breakdown.active} прихваћено`);
+  if (breakdown.played) parts.push(`${breakdown.played} одиграно`);
+  if (breakdown.expired) parts.push(`${breakdown.expired} истекло`);
+  return parts.join(" · ");
+}
+
 function updateChallengeQuota(rows = null) {
   if (!challengeQuotaEl) return;
-  const count = Array.isArray(rows) ? dailyChallengeCount(rows) : dailyChallengeCount(loadSentChallengeRowsToday());
+  const sentRows = Array.isArray(rows)
+    ? rows
+    : loadSentChallengeRowsToday().filter(challengeCountsForDailyLimit);
   const limit = challengeDailyLimit();
-  challengeQuotaEl.textContent = `\u0418\u0437\u0430\u0437\u043e\u0432\u0438 ${Math.min(count, limit)}/${limit}`;
+  const breakdown = challengeSentStatusBreakdown(sentRows);
+  challengeQuotaEl.textContent = formatChallengeQuotaText(sentRows, limit);
+  challengeQuotaEl.title = breakdown.played
+    ? "Одиграни изазови су у плавој секцији испод"
+    : "";
 }
 
 async function fetchSentChallengesToday() {
@@ -15168,7 +15208,7 @@ function renderChallengeHistoryCards(rows = []) {
   const sections = [
     ["active", "Активни изазови", activeRows],
     ["pending", "Изазови на чекању", pendingRows],
-    ["played", "Одиграни изазови", resultRows]
+    ["played", "Одиграни изазови (плаво)", resultRows]
   ].filter(([, , sectionRows]) => sectionRows.length);
   sections.forEach(([key, title, sectionRows]) => {
     const defaultOpen = sectionRows.length > 0 &&
