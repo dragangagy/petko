@@ -12667,9 +12667,16 @@ function challengeUrl(code) {
 }
 
 function challengeIsActive(row) {
-  if (String(row?.status || "").toLowerCase() === "played") return false;
-  const activeStatus = row?.status === "accepted";
-  return activeStatus && !playedChallenge(row) && !challengePausedForWitchHunt(row) && Date.now() < challengeActiveUntil(row);
+  if (playedChallenge(row)) return false;
+  const status = String(row?.status || "").toLowerCase();
+  const witchHuntOpen = challengeIsWitchHuntRow(row)
+    && isWeekendWitchActive()
+    && challengeIsCurrentWitchHuntRow(row);
+  const statusOk = status === "accepted" || (status === "played" && witchHuntOpen);
+  if (!statusOk) return false;
+  if (challengePausedForWitchHunt(row)) return false;
+  const until = challengeActiveUntil(row);
+  return !until || Date.now() < until;
 }
 
 function loadManualChallengeCredit() {
@@ -12767,6 +12774,11 @@ function challengeActiveUntil(row) {
   const accepted = Date.parse(row?.accepted_at || "");
   const created = Date.parse(row?.created_at || "");
   const base = Number.isFinite(accepted) ? accepted : created;
+  // Witch Hunt zelena kartica važi do kraja vikenda (sub–ned).
+  if (challengeIsWitchHuntRow(row)) {
+    const window = weekendWitchWindowContaining(row?.created_at || row?.day || new Date());
+    if (window) return window.end;
+  }
   return challengeDeadlineWithWeekendPause(base, CHALLENGE_ACTIVE_MS, row);
 }
 
@@ -13669,7 +13681,6 @@ function challengeRowMine(row) {
 function challengeNotificationRows(rows = []) {
   return rows.filter((row) => {
     if (playedChallenge(row)) return false;
-    if (String(row?.status || "").toLowerCase() === "played") return false;
     if (selfChallengeRow(row)) return false;
     if (!challengeCardVisible(row)) return false;
     return challengeRowMine(row);
@@ -14306,8 +14317,30 @@ async function fetchChallengeScoreStatsRows() {
 }
 
 function challengeSidePlayed(row, role) {
+  return Boolean(challengePlayedAt(row, role));
+}
+
+function challengeRoleSurrendered(row, role) {
   if (!challengePlayedAt(row, role)) return false;
-  return (Number(row?.[`${role}_attempts`]) || 0) > 0;
+  return (Number(row?.[`${role}_attempts`]) || 0) === 0;
+}
+
+function challengeRoleStatusLabel(row, role) {
+  if (!challengePlayedAt(row, role)) {
+    return playedChallenge(row) ? "истекло време" : "није одиграо";
+  }
+  if (challengeRoleSurrendered(row, role)) return "предао партију";
+  const rawScore = row?.[`${role}_score`];
+  const rawSolved = row?.[`${role}_solved`];
+  const rawAttempts = row?.[`${role}_attempts`];
+  const score = Number(rawScore);
+  const solved = Number(rawSolved);
+  const attempts = Number(rawAttempts);
+  const parts = [];
+  parts.push(Number.isFinite(score) ? `${formatScore(score)} поена` : "-");
+  if (Number.isFinite(solved)) parts.push(`${formatScore(solved)}/6 табли`);
+  if (Number.isFinite(attempts)) parts.push(`${formatScore(attempts)}/11 редова`);
+  return parts.join(" · ");
 }
 
 function challengeScoreboardResult(row) {
@@ -14315,8 +14348,15 @@ function challengeScoreboardResult(row) {
 }
 
 function playedChallenge(row) {
-  if (String(row?.status || "").toLowerCase() === "played") return true;
-  return challengeSidePlayed(row, "creator") && challengeSidePlayed(row, "opponent");
+  const creatorFinished = challengeSidePlayed(row, "creator");
+  const opponentFinished = challengeSidePlayed(row, "opponent");
+  if (creatorFinished && opponentFinished) return true;
+  if (String(row?.status || "").toLowerCase() !== "played") return false;
+  // Pogrešno označen „played“ u bazi — tokom Witch Hunta oba moraju odigrati.
+  if (challengeIsWitchHuntRow(row) && isWeekendWitchActive() && challengeIsCurrentWitchHuntRow(row)) {
+    return false;
+  }
+  return creatorFinished || opponentFinished;
 }
 
 function challengeWinner(row) {
@@ -14382,18 +14422,7 @@ function hydrateChallengeRow(row) {
 }
 
 function challengeRowLabel(row, role) {
-  if (!challengeSidePlayed(row, role)) return "није одиграо";
-  const rawScore = row?.[`${role}_score`];
-  const rawSolved = row?.[`${role}_solved`];
-  const rawAttempts = row?.[`${role}_attempts`];
-  const score = Number(rawScore);
-  const solved = Number(rawSolved);
-  const attempts = Number(rawAttempts);
-  const parts = [];
-  parts.push(Number.isFinite(score) ? `${formatScore(score)} поена` : "-");
-  if (Number.isFinite(solved)) parts.push(`${formatScore(solved)}/6 табли`);
-  if (Number.isFinite(attempts)) parts.push(`${formatScore(attempts)}/11 редова`);
-  return parts.join(" · ");
+  return challengeRoleStatusLabel(row, role);
 }
 
 function challengeDifference(row) {
@@ -14594,22 +14623,14 @@ function renderChallengeVsAvatar(target, name = "") {
 }
 
 function challengeResultLine(row, role, name) {
-  const played = challengeSidePlayed(row, role);
-  const score = Number(row?.[`${role}_score`]);
-  const solved = Number(row?.[`${role}_solved`]);
-  const attempts = Number(row?.[`${role}_attempts`]);
   const line = document.createElement("div");
   line.className = "challenge-result-line";
   const player = document.createElement("strong");
   player.textContent = `${name}:`;
   const details = document.createElement("span");
-  details.textContent = played
-    ? [
-        Number.isFinite(score) ? `${formatScore(score)} поена` : "-",
-        Number.isFinite(solved) ? `${formatScore(solved)}/6 табли` : "-",
-        Number.isFinite(attempts) ? `${formatScore(attempts)}/11` : "-"
-      ].join(" · ")
-    : "није одиграо";
+  details.textContent = challengePlayedAt(row, role)
+    ? challengeRoleStatusLabel(row, role)
+    : (playedChallenge(row) ? "истекло време" : "није одиграо");
   line.append(player, details);
   return line;
 }
@@ -15128,7 +15149,7 @@ function challengeCard(row, rows = []) {
     : challengeIsActive(row)
       ? `Зелена карта важи још ${challengeCountdownText(row)}`
       : isWeekendWitchActive() && challengeIsWitchHuntRow(row)
-        ? "Жута карта важи до краја Witch Hunta (48h)"
+        ? "Жута карта важи до краја викенда"
       : role === "creator"
         ? `Чека се да ${otherPlayer} прихвати · истиче за ${pendingCountdown}`
         : `Прихватите изазов да се отвори игра · истиче за ${pendingCountdown}`;
@@ -15818,13 +15839,15 @@ async function finishChallenge(status) {
     : `Изазов завршен: ${solvedCount}/6. Решења: ${displayWords(targets)}. Скор ${resultScore}.`;
   if (!activeChallenge?.code || !supabaseConfigured()) return;
   const prefix = activeChallenge.role === "creator" ? "creator" : "opponent";
+  const otherRole = prefix === "creator" ? "opponent" : "creator";
+  const currentRow = await fetchChallenge(activeChallenge.code).catch(() => null);
   const patch = {
-    status: "played",
     [`${prefix}_score`]: resultScore,
     [`${prefix}_attempts`]: guesses.length,
     [`${prefix}_solved`]: solvedCount,
     [`${prefix}_played_at`]: new Date().toISOString()
   };
+  patch.status = currentRow && challengeSidePlayed(currentRow, otherRole) ? "played" : "accepted";
   rememberPendingChallengeResult(activeChallenge.code, prefix, patch, {
     score: resultScore,
     solvedFlags: solvedAt.map(Boolean)
@@ -15848,13 +15871,15 @@ async function surrenderChallenge(row) {
   if (!row?.code || !supabaseConfigured()) return;
   const role = challengeRole(row);
   if (!role || challengeAlreadyPlayed(row, role)) return;
-  await updateChallenge(row.code, {
-    status: "accepted",
+  const otherRole = role === "creator" ? "opponent" : "creator";
+  const patch = {
     [`${role}_score`]: 0,
     [`${role}_attempts`]: 0,
     [`${role}_solved`]: 0,
     [`${role}_played_at`]: new Date().toISOString()
-  });
+  };
+  patch.status = challengeSidePlayed(row, otherRole) ? "played" : "accepted";
+  await updateChallenge(row.code, patch);
   if (activeChallenge?.code === row.code) {
     clearChallengeProgress(row.code);
     clearActiveChallenge();
