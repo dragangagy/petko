@@ -13322,21 +13322,25 @@ async function fetchSentChallengesToday() {
 
 async function fetchChallengePlayers() {
   if (!supabaseConfigured()) return [];
+  const currentName = loadPlayerName();
+  const fromPlayers = (rows = []) => rows
+    .map((row) => cleanChallengeName(row?.nickname || row))
+    .filter((name) => name && !sameChallengeName(name, currentName))
+    .sort((a, b) => a.localeCompare(b, "sr"));
+
+  // Ne tretiraj prazan players odgovor kao uspeh — inače picker ostaje prazan.
   const playerRows = await fetchPlayerRows().catch(() => null);
-  if (Array.isArray(playerRows)) {
-    const currentName = loadPlayerName();
-    return playerRows
-      .map((row) => cleanChallengeName(row.nickname))
-      .filter((name) => name && !sameChallengeName(name, currentName))
-      .sort((a, b) => a.localeCompare(b, "sr"));
+  if (Array.isArray(playerRows) && playerRows.length) {
+    const names = fromPlayers(playerRows);
+    if (names.length) return names;
   }
+
   const [normalRows, scoreRows, challengeRows] = await Promise.all([
     fetchNormalStatsRows().catch(() => []),
     fetchOnlineLeaderboard().catch(() => []),
     fetchChallengeHistory().catch(() => [])
   ]);
   const names = new Set();
-  const currentName = loadPlayerName();
   [...(normalRows || []), ...(scoreRows || [])].forEach((row) => {
     const name = cleanChallengeName(row.nickname);
     if (name && !sameChallengeName(name, currentName)) names.add(name);
@@ -14764,21 +14768,31 @@ function witchHuntWinnerImage(winner, window) {
   return images[slot % images.length];
 }
 
+function calendarWitchHuntWindow(date = new Date()) {
+  const startStamp = latestWitchHuntWeekendStart(date);
+  const start = Date.parse(`${startStamp}T00:00:00`);
+  if (!Number.isFinite(start)) return null;
+  return { start, end: start + (2 * 24 * 60 * 60 * 1000) };
+}
+
 function renderWeekendWitchScoreboard(rows = []) {
   if (!weekendWitchScoreboardEl) return;
   const currentWitchWindow = weekendWitchWindowContaining(new Date());
   const finishedWindow = latestFinishedWitchHuntWindow(rows);
   const savedFinishedResult = latestSavedWitchHuntResult();
   const savedFinishedWindow = weekendResultWindow(savedFinishedResult);
-  // Kartice te nedelje imaju prednost nad starim/fiksnim arhiviranim skorom.
+  // Kartice te nedelje imaju prednost. Ako nema redova/arhive, i dalje pokaži
+  // kalendarski prošli vikend od ponedeljka do petka.
   const displayWindow = currentWitchWindow
-    || (showFinishedWitchHuntUntilFriday() ? (finishedWindow || savedFinishedWindow) : null);
+    || (showFinishedWitchHuntUntilFriday()
+      ? (finishedWindow || savedFinishedWindow || calendarWitchHuntWindow())
+      : null);
   const weekendStart = dateStampFromMs(displayWindow?.start) || latestWitchHuntWeekendStart();
-  let savedResult = savedWitchHuntResultForWindow(displayWindow);
+  let savedResult = savedWitchHuntResultForWindow(displayWindow) || savedFinishedResult;
   if (!witchHuntResultHasScore(savedResult)) {
     savedResult = cachedWeekendWitchResult(weekendStart);
   }
-  const showFinalWinner = !currentWitchWindow && Boolean(displayWindow);
+  const showFinalWinner = !currentWitchWindow && Boolean(displayWindow) && showFinishedWitchHuntUntilFriday();
   const playedRows = Array.isArray(rows) && displayWindow
     ? rows.filter((row) => {
       const sentAt = Date.parse(row?.created_at || row?.day || "");
@@ -15220,10 +15234,10 @@ function renderChallengeHistoryCards(rows = []) {
 async function refreshChallengeHistoryCards() {
   if (!challengeHistoryEl || !supabaseConfigured()) return;
   await persistLatestWitchHuntResult().catch(() => false);
+  await refreshWeekendWitchResults().catch(() => []);
   const [rows, statsRows] = await Promise.all([
     fetchChallengeHistory(),
-    fetchChallengeStatsRows().catch(() => []),
-    refreshWeekendWitchResults().catch(() => [])
+    fetchChallengeStatsRows().catch(() => [])
   ]);
   if (Array.isArray(statsRows)) challengeStatsRows = statsRows;
   renderChallengeHistoryCards(rows);
