@@ -5693,7 +5693,7 @@ const PLAYER_AVATAR_CACHE = new Map();
 const SUPABASE_CONFIG = {
   url: "https://api.g-lab.rs",
   restPrefix: "",
-  anonKey: "",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InBldGtvLWhhIiwiaWF0IjoxNzg3NzQ0OTAyLCJleHAiOjIxMDMxMDQ5MDJ9.89GdhPNVZL1yXM_to4MBvF_M6xCwWMM97YwS56VQAaw",
   table: "scores",
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
@@ -12232,6 +12232,7 @@ function updateCompetitiveCountdown() {
 function supabaseConfigured() {
   return Boolean(
     SUPABASE_CONFIG.url &&
+    SUPABASE_CONFIG.anonKey &&
     SUPABASE_CONFIG.anonKey !== "PASTE_SB_PUBLISHABLE_KEY_HERE"
   );
 }
