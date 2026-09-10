@@ -12742,6 +12742,16 @@ function styleWordInfoButton(button, word = "") {
     : "Објашњење речи";
 }
 
+function refreshWordInfoButtonStyles(root = document) {
+  if (wordInfoButton) {
+    const revealWord = targets?.[0] || wordInfoButton.dataset.word || "";
+    if (revealWord) styleWordInfoButton(wordInfoButton, revealWord);
+  }
+  (root.querySelectorAll?.(".mini-word-info[data-word]") || []).forEach((button) => {
+    styleWordInfoButton(button, button.dataset.word || "");
+  });
+}
+
 async function hydrateWordInfoVerified(word, button) {
   const clean = normalize(word);
   if (!clean || !button) return;
@@ -12809,6 +12819,7 @@ async function handleWordModalVerifyToggle() {
     return;
   }
   markWordVerified(word, next);
+  refreshWordInfoButtonStyles();
   if (next) {
     applyVerifiedWordReviewChrome(word);
     messageEl.textContent = "Реч је верификована.";
@@ -17149,16 +17160,6 @@ function pruneStaleChallengeProgress() {
     queueGameSessionClear("challenge", code);
   });
   if (changed) saveChallengeProgressStore(store);
-  if (loadActiveChallenge()?.code) {
-    const active = loadActiveChallenge();
-    const progress = store[normalizeChallengeCode(active.code)];
-    if (!progress || !challengeProgressBelongsToMe({ ...progress, active: { ...active, ...(progress?.active || {}) } })) {
-      // Active challenge bez mog playable progressa — očisti, da se ne otvara tuđe.
-      if (!challengeProgressBelongsToMe({ status: "in_progress", active, ownerDevice: progress?.ownerDevice })) {
-        clearActiveChallenge();
-      }
-    }
-  }
   return changed;
 }
 
