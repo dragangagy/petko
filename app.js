@@ -18206,6 +18206,10 @@ function renderWordReveal() {
     tile.textContent = letter;
     wordRevealTextEl.append(tile);
   });
+  if (wordInfoButton) {
+    styleWordInfoButton(wordInfoButton, targets[0]);
+    hydrateWordInfoVerified(targets[0], wordInfoButton);
+  }
 }
 
 function hideWordReveal() {
