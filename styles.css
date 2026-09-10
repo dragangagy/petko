@@ -3543,13 +3543,6 @@ body[data-game-type="challenge"] .solutions-panel {
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.13);
 }
 
-.word-info-button.is-verified,
-.mini-word-info.is-verified {
-  border-color: rgba(255, 215, 0, 0.72);
-  color: var(--gold);
-  box-shadow: 0 0 12px rgba(255, 215, 0, 0.28);
-}
-
 .solution-chip {
   min-width: 0;
   display: grid;
