@@ -16283,7 +16283,12 @@ function saveProfileAvatar(id) {
   if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), cleanId);
   updateStatusProfile();
   renderProfileModal();
-  syncProfileAvatarToSupabase(cleanId).catch(() => false);
+  ensurePlayerRowInSupabase()
+    .then((ok) => {
+      if (!ok) return syncProfileAvatarToSupabase(cleanId);
+      return true;
+    })
+    .catch(() => syncProfileAvatarToSupabase(cleanId).catch(() => false));
 }
 
 async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
@@ -16460,12 +16465,9 @@ function showProfileHintOnce() {
 async function saveProfileNameChange() {
   const current = loadPlayerName() || "";
   const used = loadRenameCount();
-  if (used >= 3) {
-    setProfileMessage("Име можеш променити највише 3 пута.");
-    return;
-  }
   const next = normalizePlayerName(profileNameInput?.value || "");
   if (!next || sameChallengeName(next, current)) {
+    if (current) await ensurePlayerRowInSupabase().catch(() => false);
     setProfileEditMode(false);
     renderProfileModal();
     return;
@@ -16475,11 +16477,41 @@ async function saveProfileNameChange() {
     setProfileMessage(`Надимак "${next}" већ постоји. Пробај други назив.`);
     return;
   }
+
   const previous = current;
+  const firstRegistration = !previous;
+
+  if (firstRegistration) {
+    // Prvi unos imena mora da kreira red u players — inače se ne vidi u bazi dok ne odigra.
+    const registered = await registerPlayerName(next).catch(() => null);
+    if (registered === false) {
+      setProfileMessage(`Надимак "${next}" већ постоји. Пробај други назив.`);
+      return;
+    }
+    if (registered !== true) {
+      setProfileMessage("Упис играча у базу није успео. Пробај поново.");
+      return;
+    }
+    savePlayerName(next);
+    updateChallengePlayerName();
+    renderProfileModal();
+    setProfileEditMode(false);
+    setProfileMessage(`Профил је сачуван као ${next}.`);
+    refreshWordEditorPermission().catch(() => false);
+    refreshChallengePanel();
+    refreshOnlineLeaderboard();
+    return;
+  }
+
+  if (used >= 3) {
+    setProfileMessage("Име можеш променити највише 3 пута.");
+    return;
+  }
   savePlayerName(next);
   saveRenameCount(used + 1);
   updateChallengePlayerName();
   await renamePlayerEverywhere(previous, next);
+  await ensurePlayerRowInSupabase().catch(() => false);
   renderProfileModal();
   setProfileEditMode(false);
   setProfileMessage(`Име је промењено у ${next}.`);
@@ -16583,23 +16615,25 @@ async function fetchPlayerRows() {
   return rows;
 }
 
-async function touchPlayerLastSeen() {
-  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return false;
+async function ensurePlayerRowInSupabase() {
+  if (!supabaseConfigured()) return false;
   const name = normalizePlayerName(loadPlayerName() || "");
   if (!name) return false;
-  const payload = { last_seen: new Date().toISOString() };
-  const device = profileDeviceId() || deviceId();
-  if (device) {
-    const byDevice = await patchSupabaseRows(
-      `${playersTable()}?device_id=eq.${encodeURIComponent(device)}`,
-      payload
-    );
-    if (byDevice) return true;
+  const registered = await registerPlayerName(name).catch(() => null);
+  if (registered === true) return true;
+  if (registered === false) {
+    return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, {
+      device_id: deviceId(),
+      last_seen: new Date().toISOString(),
+      ...playerAvatarRegistrationPayload()
+    });
   }
-  return patchSupabaseRows(
-    `${playersTable()}?nickname=eq.${encodeURIComponent(name)}`,
-    payload
-  );
+  return false;
+}
+
+async function touchPlayerLastSeen() {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return false;
+  return ensurePlayerRowInSupabase();
 }
 
 async function refreshChallengePlayerAvatars() {
@@ -16627,19 +16661,7 @@ async function registerPlayerName(name) {
 }
 
 async function syncCurrentPlayerDevice() {
-  if (!supabaseConfigured()) return false;
-  const name = normalizePlayerName(loadPlayerName() || "");
-  if (!name) return false;
-  const registered = await registerPlayerName(name).catch(() => null);
-  if (registered === true) return true;
-  if (registered === false) {
-    const encodedName = encodeURIComponent(name);
-    return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, {
-      device_id: deviceId(),
-      last_seen: new Date().toISOString()
-    });
-  }
-  return false;
+  return ensurePlayerRowInSupabase();
 }
 
 async function playerNameTaken(name) {
@@ -16694,6 +16716,7 @@ async function savePlayerNameUnique(value) {
   const previous = loadPlayerName();
   if (previous && sameChallengeName(clean, previous)) {
     if (playerNameInput) playerNameInput.value = previous;
+    await ensurePlayerRowInSupabase().catch(() => false);
     return previous;
   }
   if (await playerNameTaken(clean)) {
@@ -16705,6 +16728,11 @@ async function savePlayerNameUnique(value) {
   if (registered === false) {
     if (playerNameInput) playerNameInput.value = previous;
     messageEl.textContent = `Надимак "${clean}" већ постоји. Изабери други.`;
+    return "";
+  }
+  if (registered !== true) {
+    if (playerNameInput) playerNameInput.value = previous;
+    messageEl.textContent = "Упис играча у базу није успео. Пробај поново.";
     return "";
   }
   return savePlayerName(clean);
@@ -19817,7 +19845,7 @@ async function bootPetkoApp() {
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
   refreshManualChallengeCredit().catch(() => {});
-  touchPlayerLastSeen().catch(() => false);
+  ensurePlayerRowInSupabase().catch(() => false);
   await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {
