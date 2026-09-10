@@ -11228,6 +11228,7 @@ const wordInfoButton = document.querySelector("#wordInfoButton");
 const wordModal = document.querySelector("#wordModal");
 const wordModalTitle = document.querySelector("#wordModalTitle");
 const wordModalWord = document.querySelector("#wordModalWord");
+const wordModalVerifyStar = document.querySelector("#wordModalVerifyStar");
 const wordModalText = document.querySelector("#wordModalText");
 const wordReviewText = document.querySelector("#wordReviewText");
 const wordModalActions = document.querySelector("#wordModalActions");
@@ -12589,18 +12590,76 @@ function isWordVerified(word) {
 
 function markWordVerifiedFromRow(word, row) {
   if (!word || !row) return;
-  // Zvezdica / edit-kontrola samo kad je u bazi verified=true (posle Uredi).
-  if (row.verified === true || row.verified === "true") {
-    markWordVerified(word, true);
-  }
+  markWordVerified(word, row.verified === true || row.verified === "true");
 }
 
-function setWordModalVerifiedMark(word = "") {
-  if (!wordModalWord) return;
+function setWordModalVerifiedMark(word = "", { editable = false } = {}) {
   const verified = Boolean(word && isWordVerified(word));
-  wordModalWord.classList.toggle("is-verified", verified);
-  wordModalWord.setAttribute("data-verified", verified ? "true" : "false");
-  wordModalWord.title = verified ? "Објашњење је верификовано" : "";
+  if (wordModalWord) {
+    wordModalWord.classList.toggle("is-verified", verified);
+    wordModalWord.setAttribute("data-verified", verified ? "true" : "false");
+  }
+  if (!wordModalVerifyStar) return;
+  const show = Boolean(word);
+  const canToggle = Boolean(show && editable && wordEditorAllowed);
+  wordModalVerifyStar.hidden = !show;
+  wordModalVerifyStar.textContent = verified ? "★" : "☆";
+  wordModalVerifyStar.classList.toggle("is-verified", verified);
+  wordModalVerifyStar.classList.toggle("is-editable", canToggle);
+  wordModalVerifyStar.disabled = !canToggle;
+  wordModalVerifyStar.setAttribute("aria-pressed", verified ? "true" : "false");
+  wordModalVerifyStar.title = !show
+    ? ""
+    : canToggle
+      ? (verified ? "Верификовано — кликни да поништиш" : "Кликни звездицу ако је све исправно")
+      : (verified ? "Објашњење је верификовано" : "Објашњење још није верификовано");
+}
+
+async function setWordVerifiedRemote(word, verified) {
+  if (!supabaseConfigured() || !wordEditorAllowed) return { ok: false, error: "forbidden" };
+  const response = await fetch(supabaseUrl("rpc/set_word_verified"), {
+    method: "POST",
+    headers: supabaseJsonHeaders(),
+    body: JSON.stringify({
+      p_word: word,
+      p_verified: Boolean(verified),
+      p_nickname: normalizePlayerName(loadPlayerName() || ""),
+      p_device_id: deviceId()
+    })
+  });
+  if (!response.ok) return { ok: false, error: "request_failed" };
+  const payload = await response.json().catch(() => ({}));
+  if (!payload?.ok) return payload || { ok: false, error: "forbidden" };
+  return { ok: true, verified: Boolean(verified) };
+}
+
+async function handleWordModalVerifyToggle() {
+  const word = wordModalCurrentWord;
+  if (!word || !wordEditorAllowed || !wordModalMeaningEditable) return;
+  const next = !isWordVerified(word);
+  if (wordModalVerifyStar) wordModalVerifyStar.disabled = true;
+  const result = await setWordVerifiedRemote(word, next).catch(() => ({ ok: false }));
+  if (!result?.ok) {
+    setWordModalVerifiedMark(word, { editable: true });
+    messageEl.textContent = result?.error === "forbidden"
+      ? "Немаш дозволу за верификацију."
+      : "Верификација није успела.";
+    return;
+  }
+  markWordVerified(word, next);
+  if (next) {
+    applyVerifiedWordReviewChrome(word);
+    messageEl.textContent = "Реч је верификована.";
+  } else {
+    if (wordReviewText) {
+      wordReviewText.textContent = "Да ли је ова реч сувишна, непримерена или неисправна и треба да се уклони?";
+      wordReviewText.hidden = false;
+    }
+    setWordModalButtons(wordReviewRemoveButtons(word));
+    setWordModalVerifiedMark(word, { editable: true });
+    setWordModalEditLink(true, true);
+    messageEl.textContent = "Верификација је поништена.";
+  }
 }
 
 async function fetchWordMeaning(word) {
@@ -17789,7 +17848,7 @@ function showWordModal({ title, word, text, reviewText = "", buttons, modalVaria
   else delete wordModal.dataset.variant;
   wordModalTitle.textContent = title;
   wordModalWord.textContent = displayWord(word);
-  setWordModalVerifiedMark(meaningEditable ? word : "");
+  setWordModalVerifiedMark(meaningEditable ? word : "", { editable: meaningEditable });
   setWordModalBody(text);
   if (wordReviewText) {
     wordReviewText.textContent = reviewText;
@@ -17845,7 +17904,7 @@ function applyVerifiedWordReviewChrome(word) {
     wordReviewText.hidden = true;
   }
   setWordModalButtons(wordReviewCloseButtons());
-  setWordModalVerifiedMark(word);
+  setWordModalVerifiedMark(word, { editable: true });
   setWordModalEditLink(wordEditorAllowed, wordEditorAllowed);
 }
 
@@ -17867,6 +17926,7 @@ function showExistingWordReview(word) {
     .finally(() => {
       if (!wordModal || wordModal.hidden || wordModalCurrentWord !== word) return;
       setWordModalEditLink(wordEditorAllowed, wordEditorAllowed);
+      setWordModalVerifiedMark(word, { editable: true });
     });
 
   fetchWordMeaning(word)
@@ -17874,7 +17934,7 @@ function showExistingWordReview(word) {
       if (!wordModal || wordModal.hidden || wordModalWord.textContent !== displayWord(word)) return;
       if (meaning) setWordModalBody(meaning);
       if (isWordVerified(word)) applyVerifiedWordReviewChrome(word);
-      else setWordModalVerifiedMark(word);
+      else setWordModalVerifiedMark(word, { editable: true });
     })
     .catch(() => {});
 }
@@ -19423,6 +19483,15 @@ bindWordModalEditAction(wordModalEditSave, () => {
     messageEl.textContent = "Чување није успело.";
   });
 });
+
+if (wordModalVerifyStar) {
+  wordModalVerifyStar.addEventListener("click", () => {
+    handleWordModalVerifyToggle().catch(() => {
+      messageEl.textContent = "Верификација није успела.";
+      if (wordModalCurrentWord) setWordModalVerifiedMark(wordModalCurrentWord, { editable: true });
+    });
+  });
+}
 
 bindWordModalEditAction(wordModalEditCancel, () => {
   exitWordModalEditMode();

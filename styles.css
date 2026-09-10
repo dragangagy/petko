@@ -1062,6 +1062,13 @@ body[data-game-type="normal"] .status-panel p {
   display: none;
 }
 
+.word-modal-word-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+}
+
 .word-modal-word {
   color: var(--gold);
   font-size: 28px;
@@ -1070,15 +1077,32 @@ body[data-game-type="normal"] .status-panel p {
   letter-spacing: 3px;
 }
 
-.word-modal-word.is-verified::after {
-  content: "★";
-  margin-left: 6px;
-  color: var(--gold);
-  font-size: 14px;
+.word-modal-verify-star {
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 22px;
   font-weight: 900;
-  letter-spacing: 0;
-  vertical-align: super;
-  opacity: 0.95;
+  line-height: 1;
+  cursor: default;
+}
+
+.word-modal-verify-star.is-verified {
+  color: var(--gold);
+}
+
+.word-modal-verify-star.is-editable {
+  cursor: pointer;
+}
+
+.word-modal-verify-star.is-editable:active {
+  transform: scale(0.92);
+}
+
+.word-modal-verify-star:disabled {
+  opacity: 0.7;
 }
 
 .word-card p,

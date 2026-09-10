@@ -1,4 +1,4 @@
-const CACHE_NAME = "petko-cache-v333";
+const CACHE_NAME = "petko-cache-v334";
 
 const ASSETS = [
   "./",
