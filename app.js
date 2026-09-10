@@ -13369,47 +13369,70 @@ async function fetchSentChallengesToday() {
   return Array.isArray(rows) ? rows.filter(challengeCountsForDailyLimit) : local;
 }
 
-function playerActiveForChallenges(row, now = Date.now()) {
-  const seen = Date.parse(row?.last_seen || "");
-  if (Number.isFinite(seen)) return now - seen <= CHALLENGE_PLAYER_ACTIVE_MS;
-  const created = Date.parse(row?.created_at || "");
-  if (Number.isFinite(created)) return now - created <= CHALLENGE_PLAYER_ACTIVE_MS;
-  return false;
+function isWithinChallengeActiveWindow(value, now = Date.now()) {
+  const at = Date.parse(value || "");
+  return Number.isFinite(at) && now - at <= CHALLENGE_PLAYER_ACTIVE_MS;
+}
+
+function collectRecentlyActiveChallengeNames({
+  normalRows = [],
+  scoreRows = [],
+  challengeRows = [],
+  challengeStatsRows = []
+} = {}, currentName = "", now = Date.now()) {
+  const names = new Set();
+  const add = (rawName, when) => {
+    const name = cleanChallengeName(rawName);
+    if (!name || name === "Чека се" || sameChallengeName(name, currentName)) return;
+    if (!isWithinChallengeActiveWindow(when, now)) return;
+    names.add(name);
+  };
+
+  (normalRows || []).forEach((row) => add(row?.nickname, row?.updated_at));
+  (scoreRows || []).forEach((row) => add(row?.nickname, row?.created_at));
+  (challengeRows || []).forEach((row) => {
+    add(row?.creator, row?.creator_played_at || row?.created_at);
+    add(row?.opponent, row?.opponent_played_at || row?.created_at);
+  });
+  (challengeStatsRows || []).forEach((row) => {
+    add(row?.player_a, row?.last_played_at);
+    add(row?.player_b, row?.last_played_at);
+  });
+  return names;
 }
 
 async function fetchChallengePlayers() {
   if (!supabaseConfigured()) return [];
   const currentName = loadPlayerName();
-  const fromPlayers = (rows = []) => rows
-    .map((row) => cleanChallengeName(row?.nickname || row))
-    .filter((name) => name && !sameChallengeName(name, currentName))
-    .sort((a, b) => a.localeCompare(b, "sr"));
 
-  // Ne tretiraj prazan players odgovor kao uspeh — inače picker ostaje prazan.
-  const playerRows = await fetchPlayerRows().catch(() => null);
-  if (Array.isArray(playerRows)) {
-    const activeRows = playerRows.filter((row) => playerActiveForChallenges(row));
-    return fromPlayers(activeRows);
-  }
-
-  // API nije vratio players — privremeni fallback bez last_seen filtera.
-  const [normalRows, scoreRows, challengeRows] = await Promise.all([
+  // Samo igrači sa stvarnom igrom u poslednjih 7 dana — ne samo last_seen / registracija.
+  const [playerRows, normalRows, scoreRows, challengeRows, challengeStatsRows] = await Promise.all([
+    fetchPlayerRows().catch(() => null),
     fetchNormalStatsRows().catch(() => []),
     fetchOnlineLeaderboard().catch(() => []),
-    fetchChallengeHistory().catch(() => [])
+    fetchChallengeHistory().catch(() => []),
+    fetchChallengeStatsRows().catch(() => [])
   ]);
-  const names = new Set();
-  [...(normalRows || []), ...(scoreRows || [])].forEach((row) => {
-    const name = cleanChallengeName(row.nickname);
-    if (name && !sameChallengeName(name, currentName)) names.add(name);
-  });
-  (challengeRows || []).forEach((row) => {
-    [row.creator, row.opponent].forEach((value) => {
-      const name = cleanChallengeName(value);
-      if (name && name !== "Чека се" && !sameChallengeName(name, currentName)) names.add(name);
-    });
-  });
-  return [...names].sort((a, b) => a.localeCompare(b, "sr"));
+
+  const recentNames = collectRecentlyActiveChallengeNames({
+    normalRows,
+    scoreRows,
+    challengeRows,
+    challengeStatsRows
+  }, currentName);
+
+  if (Array.isArray(playerRows) && playerRows.length) {
+    const known = new Set(
+      playerRows
+        .map((row) => cleanChallengeName(row?.nickname))
+        .filter((name) => name && !sameChallengeName(name, currentName))
+    );
+    return [...recentNames]
+      .filter((name) => known.has(name))
+      .sort((a, b) => a.localeCompare(b, "sr"));
+  }
+
+  return [...recentNames].sort((a, b) => a.localeCompare(b, "sr"));
 }
 
 function renderChallengePlayers(names = []) {
