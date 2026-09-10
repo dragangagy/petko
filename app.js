@@ -12589,13 +12589,8 @@ function isWordVerified(word) {
 
 function markWordVerifiedFromRow(word, row) {
   if (!word || !row) return;
+  // Zvezdica / edit-kontrola samo kad je u bazi verified=true (posle Uredi).
   if (row.verified === true || row.verified === "true") {
-    markWordVerified(word, true);
-    return;
-  }
-  const created = Date.parse(row.created_at || "");
-  const updated = Date.parse(row.updated_at || "");
-  if (Number.isFinite(created) && Number.isFinite(updated) && updated - created > 2000) {
     markWordVerified(word, true);
   }
 }
@@ -17666,7 +17661,7 @@ async function handleWordModalEditSave() {
   }
   exitWordModalEditMode();
   setWordModalBody(result.meaning || formatWordCardText(meaning, grammar));
-  setWordModalVerifiedMark(word);
+  applyVerifiedWordReviewChrome(word);
   messageEl.textContent = "Значење је сачувано.";
 }
 
@@ -17750,7 +17745,7 @@ function showWordModal({ title, word, text, reviewText = "", buttons, modalVaria
     wordReviewText.hidden = !reviewText;
   }
   setWordModalButtons(buttons);
-  setWordModalEditLink(meaningEditable, meaningEditable && wordEditorAllowed);
+  setWordModalEditLink(meaningEditable && wordEditorAllowed, meaningEditable && wordEditorAllowed);
   wordModal.hidden = false;
   document.body.dataset.wordModalOpen = "true";
 }
@@ -17764,45 +17759,71 @@ function wordMeaningText(word) {
   return "Значење ове речи још није уписано. Овде ће стајати кратко објашњење када га додамо у базу.";
 }
 
+function wordReviewCloseButtons() {
+  return [
+    {
+      label: "У реду",
+      tone: "success",
+      onClick: () => closeWordModal()
+    }
+  ];
+}
+
+function wordReviewRemoveButtons(word) {
+  return [
+    {
+      label: "Да",
+      tone: "danger",
+      onClick: () => {
+        submitWordReport(word, "remove", "normal_answer").catch(() => {});
+        closeWordModal();
+        messageEl.textContent = "Пријава је послата.";
+      }
+    },
+    {
+      label: "Не",
+      tone: "success",
+      onClick: () => closeWordModal()
+    }
+  ];
+}
+
+function applyVerifiedWordReviewChrome(word) {
+  if (wordReviewText) {
+    wordReviewText.textContent = "";
+    wordReviewText.hidden = true;
+  }
+  setWordModalButtons(wordReviewCloseButtons());
+  setWordModalVerifiedMark(word);
+  setWordModalEditLink(wordEditorAllowed, wordEditorAllowed);
+}
+
 function showExistingWordReview(word) {
   const fallbackText = wordMeaningText(word);
+  const verified = isWordVerified(word);
   showWordModal({
     title: "Објашњење речи",
     word,
     text: fallbackText,
     meaningEditable: true,
-    reviewText: "Да ли је ова реч сувишна, непримерена или неисправна и треба да се уклони?",
-    buttons: [
-      {
-        label: "Да",
-        tone: "danger",
-        onClick: () => {
-          submitWordReport(word, "remove", "normal_answer").catch(() => {});
-          closeWordModal();
-          messageEl.textContent = "Пријава је послата.";
-        }
-      },
-      {
-        label: "Не",
-        tone: "success",
-        onClick: () => {
-          closeWordModal();
-        }
-      }
-    ]
+    reviewText: verified
+      ? ""
+      : "Да ли је ова реч сувишна, непримерена или неисправна и треба да се уклони?",
+    buttons: verified ? wordReviewCloseButtons() : wordReviewRemoveButtons(word)
   });
   refreshWordEditorPermission()
     .catch(() => false)
     .finally(() => {
       if (!wordModal || wordModal.hidden || wordModalCurrentWord !== word) return;
-      setWordModalEditLink(true, wordEditorAllowed);
+      setWordModalEditLink(wordEditorAllowed, wordEditorAllowed);
     });
 
   fetchWordMeaning(word)
     .then((meaning) => {
       if (!wordModal || wordModal.hidden || wordModalWord.textContent !== displayWord(word)) return;
       if (meaning) setWordModalBody(meaning);
-      setWordModalVerifiedMark(word);
+      if (isWordVerified(word)) applyVerifiedWordReviewChrome(word);
+      else setWordModalVerifiedMark(word);
     })
     .catch(() => {});
 }
