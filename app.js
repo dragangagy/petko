@@ -17120,9 +17120,22 @@ function challengeProgressRemaining(progress) {
   return targets.reduce((count, _, index) => count + (solvedAt[index] ? 0 : 1), 0);
 }
 
+function challengeProgressBelongsToMe(progress) {
+  const active = progress?.active || {};
+  if (!normalizeChallengeCode(active.code)) return false;
+  const device = profileDeviceId();
+  const ownerDevice = progress?.ownerDevice || active.ownerDevice || "";
+  if (device && ownerDevice && ownerDevice === device) return true;
+  const me = loadPlayerName();
+  if (!me) return false;
+  if (active.role === "creator") return challengeNameMatches(active.creator, me);
+  if (active.role === "opponent") return challengeNameMatches(active.opponent, me);
+  return challengeNameMatches(active.creator, me) || challengeNameMatches(active.opponent, me);
+}
+
 function challengeProgressPlayable(progress) {
   if (!progress || progress.status !== "in_progress") return false;
-  if (!normalizeChallengeCode(progress?.active?.code)) return false;
+  if (!challengeProgressBelongsToMe(progress)) return false;
   return challengeProgressRemaining(progress) > 0;
 }
 
@@ -17136,6 +17149,16 @@ function pruneStaleChallengeProgress() {
     queueGameSessionClear("challenge", code);
   });
   if (changed) saveChallengeProgressStore(store);
+  if (loadActiveChallenge()?.code) {
+    const active = loadActiveChallenge();
+    const progress = store[normalizeChallengeCode(active.code)];
+    if (!progress || !challengeProgressBelongsToMe({ ...progress, active: { ...active, ...(progress?.active || {}) } })) {
+      // Active challenge bez mog playable progressa — očisti, da se ne otvara tuđe.
+      if (!challengeProgressBelongsToMe({ status: "in_progress", active, ownerDevice: progress?.ownerDevice })) {
+        clearActiveChallenge();
+      }
+    }
+  }
   return changed;
 }
 
@@ -17210,7 +17233,12 @@ function saveChallengeProgress() {
   if (gameType !== "challenge" || done || !activeChallenge?.code || targets.length !== CHALLENGE_WORDS) return;
   const progress = {
     status: "in_progress",
-    active: activeChallenge,
+    active: {
+      ...activeChallenge,
+      ownerDevice: profileDeviceId()
+    },
+    ownerDevice: profileDeviceId(),
+    ownerName: loadPlayerName() || "",
     mode,
     score,
     targets,
@@ -17387,6 +17415,11 @@ function applyCloudGameSessionRow(row) {
   if (row.mode === "challenge") {
     const code = normalizeChallengeCode(row.challenge_code || payload?.active?.code || "");
     if (!code) return false;
+    // Ne uvlači tuđe challenge sesije u local store.
+    if (!challengeProgressBelongsToMe(payload)) {
+      queueGameSessionClear("challenge", code);
+      return false;
+    }
     if (!challengeProgressPlayable(payload)) {
       queueGameSessionClear("challenge", code);
       const store = loadChallengeProgressStore();
@@ -20137,11 +20170,8 @@ function resumeBestSyncedProgress() {
     restoreCompetitiveProgress(competitive);
     return true;
   }
-  const store = loadChallengeProgressStore();
-  const challengeProgress = Object.values(store).find((item) => challengeProgressPlayable(item));
-  if (challengeProgress && restoreChallengeProgress(challengeProgress)) {
-    return true;
-  }
+  // Izazov se NE otvara sam na startu — samo kad igrač klikne „Igraj“ na svojoj kartici.
+  // Inače se vraćao tuđi/nedovršeni izazov iz localStorage/cloud sesije.
   const normal = loadNormalProgress();
   if (normal) {
     restoreNormalProgress(normal);
@@ -20179,22 +20209,10 @@ async function bootPetkoApp() {
     startGame();
   }
 
-  // Ako smo vratili izazov koji je već odigran na serveru — nazad u lobi.
-  if (gameType === "challenge" && challengeGameOpen() && activeChallenge?.code) {
-    fetchChallenge(activeChallenge.code)
-      .then((row) => {
-        if (!row) return;
-        const role = activeChallenge?.role || challengeRole(row);
-        if (role && challengeAlreadyPlayed(row, role)) {
-          clearChallengeProgress(activeChallenge.code);
-          clearActiveChallenge();
-          activeChallenge = null;
-          exitChallengeToLobby();
-          renderChallengePanel("Овај изазов је већ одигран.");
-        }
-      })
-      .catch(() => {});
-  }
+  // Očisti active challenge ako nije moj / već odigran — nikad ne ostaj na tuđoj tabli.
+  pruneStaleChallengeProgress();
+  clearActiveChallenge();
+  activeChallenge = null;
 
 const initialNormalStats = loadNormalStats();
 if (initialNormalStats.started || initialNormalStats.finished) {
