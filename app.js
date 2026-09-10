@@ -11336,6 +11336,8 @@ let challengeStatsRows = [];
 let wordEditorAllowed = false;
 let wordModalMeaningEditable = false;
 let wordModalCurrentWord = "";
+const WORD_VERIFIED = new Set();
+const CHALLENGE_PLAYER_ACTIVE_MS = 7 * 24 * 60 * 60 * 1000;
 let challengeSyncBusy = false;
 let challengeSyncQueuedForce = false;
 let challengeRowsCache = [];
@@ -12350,8 +12352,9 @@ async function refreshConnectionOverlay({ forceMessage = false } = {}) {
       hideConnectionOverlay();
       return true;
     }
-    // Do not block gameplay on API health failures; sync calls surface errors separately.
-    hideConnectionOverlay();
+    if (forceMessage || connectionOverlayReason !== "server") {
+      showConnectionOverlay("server");
+    }
     return false;
   } finally {
     connectionCheckBusy = false;
@@ -12573,25 +12576,75 @@ function embeddedWordMeaning(word) {
   return mergeWordMeaning(BOOTSTRAP_WORD_INFO[word], WORD_INFO[word]);
 }
 
+function markWordVerified(word, verified = true) {
+  const clean = normalize(word);
+  if (!clean) return;
+  if (verified) WORD_VERIFIED.add(clean);
+  else WORD_VERIFIED.delete(clean);
+}
+
+function isWordVerified(word) {
+  return WORD_VERIFIED.has(normalize(word));
+}
+
+function markWordVerifiedFromRow(word, row) {
+  if (!word || !row) return;
+  if (row.verified === true || row.verified === "true") {
+    markWordVerified(word, true);
+    return;
+  }
+  const created = Date.parse(row.created_at || "");
+  const updated = Date.parse(row.updated_at || "");
+  if (Number.isFinite(created) && Number.isFinite(updated) && updated - created > 2000) {
+    markWordVerified(word, true);
+  }
+}
+
+function setWordModalVerifiedMark(word = "") {
+  if (!wordModalWord) return;
+  const verified = Boolean(word && isWordVerified(word));
+  wordModalWord.classList.toggle("is-verified", verified);
+  wordModalWord.setAttribute("data-verified", verified ? "true" : "false");
+  wordModalWord.title = verified ? "Објашњење је верификовано" : "";
+}
+
 async function fetchWordMeaning(word) {
   if (!word) return "";
   let meaning = embeddedWordMeaning(word);
-  if (meaning && wordMeaningHasGrammar(meaning)) {
-    WORD_INFO[word] = meaning;
-    return meaning;
+  if (!supabaseConfigured()) {
+    if (meaning) WORD_INFO[word] = meaning;
+    return meaning || "";
   }
-  if (!supabaseConfigured()) return meaning || "";
 
-  const query = `${wordsTable()}?select=meaning&word=eq.${encodeURIComponent(word)}&active=eq.true&limit=1`;
+  const query = `${wordsTable()}?select=meaning,verified,created_at,updated_at&word=eq.${encodeURIComponent(word)}&active=eq.true&limit=1`;
   const response = await fetch(supabaseUrl(query), {
     headers: supabaseHeaders()
   });
-  if (!response.ok) return meaning || "";
+  if (!response.ok) {
+    // Starija baza bez kolone verified — probaj bez nje.
+    const fallback = await fetch(
+      supabaseUrl(`${wordsTable()}?select=meaning,created_at,updated_at&word=eq.${encodeURIComponent(word)}&active=eq.true&limit=1`),
+      { headers: supabaseHeaders() }
+    ).catch(() => null);
+    if (!fallback?.ok) {
+      if (meaning) WORD_INFO[word] = meaning;
+      return meaning || "";
+    }
+    const fallbackRows = await fallback.json();
+    const remoteFallback = String(fallbackRows?.[0]?.meaning || "").trim();
+    if (remoteFallback) meaning = remoteFallback;
+    else meaning = mergeWordMeaning(meaning, remoteFallback);
+    if (meaning) WORD_INFO[word] = meaning;
+    markWordVerifiedFromRow(word, fallbackRows?.[0]);
+    return meaning;
+  }
 
   const rows = await response.json();
   const remote = String(rows?.[0]?.meaning || "").trim();
-  meaning = mergeWordMeaning(meaning, remote);
+  // Baza je izvor istine posle uređivanja — ne zadržavaj ugrađeni tekst.
+  if (remote) meaning = remote;
   if (meaning) WORD_INFO[word] = meaning;
+  markWordVerifiedFromRow(word, rows?.[0]);
   return meaning;
 }
 
@@ -13321,6 +13374,14 @@ async function fetchSentChallengesToday() {
   return Array.isArray(rows) ? rows.filter(challengeCountsForDailyLimit) : local;
 }
 
+function playerActiveForChallenges(row, now = Date.now()) {
+  const seen = Date.parse(row?.last_seen || "");
+  if (Number.isFinite(seen)) return now - seen <= CHALLENGE_PLAYER_ACTIVE_MS;
+  const created = Date.parse(row?.created_at || "");
+  if (Number.isFinite(created)) return now - created <= CHALLENGE_PLAYER_ACTIVE_MS;
+  return false;
+}
+
 async function fetchChallengePlayers() {
   if (!supabaseConfigured()) return [];
   const currentName = loadPlayerName();
@@ -13331,11 +13392,12 @@ async function fetchChallengePlayers() {
 
   // Ne tretiraj prazan players odgovor kao uspeh — inače picker ostaje prazan.
   const playerRows = await fetchPlayerRows().catch(() => null);
-  if (Array.isArray(playerRows) && playerRows.length) {
-    const names = fromPlayers(playerRows);
-    if (names.length) return names;
+  if (Array.isArray(playerRows)) {
+    const activeRows = playerRows.filter((row) => playerActiveForChallenges(row));
+    return fromPlayers(activeRows);
   }
 
+  // API nije vratio players — privremeni fallback bez last_seen filtera.
   const [normalRows, scoreRows, challengeRows] = await Promise.all([
     fetchNormalStatsRows().catch(() => []),
     fetchOnlineLeaderboard().catch(() => []),
@@ -16512,7 +16574,7 @@ async function editChallengePlayerName() {
 async function fetchPlayerRows() {
   if (!supabaseConfigured()) return [];
   const query = [
-    "select=nickname,created_at,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend,challenge_bonus",
+    "select=nickname,created_at,last_seen,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend,challenge_bonus",
     "order=nickname.asc",
     "limit=1000"
   ].join("&");
@@ -16524,6 +16586,25 @@ async function fetchPlayerRows() {
   if (!Array.isArray(rows)) return [];
   rows.forEach(cachePlayerAvatar);
   return rows;
+}
+
+async function touchPlayerLastSeen() {
+  if (!supabaseConfigured() || !hasRegisteredPlayerProfile()) return false;
+  const name = normalizePlayerName(loadPlayerName() || "");
+  if (!name) return false;
+  const payload = { last_seen: new Date().toISOString() };
+  const device = profileDeviceId() || deviceId();
+  if (device) {
+    const byDevice = await patchSupabaseRows(
+      `${playersTable()}?device_id=eq.${encodeURIComponent(device)}`,
+      payload
+    );
+    if (byDevice) return true;
+  }
+  return patchSupabaseRows(
+    `${playersTable()}?nickname=eq.${encodeURIComponent(name)}`,
+    payload
+  );
 }
 
 async function refreshChallengePlayerAvatars() {
@@ -16541,6 +16622,7 @@ async function registerPlayerName(name) {
     body: JSON.stringify({
       nickname: clean,
       device_id: deviceId(),
+      last_seen: new Date().toISOString(),
       ...playerAvatarRegistrationPayload()
     })
   });
@@ -16558,7 +16640,8 @@ async function syncCurrentPlayerDevice() {
   if (registered === false) {
     const encodedName = encodeURIComponent(name);
     return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodedName}`, {
-      device_id: deviceId()
+      device_id: deviceId(),
+      last_seen: new Date().toISOString()
     });
   }
   return false;
@@ -17543,34 +17626,7 @@ async function saveWordMeaningEdit(word, meaning, grammar) {
   if (!formatted) return { ok: false, error: "missing_fields" };
   if (!supabaseConfigured() || !wordEditorAllowed) return { ok: false, error: "forbidden" };
 
-  const patchResponse = await fetch(
-    supabaseUrl(`${wordsTable()}?word=eq.${encodeURIComponent(word)}`),
-    {
-      method: "PATCH",
-      headers: supabaseJsonHeaders({ Prefer: "return=minimal" }),
-      body: JSON.stringify({ meaning: formatted, updated_at: new Date().toISOString() })
-    }
-  );
-  if (patchResponse.ok) {
-    WORD_INFO[word] = formatted;
-    BOOTSTRAP_WORD_INFO[word] = formatted;
-    return { ok: true, meaning: formatted };
-  }
-
-  const upsertResponse = await fetch(
-    supabaseUrl(`${wordsTable()}?on_conflict=word`),
-    {
-      method: "POST",
-      headers: supabaseJsonHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
-      body: JSON.stringify({ word, meaning: formatted, active: true })
-    }
-  );
-  if (upsertResponse.ok) {
-    WORD_INFO[word] = formatted;
-    BOOTSTRAP_WORD_INFO[word] = formatted;
-    return { ok: true, meaning: formatted };
-  }
-
+  // RLS na words dozvoljava samo SELECT za anon — pravi put je RPC.
   const response = await fetch(supabaseUrl("rpc/update_word_meaning"), {
     method: "POST",
     headers: supabaseJsonHeaders(),
@@ -17586,6 +17642,7 @@ async function saveWordMeaningEdit(word, meaning, grammar) {
   if (!payload?.ok) return payload || { ok: false, error: "forbidden" };
   WORD_INFO[word] = formatted;
   BOOTSTRAP_WORD_INFO[word] = formatted;
+  markWordVerified(word, true);
   return { ok: true, meaning: formatted };
 }
 
@@ -17609,6 +17666,7 @@ async function handleWordModalEditSave() {
   }
   exitWordModalEditMode();
   setWordModalBody(result.meaning || formatWordCardText(meaning, grammar));
+  setWordModalVerifiedMark(word);
   messageEl.textContent = "Значење је сачувано.";
 }
 
@@ -17685,6 +17743,7 @@ function showWordModal({ title, word, text, reviewText = "", buttons, modalVaria
   else delete wordModal.dataset.variant;
   wordModalTitle.textContent = title;
   wordModalWord.textContent = displayWord(word);
+  setWordModalVerifiedMark(meaningEditable ? word : "");
   setWordModalBody(text);
   if (wordReviewText) {
     wordReviewText.textContent = reviewText;
@@ -17741,8 +17800,9 @@ function showExistingWordReview(word) {
 
   fetchWordMeaning(word)
     .then((meaning) => {
-      if (!meaning || !wordModal || wordModal.hidden || wordModalWord.textContent !== displayWord(word)) return;
-      setWordModalBody(meaning);
+      if (!wordModal || wordModal.hidden || wordModalWord.textContent !== displayWord(word)) return;
+      if (meaning) setWordModalBody(meaning);
+      setWordModalVerifiedMark(word);
     })
     .catch(() => {});
 }
@@ -19657,6 +19717,7 @@ document.addEventListener("visibilitychange", () => {
     saveChallengeProgress();
     flushGameSessionUpserts();
   } else {
+    touchPlayerLastSeen().catch(() => false);
     syncWeekendWitchAvatarState();
     updateChallengeQuota();
     maybeShowWeekendWitchOffer();
@@ -19665,6 +19726,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("focus", () => {
+  touchPlayerLastSeen().catch(() => false);
   syncChallengeState({ force: true }).catch(() => {});
   hydrateAndMaybeResume({ resume: true }).catch(() => false);
 });
@@ -19734,6 +19796,7 @@ async function bootPetkoApp() {
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
   refreshManualChallengeCredit().catch(() => {});
+  touchPlayerLastSeen().catch(() => false);
   await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   const incomingChallengeCode = new URLSearchParams(window.location.search).get("challenge");
   if (incomingChallengeCode) {

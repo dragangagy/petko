@@ -697,8 +697,12 @@ create table if not exists public.words (
   meaning text,
   type text,
   active boolean not null default true,
+  verified boolean not null default false,
   note text
 );
+
+alter table public.words
+add column if not exists verified boolean not null default false;
 
 create index if not exists words_active_word_idx
 on public.words (active, word);

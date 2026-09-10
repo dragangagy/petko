@@ -1,7 +1,18 @@
--- Word meaning editor: per-player permission on players.can_edit_words (default false).
+-- Word meaning editor + verified flag + inactive challenge players.
+-- Run on Supabase / Postgres after deploy.
 
 alter table public.players
 add column if not exists can_edit_words boolean not null default false;
+
+alter table public.players
+add column if not exists last_seen timestamptz not null default now();
+
+alter table public.words
+add column if not exists verified boolean not null default false;
+
+-- One-time: after deploy, refresh activity so lista izazova nije prazna
+-- dok igrači ponovo ne uđu u aplikaciju (zatim važi filter 7 dana).
+update public.players set last_seen = now();
 
 create or replace function public.player_can_edit_words(
   p_nickname text,
@@ -74,7 +85,8 @@ $$;
 grant execute on function public.player_can_edit_words(text, text) to anon;
 grant execute on function public.update_word_meaning(text, text, text, text) to anon;
 
--- Admin: update public.players set can_edit_words = true where lower(btrim(nickname)) = lower('ImeIgraca');
+-- Admin: dozvoli uređivanje značenja odabranom igraču
+-- update public.players set can_edit_words = true where lower(btrim(nickname)) = lower('ImeIgraca');
 
 -- PostgREST caches the schema; reload so new RPC endpoints are exposed:
 -- NOTIFY pgrst, 'reload schema';

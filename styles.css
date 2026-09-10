@@ -1070,6 +1070,17 @@ body[data-game-type="normal"] .status-panel p {
   letter-spacing: 3px;
 }
 
+.word-modal-word.is-verified::after {
+  content: "★";
+  margin-left: 6px;
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0;
+  vertical-align: super;
+  opacity: 0.95;
+}
+
 .word-card p,
 .word-modal-body {
   margin: 0;
