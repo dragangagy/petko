@@ -12730,6 +12730,41 @@ function markWordVerifiedFromRow(word, row) {
   markWordVerified(word, row.verified === true || row.verified === "true");
 }
 
+function styleWordInfoButton(button, word = "") {
+  if (!button) return;
+  const clean = normalize(word);
+  const verified = Boolean(clean && isWordVerified(clean));
+  button.classList.toggle("is-verified", verified);
+  button.setAttribute("data-verified", verified ? "true" : "false");
+  if (clean) button.dataset.word = clean;
+  button.title = verified
+    ? "Објашњење је прошло админ контролу"
+    : "Објашњење речи";
+}
+
+function refreshWordInfoButtonStyles(root = document) {
+  if (wordInfoButton) {
+    const revealWord = targets?.[0] || wordInfoButton.dataset.word || "";
+    if (revealWord) styleWordInfoButton(wordInfoButton, revealWord);
+  }
+  (root.querySelectorAll?.(".mini-word-info[data-word]") || []).forEach((button) => {
+    styleWordInfoButton(button, button.dataset.word || "");
+  });
+}
+
+async function hydrateWordInfoVerified(word, button) {
+  const clean = normalize(word);
+  if (!clean || !button) return;
+  styleWordInfoButton(button, clean);
+  if (isWordVerified(clean) || !supabaseConfigured()) return;
+  try {
+    await fetchWordMeaning(clean);
+  } catch {
+    return;
+  }
+  styleWordInfoButton(button, clean);
+}
+
 function setWordModalVerifiedMark(word = "", { editable = false } = {}) {
   const verified = Boolean(word && isWordVerified(word));
   if (wordModalWord) {
@@ -12778,12 +12813,14 @@ async function handleWordModalVerifyToggle() {
   const result = await setWordVerifiedRemote(word, next).catch(() => ({ ok: false }));
   if (!result?.ok) {
     setWordModalVerifiedMark(word, { editable: true });
+    refreshWordInfoButtonStyles();
     messageEl.textContent = result?.error === "forbidden"
       ? "Немаш дозволу за верификацију."
       : "Верификација није успела.";
     return;
   }
   markWordVerified(word, next);
+  refreshWordInfoButtonStyles();
   if (next) {
     applyVerifiedWordReviewChrome(word);
     messageEl.textContent = "Реч је верификована.";
@@ -14912,11 +14949,13 @@ function createChallengeWordList(words = [], options = {}) {
       info.type = "button";
       info.textContent = "?";
       info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+      styleWordInfoButton(info, target);
       info.addEventListener("click", (event) => {
         event.stopPropagation();
         showExistingWordReview(target);
       });
       chip.append(info);
+      hydrateWordInfoVerified(target, info);
     }
     list.append(chip);
   });
@@ -15484,7 +15523,8 @@ function renderChallengeHistoryCards(rows = []) {
       if (expiryDiff) return expiryDiff;
       return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
     });
-  const resultRows = rows
+  // Samo moji (ili kod koji sam uneo) — inače tuđi odigrani ispadaju kao „poslednji“.
+  const resultRows = challengeRowsForPlayer(rows)
     .filter((row) => playedChallenge(row) && challengeCardVisible(row))
     .sort((a, b) => challengePlayedSortTime(b) - challengePlayedSortTime(a));
   const activeRows = inviteRows.filter((row) => challengeCardState(row) === "accepted");
@@ -17741,8 +17781,10 @@ function renderBoards() {
       info.type = "button";
       info.textContent = "?";
       info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+      styleWordInfoButton(info, target);
       info.addEventListener("click", () => showExistingWordReview(target));
       title.append(word, info);
+      hydrateWordInfoVerified(target, info);
       (collapsedStack || boardsEl).append(fragment);
       return;
     }
@@ -17797,9 +17839,11 @@ function renderSolutionsPanel(show) {
     info.type = "button";
     info.textContent = "?";
     info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+    styleWordInfoButton(info, target);
     info.addEventListener("click", () => showExistingWordReview(target));
     chip.append(word, info);
     solutionsPanelEl.append(chip);
+    hydrateWordInfoVerified(target, info);
   });
 }
 
@@ -18072,6 +18116,7 @@ function showExistingWordReview(word) {
       if (meaning) setWordModalBody(meaning);
       if (isWordVerified(word)) applyVerifiedWordReviewChrome(word);
       else setWordModalVerifiedMark(word, { editable: true });
+      refreshWordInfoButtonStyles();
     })
     .catch(() => {});
 }
@@ -18121,6 +18166,10 @@ function renderWordReveal() {
     tile.textContent = letter;
     wordRevealTextEl.append(tile);
   });
+  if (wordInfoButton) {
+    styleWordInfoButton(wordInfoButton, targets[0]);
+    hydrateWordInfoVerified(targets[0], wordInfoButton);
+  }
 }
 
 function hideWordReveal() {
