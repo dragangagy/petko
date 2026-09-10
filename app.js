@@ -12730,6 +12730,31 @@ function markWordVerifiedFromRow(word, row) {
   markWordVerified(word, row.verified === true || row.verified === "true");
 }
 
+function styleWordInfoButton(button, word = "") {
+  if (!button) return;
+  const clean = normalize(word);
+  const verified = Boolean(clean && isWordVerified(clean));
+  button.classList.toggle("is-verified", verified);
+  button.setAttribute("data-verified", verified ? "true" : "false");
+  if (clean) button.dataset.word = clean;
+  button.title = verified
+    ? "Објашњење је прошло админ контролу"
+    : "Објашњење речи";
+}
+
+async function hydrateWordInfoVerified(word, button) {
+  const clean = normalize(word);
+  if (!clean || !button) return;
+  styleWordInfoButton(button, clean);
+  if (isWordVerified(clean) || !supabaseConfigured()) return;
+  try {
+    await fetchWordMeaning(clean);
+  } catch {
+    return;
+  }
+  styleWordInfoButton(button, clean);
+}
+
 function setWordModalVerifiedMark(word = "", { editable = false } = {}) {
   const verified = Boolean(word && isWordVerified(word));
   if (wordModalWord) {
@@ -14912,11 +14937,13 @@ function createChallengeWordList(words = [], options = {}) {
       info.type = "button";
       info.textContent = "?";
       info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+      styleWordInfoButton(info, target);
       info.addEventListener("click", (event) => {
         event.stopPropagation();
         showExistingWordReview(target);
       });
       chip.append(info);
+      hydrateWordInfoVerified(target, info);
     }
     list.append(chip);
   });
@@ -15952,13 +15979,16 @@ async function startChallengeGame(row, role) {
   }
   const savedProgress = loadChallengeProgress(serverRow.code);
   if (savedProgress && sameChallengeWords(savedProgress.targets, serverRow.words)) {
-    await playChallengeVs(serverRow);
-    restoreChallengeProgress({
-      ...savedProgress,
-      active: { ...(savedProgress.active || {}), code: serverRow.code, role, creator, opponent },
-      targets: serverRow.words
-    });
-    return;
+    if (!challengeProgressPlayable(savedProgress)) {
+      clearChallengeProgress(serverRow.code);
+    } else {
+      await playChallengeVs(serverRow);
+      if (restoreChallengeProgress({
+        ...savedProgress,
+        active: { ...(savedProgress.active || {}), code: serverRow.code, role, creator, opponent },
+        targets: serverRow.words
+      })) return;
+    }
   }
   if (savedProgress) clearChallengeProgress(serverRow.code);
   await playChallengeVs(serverRow);
@@ -16116,8 +16146,13 @@ async function finishChallenge(status) {
     clearChallengeProgress(activeChallenge.code);
     rememberChallengePlayed(activeChallenge.code, prefix);
     const row = await fetchChallenge(activeChallenge.code);
-    await renderChallengeResult(row, resultScore, { showPanelWords: true, solvedFlags: solvedAt.map(Boolean) });
-    refreshChallengePanel();
+    await renderChallengeResult(row, resultScore, { showPanelWords: false, solvedFlags: solvedAt.map(Boolean) });
+    exitChallengeToLobby();
+    renderChallengePanel(
+      status === "finished"
+        ? `Изазов завршен: ${solvedCount}/6, скор ${resultScore}.`
+        : `Изазов одигран: ${solvedCount}/6, скор ${resultScore}.`
+    );
     refreshAvatarAchievements({ popup: true }).catch(() => {});
   } catch {
     renderChallengePanel("Резултат је сачуван локално; покушаћу поново online.");
@@ -17078,6 +17113,32 @@ function clearChallengeProgress(code = activeChallenge?.code) {
   queueGameSessionClear("challenge", cleanCode);
 }
 
+function challengeProgressRemaining(progress) {
+  const targets = Array.isArray(progress?.targets) ? progress.targets : [];
+  if (targets.length !== CHALLENGE_WORDS) return 0;
+  const solvedAt = Array.isArray(progress?.solvedAt) ? progress.solvedAt : [];
+  return targets.reduce((count, _, index) => count + (solvedAt[index] ? 0 : 1), 0);
+}
+
+function challengeProgressPlayable(progress) {
+  if (!progress || progress.status !== "in_progress") return false;
+  if (!normalizeChallengeCode(progress?.active?.code)) return false;
+  return challengeProgressRemaining(progress) > 0;
+}
+
+function pruneStaleChallengeProgress() {
+  const store = loadChallengeProgressStore();
+  let changed = false;
+  Object.entries(store).forEach(([code, progress]) => {
+    if (challengeProgressPlayable(progress)) return;
+    delete store[code];
+    changed = true;
+    queueGameSessionClear("challenge", code);
+  });
+  if (changed) saveChallengeProgressStore(store);
+  return changed;
+}
+
 function loadCompetitiveProgress() {
   try {
     const progress = JSON.parse(localStorage.getItem(COMPETITIVE_PROGRESS_KEY) || "null");
@@ -17326,6 +17387,16 @@ function applyCloudGameSessionRow(row) {
   if (row.mode === "challenge") {
     const code = normalizeChallengeCode(row.challenge_code || payload?.active?.code || "");
     if (!code) return false;
+    if (!challengeProgressPlayable(payload)) {
+      queueGameSessionClear("challenge", code);
+      const store = loadChallengeProgressStore();
+      if (store[code]) {
+        delete store[code];
+        saveChallengeProgressStore(store);
+        return true;
+      }
+      return false;
+    }
     const store = loadChallengeProgressStore();
     const merged = preferNewerProgress(store[code], payload);
     if (!merged || merged !== payload) return false;
@@ -17442,6 +17513,11 @@ function restoreNormalProgress(progress) {
 }
 
 function restoreChallengeProgress(progress) {
+  if (!challengeProgressPlayable(progress)) {
+    const code = normalizeChallengeCode(progress?.active?.code);
+    if (code) clearChallengeProgress(code);
+    return false;
+  }
   gameType = "challenge";
   competitiveIntro = false;
   competitiveRunActive = false;
@@ -17458,6 +17534,10 @@ function restoreChallengeProgress(progress) {
   lastLevelAward = null;
   bonusFlashRows = new Set();
 
+  const creator = activeChallenge?.creator || "Играч 1";
+  const opponent = activeChallenge?.opponent || "Играч 2";
+  const role = activeChallenge?.role === "opponent" ? "противник" : "изазивач";
+
   document.body.dataset.gameType = gameType;
   document.body.dataset.competitiveLocked = "false";
   document.body.dataset.challengePlaying = "true";
@@ -17468,10 +17548,11 @@ function restoreChallengeProgress(progress) {
   updateModeButtons();
   nextLevelButton.hidden = true;
   modeLabelEl.textContent = "Изазов";
-  messageEl.textContent = `Настављаш изазов: ${activeChallenge?.creator || "Играч 1"} против ${activeChallenge?.opponent || "Играч 2"}.`;
+  messageEl.textContent = `Твој изазов (${role}): ${creator} против ${opponent}.`;
   renderSolutionsPanel(false);
-  renderChallengePanel();
+  renderChallengePanel(`Твој изазов (${role}): ${creator} против ${opponent}.`);
   render();
+  return true;
 }
 
 function isFinalResult(result) {
@@ -17741,8 +17822,10 @@ function renderBoards() {
       info.type = "button";
       info.textContent = "?";
       info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+      styleWordInfoButton(info, target);
       info.addEventListener("click", () => showExistingWordReview(target));
       title.append(word, info);
+      hydrateWordInfoVerified(target, info);
       (collapsedStack || boardsEl).append(fragment);
       return;
     }
@@ -17797,9 +17880,11 @@ function renderSolutionsPanel(show) {
     info.type = "button";
     info.textContent = "?";
     info.setAttribute("aria-label", `Објашњење речи ${displayWord(target)}`);
+    styleWordInfoButton(info, target);
     info.addEventListener("click", () => showExistingWordReview(target));
     chip.append(word, info);
     solutionsPanelEl.append(chip);
+    hydrateWordInfoVerified(target, info);
   });
 }
 
@@ -20042,15 +20127,15 @@ function canSoftResumeSyncedProgress() {
 
 function resumeBestSyncedProgress() {
   if (!hasRegisteredPlayerProfile()) return false;
+  pruneStaleChallengeProgress();
   const competitive = loadCompetitiveProgress();
   if (competitive) {
     restoreCompetitiveProgress(competitive);
     return true;
   }
   const store = loadChallengeProgressStore();
-  const challengeProgress = Object.values(store).find((item) => item?.status === "in_progress" && item?.active?.code);
-  if (challengeProgress) {
-    restoreChallengeProgress(challengeProgress);
+  const challengeProgress = Object.values(store).find((item) => challengeProgressPlayable(item));
+  if (challengeProgress && restoreChallengeProgress(challengeProgress)) {
     return true;
   }
   const normal = loadNormalProgress();
@@ -20088,6 +20173,23 @@ async function bootPetkoApp() {
       .catch(() => {});
   } else if (!resumeBestSyncedProgress()) {
     startGame();
+  }
+
+  // Ako smo vratili izazov koji je već odigran na serveru — nazad u lobi.
+  if (gameType === "challenge" && challengeGameOpen() && activeChallenge?.code) {
+    fetchChallenge(activeChallenge.code)
+      .then((row) => {
+        if (!row) return;
+        const role = activeChallenge?.role || challengeRole(row);
+        if (role && challengeAlreadyPlayed(row, role)) {
+          clearChallengeProgress(activeChallenge.code);
+          clearActiveChallenge();
+          activeChallenge = null;
+          exitChallengeToLobby();
+          renderChallengePanel("Овај изазов је већ одигран.");
+        }
+      })
+      .catch(() => {});
   }
 
 const initialNormalStats = loadNormalStats();
