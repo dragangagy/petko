@@ -12103,11 +12103,15 @@ async function submitNormalStats(stats = loadNormalStats()) {
 
 function displayNormalStats() {
   const local = loadNormalStats();
-  if (!onlineNormalStatsSummary) return local;
-  return {
-    started: Math.max(Number(local.started) || 0, Number(onlineNormalStatsSummary.started) || 0),
-    finished: Math.max(Number(local.finished) || 0, Number(onlineNormalStatsSummary.finished) || 0)
-  };
+  if (!onlineNormalStatsSummary) {
+    const started = Math.max(0, Number(local.started) || 0);
+    const finished = Math.max(0, Number(local.finished) || 0);
+    return { started, finished: Math.min(finished, started) };
+  }
+  const started = Math.max(Number(local.started) || 0, Number(onlineNormalStatsSummary.started) || 0);
+  const finished = Math.max(Number(local.finished) || 0, Number(onlineNormalStatsSummary.finished) || 0);
+  // finished ne sme biti veći od started (više uređaja / resume bez start brojača).
+  return { started, finished: Math.min(finished, started) };
 }
 
 async function refreshOnlineNormalStats() {
@@ -18191,6 +18195,7 @@ function showExistingWordReview(word) {
       if (meaning) setWordModalBody(meaning);
       if (isWordVerified(word)) applyVerifiedWordReviewChrome(word);
       else setWordModalVerifiedMark(word, { editable: true });
+      refreshWordInfoButtonStyles();
     })
     .catch(() => {});
 }
@@ -18310,6 +18315,7 @@ function submitGuess() {
     return;
   }
 
+  markNormalStarted();
   guesses.push(current);
   updateSolvedAndScore(current, guesses.length);
   updateKeyStates(current);
@@ -18736,10 +18742,17 @@ function normalSuccessRows(rows) {
   });
 
   return [...byName.values()]
-    .map((row) => ({
-      ...row,
-      successRate: row.started ? (row.finished / row.started) * 100 : 0
-    }))
+    .map((row) => {
+      const started = Math.max(0, Number(row.started) || 0);
+      const finished = Math.min(started, Math.max(0, Number(row.finished) || 0));
+      return {
+        ...row,
+        started,
+        finished,
+        // Cap na 100% — inače finished>started (npr. 20/19) daje 105.26%.
+        successRate: started ? Math.min(100, (finished / started) * 100) : 0
+      };
+    })
     .filter((row) => row.started >= 10);
 }
 
