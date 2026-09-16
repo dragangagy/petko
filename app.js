@@ -11476,10 +11476,8 @@ let wordModalMeaningEditable = false;
 let wordModalCurrentWord = "";
 const WORD_VERIFIED = new Set();
 const CHALLENGE_PLAYER_ACTIVE_MS = 7 * 24 * 60 * 60 * 1000;
-/** Posle ovoliko dana bez obične igre, uspešnost počinje da pada. */
-const NORMAL_SUCCESS_GRACE_DAYS = 7;
-/** Koliko procentnih poena uspešnosti padne po danu neaktivnosti posle grace perioda. */
-const NORMAL_SUCCESS_DECAY_PER_DAY = 2;
+/** Svakih ovoliko dana bez obične igre = +1 nerešena (započeta) partija u uspešnosti. */
+const NORMAL_SUCCESS_IDLE_GAME_DAYS = 7;
 let challengeSyncBusy = false;
 let challengeSyncQueuedForce = false;
 let challengeRowsCache = [];
@@ -18723,15 +18721,13 @@ function aggregatePlayerRows(rows) {
 
 function normalSuccessIdleDays(updatedAt) {
   const stamp = Date.parse(updatedAt || "");
-  if (!Number.isFinite(stamp)) return 999;
+  if (!Number.isFinite(stamp)) return 0;
   return Math.max(0, Math.floor((Date.now() - stamp) / (24 * 60 * 60 * 1000)));
 }
 
-function decayedNormalSuccessRate(rawRate, updatedAt) {
-  const rate = Math.max(0, Math.min(100, Number(rawRate) || 0));
-  const idle = normalSuccessIdleDays(updatedAt);
-  const decayDays = Math.max(0, idle - NORMAL_SUCCESS_GRACE_DAYS);
-  return Math.max(0, Math.min(100, rate - decayDays * NORMAL_SUCCESS_DECAY_PER_DAY));
+/** Koliko „nerešenih“ partija dodajemo zbog neaktivnosti (1 na svakih 7 dana). */
+function normalSuccessIdleUnsolvedGames(updatedAt) {
+  return Math.floor(normalSuccessIdleDays(updatedAt) / NORMAL_SUCCESS_IDLE_GAME_DAYS);
 }
 
 function normalSuccessRows(rows) {
@@ -18760,16 +18756,17 @@ function normalSuccessRows(rows) {
 
   return [...byName.values()]
     .map((row) => {
-      const started = Math.max(0, Number(row.started) || 0);
-      const finished = Math.min(started, Math.max(0, Number(row.finished) || 0));
-      const rawSuccessRate = started ? Math.min(100, (finished / started) * 100) : 0;
+      const baseStarted = Math.max(0, Number(row.started) || 0);
+      const finished = Math.min(baseStarted, Math.max(0, Number(row.finished) || 0));
+      const idleUnsolved = normalSuccessIdleUnsolvedGames(row.successRateAt);
+      // Ko ne igra: svakih 7 dana +1 započeta nerešena partija → pada %.
+      const started = baseStarted + idleUnsolved;
       return {
         ...row,
         started,
         finished,
-        rawSuccessRate,
-        // Ko ne igra — uspešnost opada posle 7 dana (2% po danu).
-        successRate: decayedNormalSuccessRate(rawSuccessRate, row.successRateAt)
+        idleUnsolved,
+        successRate: started ? Math.min(100, (finished / started) * 100) : 0
       };
     })
     .filter((row) => row.started >= 10);
@@ -19243,7 +19240,7 @@ async function renderHallOfFame() {
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
-      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Ако играч не игра обичну игру дуже од 7 дана, успешност опада по 2% дневно. Улазе играчи са најмање 10 започетих партија."),
+      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Ако играч не игра, сваких 7 дана неактивности рачуна му се једна започета а нерешена партија, па успешност пада. Улазе играчи са најмање 10 започетих партија."),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
       medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt", "Броји се број различитих дана у којима је играч имао такмичарски резултат."),
       medalEntry("Најјачи изазов скор", challengeStrongLeaders, (row) => row.best, "", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у валидном изазову. Ако противник преда, не одигра до краја или има мање од 10 одиграних изазова, тај резултат не улази. Када играч више пута оствари исти најбољи скор, приказује се као 30/2, 30/3 и има предност над једним истим скором.", {
