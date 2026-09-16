@@ -11476,6 +11476,10 @@ let wordModalMeaningEditable = false;
 let wordModalCurrentWord = "";
 const WORD_VERIFIED = new Set();
 const CHALLENGE_PLAYER_ACTIVE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Posle ovoliko dana bez obične igre, uspešnost počinje da pada. */
+const NORMAL_SUCCESS_GRACE_DAYS = 7;
+/** Koliko procentnih poena uspešnosti padne po danu neaktivnosti posle grace perioda. */
+const NORMAL_SUCCESS_DECAY_PER_DAY = 2;
 let challengeSyncBusy = false;
 let challengeSyncQueuedForce = false;
 let challengeRowsCache = [];
@@ -18717,6 +18721,19 @@ function aggregatePlayerRows(rows) {
   };
 }
 
+function normalSuccessIdleDays(updatedAt) {
+  const stamp = Date.parse(updatedAt || "");
+  if (!Number.isFinite(stamp)) return 999;
+  return Math.max(0, Math.floor((Date.now() - stamp) / (24 * 60 * 60 * 1000)));
+}
+
+function decayedNormalSuccessRate(rawRate, updatedAt) {
+  const rate = Math.max(0, Math.min(100, Number(rawRate) || 0));
+  const idle = normalSuccessIdleDays(updatedAt);
+  const decayDays = Math.max(0, idle - NORMAL_SUCCESS_GRACE_DAYS);
+  return Math.max(0, Math.min(100, rate - decayDays * NORMAL_SUCCESS_DECAY_PER_DAY));
+}
+
 function normalSuccessRows(rows) {
   const byName = new Map();
   rows.forEach((row) => {
@@ -18745,12 +18762,14 @@ function normalSuccessRows(rows) {
     .map((row) => {
       const started = Math.max(0, Number(row.started) || 0);
       const finished = Math.min(started, Math.max(0, Number(row.finished) || 0));
+      const rawSuccessRate = started ? Math.min(100, (finished / started) * 100) : 0;
       return {
         ...row,
         started,
         finished,
-        // Cap na 100% — inače finished>started (npr. 20/19) daje 105.26%.
-        successRate: started ? Math.min(100, (finished / started) * 100) : 0
+        rawSuccessRate,
+        // Ko ne igra — uspešnost opada posle 7 dana (2% po danu).
+        successRate: decayedNormalSuccessRate(rawSuccessRate, row.successRateAt)
       };
     })
     .filter((row) => row.started >= 10);
@@ -19224,7 +19243,7 @@ async function renderHallOfFame() {
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
-      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене обичне партије / започете обичне партије × 100. Улазе играчи са најмање 10 започетих партија."),
+      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Ако играч не игра обичну игру дуже од 7 дана, успешност опада по 2% дневно. Улазе играчи са најмање 10 започетих партија."),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
       medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt", "Броји се број различитих дана у којима је играч имао такмичарски резултат."),
       medalEntry("Најјачи изазов скор", challengeStrongLeaders, (row) => row.best, "", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у валидном изазову. Ако противник преда, не одигра до краја или има мање од 10 одиграних изазова, тај резултат не улази. Када играч више пута оствари исти најбољи скор, приказује се као 30/2, 30/3 и има предност над једним истим скором.", {
