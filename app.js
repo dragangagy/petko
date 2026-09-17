@@ -17058,6 +17058,22 @@ function currentStreakFor(status) {
     expected -= 1;
   }
 
+  // Ako juče postoji finished sa sačuvanim nizom (npr. ručno ili cloud),
+  // nastavi od toga — inače se prikaz MAX(8) i novi upis 1 ne poklapaju.
+  const yesterdayId = (() => {
+    const d = new Date(`${todayId()}T00:00:00`);
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })();
+  const yesterday = previous.find((result) => result.date === yesterdayId && result.status === "finished");
+  if (yesterday) {
+    const prevStreak = Number(yesterday.streak) || 0;
+    if (prevStreak > 0) streak = Math.max(streak, prevStreak + 1);
+  }
+
   return streak;
 }
 
