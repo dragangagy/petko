@@ -7,10 +7,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Петко">
     <title>Петко</title>
-    <link rel="manifest" href="manifest.webmanifest?v=105">
+    <link rel="manifest" href="manifest.webmanifest?v=106">
     <link rel="icon" href="app-icon-store.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon-store.png">
-    <link rel="stylesheet" href="styles.css?v=244">
+    <link rel="stylesheet" href="styles.css?v=246">
   </head>
   <body>
     <div class="petko-splash" id="petkoSplash" role="dialog" aria-label="Петко" aria-modal="true">
@@ -157,6 +157,25 @@
     <div class="petko-mood" id="petkoMood" hidden aria-live="polite">
       <img id="petkoMoodImage" src="petko-mood-hello.png" alt="">
       <span id="petkoMoodText">Здраво!</span>
+    </div>
+
+    <div class="challenge-tiebreak-overlay" id="challengeTiebreakOverlay" hidden aria-live="polite">
+      <article class="challenge-tiebreak-card" role="dialog" aria-modal="true" aria-labelledby="challengeTiebreakTitle">
+        <h2 id="challengeTiebreakTitle">Дуел речи</h2>
+        <p class="challenge-tiebreak-lead" id="challengeTiebreakLead">Нерешено — најдужа валидна реч од 11 слова.</p>
+        <div class="challenge-tiebreak-letters" id="challengeTiebreakLetters" aria-label="Слова за дуел"></div>
+        <div class="challenge-tiebreak-spin-actions" id="challengeTiebreakSpinActions">
+          <button type="button" id="challengeTiebreakStopOne">Заустави једно</button>
+          <button type="button" id="challengeTiebreakStopAll">Заустави сва</button>
+        </div>
+        <div class="challenge-tiebreak-compose" id="challengeTiebreakCompose" hidden>
+          <div class="challenge-tiebreak-timer" id="challengeTiebreakTimer">60</div>
+          <input class="challenge-tiebreak-input" id="challengeTiebreakInput" type="text" autocomplete="off" spellcheck="false" maxlength="11" placeholder="Најдужа реч">
+          <p class="challenge-tiebreak-message" id="challengeTiebreakMessage" aria-live="polite"></p>
+          <button type="button" class="challenge-tiebreak-submit" id="challengeTiebreakSubmit">Пошаљи реч</button>
+        </div>
+        <button type="button" class="challenge-tiebreak-close" id="challengeTiebreakClose">Затвори</button>
+      </article>
     </div>
 
     <div class="challenge-vs" id="challengeVsOverlay" hidden aria-live="polite">
@@ -352,6 +371,6 @@
       </article>
     </div>
 
-  <script src="app.js?v=419"></script>
+  <script src="app.js?v=421"></script>
   </body>
 </html>
