@@ -11505,9 +11505,9 @@ let hallMedals = [];
 let hallMedalIndex = 0;
 let hallTouchStartX = 0;
 let challengeSyncSnapshot = "";
-const CHALLENGE_TIEBREAK_LETTER_COUNT = 11;
+const CHALLENGE_TIEBREAK_LETTER_COUNT = 12;
 const CHALLENGE_TIEBREAK_MAX_WORD_LENGTH = 12;
-const CHALLENGE_TIEBREAK_WORD_SECONDS = 60;
+const CHALLENGE_TIEBREAK_WORD_SECONDS = 90;
 const CHALLENGE_TIEBREAK_FORFEIT = "__FORFEIT__";
 const CHALLENGE_TIEBREAK_SPIN_MS = 90;
 const CHALLENGE_TIEBREAK_STOP_SEQUENCE_MS = 280;
@@ -14280,6 +14280,25 @@ async function updateChallenge(code, patch, sourceRow = null) {
   const row = sourceRow || await fetchChallenge(normalizedCode).catch(() => null);
   let lastError = "Изазов није уписан.";
 
+  const patchKeys = Object.keys(patch || {});
+  const tiebreakPatch = patchKeys.length > 0 && patchKeys.every((key) => (
+    key.startsWith("tiebreak_") || key === "status"
+  ));
+  if (tiebreakPatch) {
+    try {
+      const tiebreakResponse = await fetch(supabaseUrl(`${challengeTable()}?code=eq.${encodeURIComponent(normalizedCode)}`), {
+        method: "PATCH",
+        headers: supabaseJsonHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify(patch)
+      });
+      const updated = await readUpdatedRows(tiebreakResponse);
+      if (updated) return updated;
+      lastError = await supabaseErrorMessage(tiebreakResponse, lastError);
+    } catch (error) {
+      if (error?.message) lastError = error.message;
+    }
+  }
+
   if (row?.creator && Array.isArray(row.words) && row.words.length) {
     const body = {
       code: normalizedCode,
@@ -15207,7 +15226,10 @@ function setTiebreakComposeUi(active) {
   if (active) {
     document.body.dataset.challengeTiebreak = "compose";
     renderKeyboard();
-    requestAnimationFrame(positionKeyboard);
+    requestAnimationFrame(() => {
+      positionKeyboard();
+      if (keyboardEl) keyboardEl.scrollIntoView({ block: "nearest", behavior: "instant" });
+    });
   } else {
     delete document.body.dataset.challengeTiebreak;
   }
@@ -15453,6 +15475,29 @@ async function persistTiebreakLetters(row, role, letters) {
   return updateChallenge(row.code, patch, row);
 }
 
+function queueTiebreakLettersPersist(row, role, letters, attempt = 0) {
+  if (!row?.code || tiebreakSession?.demo) return;
+  const maxAttempts = 5;
+  const delayMs = Math.min(10000, 900 + attempt * 1400);
+  window.setTimeout(() => {
+    persistTiebreakLetters(row, role, letters)
+      .then((updated) => {
+        if (tiebreakSession?.row?.code === row.code) {
+          tiebreakSession.row = updated;
+        }
+      })
+      .catch((error) => {
+        if (attempt + 1 < maxAttempts) {
+          queueTiebreakLettersPersist(row, role, letters, attempt + 1);
+          return;
+        }
+        if (challengeTiebreakMessage && tiebreakComposeActive()) {
+          challengeTiebreakMessage.textContent = error?.message || "Синхронизација слова није успела.";
+        }
+      });
+  }, delayMs);
+}
+
 async function fetchChallengeTiebreakLetters(code) {
   const row = await fetchChallenge(code).catch(() => null);
   const letters = String(row?.tiebreak_letters || "");
@@ -15520,34 +15565,39 @@ async function lockAllTiebreakLetters() {
   tiebreakSession.locked = tiebreakSession.locked.map(() => true);
   renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
   clearTiebreakTimers();
+  const letters = String(tiebreakSession.letters || "");
   if (!tiebreakSession.spinComplete) {
+    tiebreakSession.row = {
+      ...tiebreakSession.row,
+      tiebreak_letters: letters
+    };
+    tiebreakSession.spinComplete = true;
     if (tiebreakSession.demo) {
-      tiebreakSession.row = {
-        ...tiebreakSession.row,
-        tiebreak_letters: tiebreakSession.letters
-      };
-      tiebreakSession.spinComplete = true;
+      // demo — nothing to persist
     } else {
       try {
-        const updated = await persistTiebreakLetters(tiebreakSession.row, tiebreakSession.role, tiebreakSession.letters);
+        const updated = await persistTiebreakLetters(tiebreakSession.row, tiebreakSession.role, letters);
         tiebreakSession.row = updated;
-        tiebreakSession.spinComplete = true;
-      } catch {
-        const fetched = await fetchChallengeTiebreakLetters(tiebreakSession.row.code);
-        if (fetched.letters) {
+      } catch (error) {
+        const fetched = await fetchChallengeTiebreakLetters(tiebreakSession.row.code).catch(() => ({ row: null, letters: "" }));
+        if (fetched.letters?.length === CHALLENGE_TIEBREAK_LETTER_COUNT) {
           tiebreakSession.row = fetched.row || tiebreakSession.row;
           tiebreakSession.letters = fetched.letters;
           tiebreakSession.locked = fetched.letters.split("").map(() => true);
-          tiebreakSession.spinComplete = true;
           renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
-        } else if (challengeTiebreakMessage) {
-          challengeTiebreakMessage.textContent = "Чување слова није успело. Пробај поново.";
-          return;
         }
+        if (challengeTiebreakMessage) {
+          const detail = error?.message ? ` ${error.message}` : "";
+          challengeTiebreakMessage.textContent = `Чување слова није успело.${detail} Играш локално — пробаћемо поново.`;
+        }
+        queueTiebreakLettersPersist(tiebreakSession.row, tiebreakSession.role, letters);
       }
     }
   }
-  beginTiebreakComposePhase(tiebreakSession.row);
+  beginTiebreakComposePhase({
+    ...tiebreakSession.row,
+    tiebreak_letters: tiebreakSession.letters
+  });
 }
 
 async function maybeFinalizeChallengeTiebreak(row) {
@@ -15632,7 +15682,7 @@ async function openChallengeTiebreak(row, role) {
       spinComplete: true
     };
     if (challengeTiebreakLead) {
-      challengeTiebreakLead.textContent = "Исти сет слова — састави најдужу валидну реч за 60 секунди.";
+      challengeTiebreakLead.textContent = `Исти сет слова — састави најдужу валидну реч за ${CHALLENGE_TIEBREAK_WORD_SECONDS} секунди.`;
     }
     renderTiebreakLetterTiles(fetched.letters, tiebreakSession.locked);
     challengeTiebreakSpinActions.hidden = true;
@@ -16147,6 +16197,42 @@ function challengeCard(row, rows = []) {
   const otherPlayer = role === "creator" ? (openInvite ? "нови корисник" : opponent) : creator;
   const pair = openInvite || opponent === "Чека се" ? null : challengePairScore(rows, creator, opponent);
   const awaitingTiebreak = challengeAwaitingTiebreak(row);
+  if (!playedChallenge(row) && awaitingTiebreak) {
+    card.classList.add("tiebreak-compact");
+    const watermark = document.createElement("div");
+    watermark.className = "challenge-card-watermark";
+    watermark.setAttribute("aria-hidden", "true");
+    watermark.textContent = "ДВОБОЈ · ДВОБОЈ · ДВОБОЈ · ДВОБОЈ";
+    card.append(watermark);
+    card.append(createChallengeCardTiebreakVs(row));
+    const countdown = document.createElement("div");
+    countdown.className = "challenge-card-tiebreak-countdown";
+    countdown.textContent = challengeCountdownText(row);
+    card.append(countdown);
+    const actions = document.createElement("div");
+    actions.className = "challenge-card-actions";
+    const canPlayTiebreak = role && !challengeTiebreakSubmitted(row, role);
+    if (canPlayTiebreak) {
+      const play = document.createElement("button");
+      play.type = "button";
+      play.textContent = "Настави изазов";
+      play.addEventListener("click", () => startChallengeTiebreak(row, role).catch((error) => renderChallengePanel(error?.message || "Двобој није отворен.")));
+      actions.append(play);
+      const surrender = document.createElement("button");
+      surrender.type = "button";
+      surrender.className = "challenge-surrender-button";
+      surrender.textContent = "Предај изазов";
+      surrender.addEventListener("click", () => confirmSurrenderChallenge(row));
+      actions.append(surrender);
+    } else if (role && challengeTiebreakSubmitted(row, role)) {
+      const waiting = document.createElement("div");
+      waiting.className = "challenge-card-waiting";
+      waiting.textContent = "Двобој послат. Чека се противник.";
+      actions.append(waiting);
+    }
+    if (actions.children.length) card.append(actions);
+    return card;
+  }
   if (playedChallenge(row)) {
     const resultKey = challengeResultKey(row);
     if (heldChallengeResultKey === resultKey) card.classList.add("show-words");
@@ -16256,9 +16342,7 @@ function challengeCard(row, rows = []) {
   const pendingCountdown = challengePendingCountdownText(row);
   winner.textContent = playedChallenge(row)
     ? `Победник: ${challengeWinnerName(row)} · добија ${formatScore(challengeDifference(row))}`
-    : awaitingTiebreak
-      ? `Нерешено · двобој · зелена карта још ${challengeCountdownText(row)}`
-      : challengeIsActive(row)
+    : challengeIsActive(row)
       ? `Зелена карта важи још ${challengeCountdownText(row)}`
       : isWeekendWitchActive() && challengeIsWitchHuntRow(row)
         ? "Жута карта важи до краја викенда"
@@ -16269,15 +16353,12 @@ function challengeCard(row, rows = []) {
   scores.className = "challenge-card-scores";
   scores.textContent = playedChallenge(row)
     ? `${creator}: ${challengeRowLabel(row, "creator")} | ${opponent}: ${challengeRowLabel(row, "opponent")}`
-    : awaitingTiebreak
-      ? `${creator}: ${challengeRowLabel(row, "creator")} | ${opponent}: ${challengeRowLabel(row, "opponent")}`
     : openInvite && role === "creator"
       ? `Чека се одговор новог корисника · 6 табли · 11 покушаја`
       : openInvite
         ? `Унеси име или надимак за игру · 6 табли · 11 покушаја`
         : `Код: ${row.code || "-"} · 6 табли · 11 покушаја`;
   card.append(title, winner);
-  if (awaitingTiebreak) card.append(createChallengeCardTiebreakVs(row));
   card.append(scores);
   if (!playedChallenge(row)) {
     const actions = document.createElement("div");

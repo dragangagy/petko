@@ -1832,13 +1832,21 @@ body[data-game-type="challenge"]:not([data-challenge-playing="true"]) .word-reve
 
 body[data-challenge-tiebreak="compose"] .keyboard {
   display: grid !important;
-  z-index: 180;
+  z-index: 185;
+  pointer-events: auto;
+  filter: none;
+  opacity: 1;
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-overlay {
   align-items: start;
   padding-top: max(12px, env(safe-area-inset-top));
-  padding-bottom: calc(158px + env(safe-area-inset-bottom));
+  padding-bottom: calc(168px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+
+body[data-challenge-tiebreak="compose"] .challenge-tiebreak-card {
+  max-height: calc(100svh - 180px - env(safe-area-inset-top));
   overflow-y: auto;
 }
 
@@ -3059,6 +3067,70 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.28));
 }
 
+.challenge-card.tiebreak-compact {
+  min-height: 168px;
+  padding: 12px 10px 10px;
+  gap: 8px;
+  align-content: center;
+}
+
+.challenge-card-watermark {
+  position: absolute;
+  inset: -6px;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  opacity: 0.08;
+  color: #22c55e;
+  font-size: clamp(26px, 11vw, 44px);
+  font-weight: 1000;
+  letter-spacing: 0.12em;
+  line-height: 1.05;
+  text-align: center;
+  transform: rotate(-7deg);
+  user-select: none;
+}
+
+.challenge-card.tiebreak-compact > *:not(.challenge-card-watermark):not(.challenge-cancel-button) {
+  position: relative;
+  z-index: 1;
+}
+
+.challenge-card.tiebreak-compact .challenge-card-tiebreak-vs {
+  margin: 0;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+}
+
+.challenge-card.tiebreak-compact .challenge-card-tiebreak-vs .profile-avatar,
+.challenge-card.tiebreak-compact .challenge-card-tiebreak-vs img {
+  width: clamp(76px, 24vw, 104px);
+  height: clamp(76px, 24vw, 104px);
+}
+
+.challenge-card.tiebreak-compact .challenge-card-tiebreak-vs .challenge-tiebreak-vs-mark {
+  width: clamp(44px, 14vw, 56px);
+}
+
+.challenge-card.tiebreak-compact .challenge-card-tiebreak-vs .challenge-tiebreak-side strong {
+  font-size: 11px;
+}
+
+.challenge-card-tiebreak-countdown {
+  justify-self: center;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.challenge-card.tiebreak-compact .challenge-card-actions {
+  margin-top: 2px;
+}
+
 .challenge-tiebreak-overlay {
   position: fixed;
   inset: 0;
@@ -3105,22 +3177,32 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .challenge-tiebreak-letters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 5px;
-  min-height: 44px;
+  align-items: center;
+  gap: clamp(2px, 0.9vw, 5px);
+  min-height: 40px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.challenge-tiebreak-letters::-webkit-scrollbar {
+  display: none;
 }
 
 .challenge-tiebreak-letter {
-  width: 30px;
-  height: 36px;
+  flex: 0 0 auto;
+  width: clamp(22px, 6.8vw, 28px);
+  height: clamp(30px, 8.2vw, 36px);
   display: grid;
   place-items: center;
   border: 1px solid rgba(56, 189, 248, 0.28);
   border-radius: 7px;
   background: rgba(8, 13, 27, 0.72);
   color: var(--cyan);
-  font-size: 16px;
+  font-size: clamp(12px, 3.1vw, 15px);
   font-weight: 950;
   text-transform: uppercase;
 }
