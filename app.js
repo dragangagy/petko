@@ -12454,6 +12454,32 @@ function supabaseJsonHeaders(extra = {}) {
   return supabaseHeaders({ "Content-Type": "application/json", ...extra });
 }
 
+async function supabaseResponseBodyText(response) {
+  if (!response) return "";
+  try {
+    return await response.text();
+  } catch {
+    return "";
+  }
+}
+
+function postgrestSchemaColumnError(text, columnName = "") {
+  const body = String(text || "").toLowerCase();
+  if (!body) return false;
+  const schemaHint = body.includes("column")
+    || body.includes("pgrst204")
+    || body.includes("schema cache")
+    || body.includes("could not find");
+  if (!schemaHint) return false;
+  if (columnName) return body.includes(String(columnName).toLowerCase());
+  return body.includes("tiebreak");
+}
+
+function mergeChallengeRowPatch(row, patch) {
+  if (!row || !patch) return row;
+  return hydrateChallengeRow({ ...row, ...patch });
+}
+
 const CONNECTION_OFFLINE_MESSAGES = [
   "Комшија ти је искључио интернет. Иди куцни на врата.",
   "Чича Јо, упали интернет на телефону! (И на рутеру, ако можеш.)",
@@ -14293,6 +14319,10 @@ async function updateChallenge(code, patch, sourceRow = null) {
       });
       const updated = await readUpdatedRows(tiebreakResponse);
       if (updated) return updated;
+      const tiebreakErrText = await supabaseResponseBodyText(tiebreakResponse);
+      if (row && postgrestSchemaColumnError(tiebreakErrText, "tiebreak_letters")) {
+        return mergeChallengeRowPatch(row, patch);
+      }
       lastError = await supabaseErrorMessage(tiebreakResponse, lastError);
     } catch (error) {
       if (error?.message) lastError = error.message;
@@ -14489,6 +14519,29 @@ const CHALLENGE_HISTORY_COLUMNS = [
   "tiebreak_opponent_word"
 ].join(",");
 
+const CHALLENGE_HISTORY_COLUMNS_LEGACY = [
+  "code",
+  "day",
+  "status",
+  "creator",
+  "creator_device",
+  "opponent",
+  "opponent_device",
+  "accepted_at",
+  "created_at",
+  "words",
+  "creator_score",
+  "creator_attempts",
+  "creator_solved",
+  "creator_played_at",
+  "opponent_score",
+  "opponent_attempts",
+  "opponent_solved",
+  "opponent_played_at",
+  "creator_faction",
+  "opponent_faction"
+].join(",");
+
 function mergeChallengeHistoryRows(rows = []) {
   const byCode = new Map();
   rows.flat().forEach((row) => {
@@ -14515,17 +14568,17 @@ function challengeHistoryOrFilter() {
   return parts.length ? `or=(${parts.join(",")})` : "";
 }
 
-async function fetchChallengeHistoryRequests() {
+async function fetchChallengeHistoryRequests(selectColumns = CHALLENGE_HISTORY_COLUMNS) {
   const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
   const sinceFilter = `created_at=gte.${encodeURIComponent(since)}`;
   const base = [
-    `select=${CHALLENGE_HISTORY_COLUMNS}`,
+    `select=${selectColumns}`,
     sinceFilter,
     "order=created_at.desc",
     "limit=200"
   ];
   const openBase = [
-    `select=${CHALLENGE_HISTORY_COLUMNS}`,
+    `select=${selectColumns}`,
     "order=created_at.desc",
     "limit=100"
   ];
@@ -14550,7 +14603,7 @@ async function fetchChallengeHistoryRequests() {
   );
   if (typedCode) {
     queries.push([
-      `select=${CHALLENGE_HISTORY_COLUMNS}`,
+      `select=${selectColumns}`,
       `code=eq.${encodeURIComponent(typedCode)}`,
       "limit=1"
     ].join("&"));
@@ -14562,10 +14615,23 @@ async function fetchChallengeHistoryRequests() {
 
 async function fetchChallengeHistory() {
   if (!supabaseConfigured()) return [];
-  const responses = await fetchChallengeHistoryRequests().catch(() => []);
+  let responses = await fetchChallengeHistoryRequests().catch(() => []);
+  let needsLegacyColumns = false;
+  for (const response of responses) {
+    if (!response?.ok) {
+      const details = await supabaseResponseBodyText(response);
+      if (postgrestSchemaColumnError(details, "tiebreak_letters")) {
+        needsLegacyColumns = true;
+        break;
+      }
+    }
+  }
+  if (needsLegacyColumns) {
+    responses = await fetchChallengeHistoryRequests(CHALLENGE_HISTORY_COLUMNS_LEGACY).catch(() => []);
+  }
   const payloads = await Promise.all(responses.map(async (response) => {
     if (!response?.ok) {
-      const details = await response.text().catch(() => "");
+      const details = await supabaseResponseBodyText(response);
       console.warn("Petko: challenge history request failed.", response?.status, details);
       return [];
     }
@@ -15492,7 +15558,10 @@ function queueTiebreakLettersPersist(row, role, letters, attempt = 0) {
           return;
         }
         if (challengeTiebreakMessage && tiebreakComposeActive()) {
-          challengeTiebreakMessage.textContent = error?.message || "Синхронизација слова није успела.";
+          const schemaMissing = postgrestSchemaColumnError(error?.message || "", "tiebreak_letters");
+          challengeTiebreakMessage.textContent = schemaMissing
+            ? "Синхронизација чека ALTER (tiebreak_letters). Играш локално."
+            : (error?.message || "Синхронизација слова није успела.");
         }
       });
   }, delayMs);
@@ -15533,7 +15602,7 @@ function beginTiebreakComposePhase(row) {
   if (challengeTiebreakInput) {
     challengeTiebreakInput.value = "";
     challengeTiebreakInput.disabled = false;
-    challengeTiebreakInput.focus();
+    challengeTiebreakInput.blur();
   }
   if (challengeTiebreakSubmit) challengeTiebreakSubmit.hidden = false;
   updateTiebreakInputValidation();
@@ -15587,8 +15656,10 @@ async function lockAllTiebreakLetters() {
           renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
         }
         if (challengeTiebreakMessage) {
-          const detail = error?.message ? ` ${error.message}` : "";
-          challengeTiebreakMessage.textContent = `Чување слова није успело.${detail} Играш локално — пробаћемо поново.`;
+          const schemaMissing = postgrestSchemaColumnError(error?.message || "", "tiebreak_letters");
+          challengeTiebreakMessage.textContent = schemaMissing
+            ? "Колона tiebreak_letters још није у бази — играш локално. Админер: sql/2026-09-23-challenge-tiebreak.sql"
+            : "Чување слова није успело. Играш локално — пробаћемо поново.";
         }
         queueTiebreakLettersPersist(tiebreakSession.row, tiebreakSession.role, letters);
       }
@@ -15747,6 +15818,21 @@ if (typeof window !== "undefined") {
   window.openChallengeTiebreakDemo = openChallengeTiebreakDemo;
 }
 
+function setupChallengeTiebreakInput() {
+  if (!challengeTiebreakInput) return;
+  challengeTiebreakInput.readOnly = true;
+  challengeTiebreakInput.setAttribute("inputmode", "none");
+  challengeTiebreakInput.setAttribute("autocomplete", "off");
+  challengeTiebreakInput.setAttribute("autocapitalize", "off");
+  challengeTiebreakInput.setAttribute("autocorrect", "off");
+  challengeTiebreakInput.setAttribute("enterkeyhint", "done");
+  challengeTiebreakInput.addEventListener("focus", () => {
+    challengeTiebreakInput?.blur();
+  });
+}
+
+setupChallengeTiebreakInput();
+
 challengeTiebreakStop?.addEventListener("click", () => {
   sequenceStopTiebreakLetters().catch(() => {});
 });
@@ -15757,6 +15843,10 @@ challengeTiebreakInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
     submitChallengeTiebreakWord(false).catch(() => {});
+    return;
+  }
+  if (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete") {
+    event.preventDefault();
   }
 });
 
