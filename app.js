@@ -11425,12 +11425,14 @@ const challengeTiebreakOverlay = document.querySelector("#challengeTiebreakOverl
 const challengeTiebreakLead = document.querySelector("#challengeTiebreakLead");
 const challengeTiebreakLetters = document.querySelector("#challengeTiebreakLetters");
 const challengeTiebreakSpinActions = document.querySelector("#challengeTiebreakSpinActions");
-const challengeTiebreakStopOne = document.querySelector("#challengeTiebreakStopOne");
-const challengeTiebreakStopAll = document.querySelector("#challengeTiebreakStopAll");
+const challengeTiebreakStop = document.querySelector("#challengeTiebreakStop");
 const challengeTiebreakCompose = document.querySelector("#challengeTiebreakCompose");
 const challengeTiebreakTimer = document.querySelector("#challengeTiebreakTimer");
 const challengeTiebreakInput = document.querySelector("#challengeTiebreakInput");
+const challengeTiebreakValidate = document.querySelector("#challengeTiebreakValidate");
 const challengeTiebreakMessage = document.querySelector("#challengeTiebreakMessage");
+const challengeTiebreakBest = document.querySelector("#challengeTiebreakBest");
+const challengeTiebreakOpponent = document.querySelector("#challengeTiebreakOpponent");
 const challengeTiebreakSubmit = document.querySelector("#challengeTiebreakSubmit");
 const challengeTiebreakClose = document.querySelector("#challengeTiebreakClose");
 const hallPanelEl = document.querySelector("#hallPanel");
@@ -11508,6 +11510,7 @@ const CHALLENGE_TIEBREAK_MAX_WORD_LENGTH = 12;
 const CHALLENGE_TIEBREAK_WORD_SECONDS = 60;
 const CHALLENGE_TIEBREAK_FORFEIT = "__FORFEIT__";
 const CHALLENGE_TIEBREAK_SPIN_MS = 90;
+const CHALLENGE_TIEBREAK_STOP_SEQUENCE_MS = 280;
 const CHALLENGE_TIEBREAK_ALPHABET = "абвгдђежзијклљмнњопрстћуфхцчџш";
 const TIEBREAK_LEXICON_GZ_URL = "./tiebreak-lexicon.json.gz";
 const TIEBREAK_LEXICON_JSON_URL = "./tiebreak-lexicon.json";
@@ -11518,6 +11521,7 @@ let tiebreakLexiconLoadPromise = null;
 let tiebreakSession = null;
 let tiebreakSpinTimer = 0;
 let tiebreakWordTimer = 0;
+const tiebreakBestWordCache = new Map();
 
 function normalize(text) {
   const latin = {
@@ -14670,9 +14674,9 @@ function challengeRoleStatusLabel(row, role) {
   if (String(row?.tiebreak_status || "").toLowerCase() === "done" && challengeTiebreakSubmitted(row, role)) {
     const word = challengeTiebreakEffectiveWord(row[`tiebreak_${role}_word`]);
     const len = challengeTiebreakEffectiveLength(row[`tiebreak_${role}_word`]);
-    if (len < 0) return "предао дуел";
-    if (word) return `дуел: ${displayWord(word)} (${len})`;
-    return "дуел: без речи";
+    if (len < 0) return "предао двобој";
+    if (word) return `двобој: ${displayWord(word)} (${len})`;
+    return "двобој: без речи";
   }
   if (challengeRoleSurrendered(row, role)) return "предао партију";
   const rawScore = row?.[`${role}_score`];
@@ -14922,6 +14926,21 @@ function challengeWinnerVerb(name = "") {
   return challengeProfileAvatar(name)?.group === "female" ? "Победила" : "Победио";
 }
 
+function challengeTiebreakVictoryLine(name = "") {
+  const avatar = challengeProfileAvatar(name);
+  if (avatar?.group === "female") return `Победила у двобоју · ${name}`;
+  if (avatar?.group === "male") return `Победио у двобоју · ${name}`;
+  return `Победа у двобоју · ${name}`;
+}
+
+function challengeTiebreakLettersKey(letters = "") {
+  const counts = tiebreakLetterCounts(letters);
+  return [...counts.entries()]
+    .sort((left, right) => left[0].localeCompare(right[0], "sr"))
+    .map(([letter, count]) => `${letter}${count}`)
+    .join("");
+}
+
 function challengeWinnerScoreVerb(name = "") {
   return challengeProfileAvatar(name)?.group === "female" ? "Освојила" : "Освојио";
 }
@@ -15155,10 +15174,179 @@ function isValidTiebreakWord(word, letters = "") {
   return tiebreakLexicon().has(clean);
 }
 
+function findBestTiebreakWord(letters = "") {
+  const key = challengeTiebreakLettersKey(letters);
+  if (tiebreakBestWordCache.has(key)) return tiebreakBestWordCache.get(key);
+  let best = "";
+  tiebreakLexicon().forEach((word) => {
+    if (word.length < 2) return;
+    if (best && word.length < best.length) return;
+    if (!wordUsesOnlyTiebreakLetters(word, letters)) return;
+    if (word.length > best.length) {
+      best = word;
+      return;
+    }
+    if (word.length === best.length && word.localeCompare(best, "sr") > 0) best = word;
+  });
+  tiebreakBestWordCache.set(key, best);
+  return best;
+}
+
+function tiebreakComposeActive() {
+  return Boolean(
+    tiebreakSession &&
+    challengeTiebreakOverlay &&
+    !challengeTiebreakOverlay.hidden &&
+    challengeTiebreakCompose &&
+    !challengeTiebreakCompose.hidden &&
+    !tiebreakSession.waiting
+  );
+}
+
+function setTiebreakComposeUi(active) {
+  if (active) {
+    document.body.dataset.challengeTiebreak = "compose";
+    renderKeyboard();
+    requestAnimationFrame(positionKeyboard);
+  } else {
+    delete document.body.dataset.challengeTiebreak;
+  }
+}
+
+function resetTiebreakComposeExtras() {
+  if (challengeTiebreakValidate) {
+    challengeTiebreakValidate.hidden = true;
+    challengeTiebreakValidate.textContent = "";
+    challengeTiebreakValidate.classList.remove("ok", "bad");
+  }
+  if (challengeTiebreakBest) {
+    challengeTiebreakBest.hidden = true;
+    challengeTiebreakBest.textContent = "";
+  }
+  if (challengeTiebreakOpponent) {
+    challengeTiebreakOpponent.hidden = true;
+    challengeTiebreakOpponent.textContent = "";
+  }
+  if (challengeTiebreakSubmit) challengeTiebreakSubmit.disabled = false;
+}
+
+function updateTiebreakInputValidation() {
+  if (!challengeTiebreakValidate || !challengeTiebreakInput) return;
+  const letters = String(tiebreakSession?.row?.tiebreak_letters || tiebreakSession?.letters || "");
+  const word = normalizeLongWord(challengeTiebreakInput.value || "");
+  if (!word) {
+    challengeTiebreakValidate.hidden = true;
+    challengeTiebreakValidate.textContent = "";
+    challengeTiebreakValidate.classList.remove("ok", "bad");
+    return;
+  }
+  const ok = isValidTiebreakWord(word, letters);
+  challengeTiebreakValidate.hidden = false;
+  challengeTiebreakValidate.textContent = ok ? "✓" : "✗";
+  challengeTiebreakValidate.classList.toggle("ok", ok);
+  challengeTiebreakValidate.classList.toggle("bad", !ok);
+}
+
+function showTiebreakBestWordHint(letters = "") {
+  if (!challengeTiebreakBest) return;
+  const best = findBestTiebreakWord(letters);
+  if (!best) {
+    challengeTiebreakBest.hidden = true;
+    challengeTiebreakBest.textContent = "";
+    return;
+  }
+  challengeTiebreakBest.hidden = false;
+  challengeTiebreakBest.textContent = `Најдужа из лексикона: ${displayWord(best)} (${best.length})`;
+}
+
+function tiebreakOtherRole(role) {
+  return role === "creator" ? "opponent" : "creator";
+}
+
+function tiebreakRoleDisplayName(row, role) {
+  if (role === "creator") return row?.creator || "Играч 1";
+  return row?.opponent || "Играч 2";
+}
+
+function tiebreakWordSummary(row, role) {
+  const word = challengeTiebreakEffectiveWord(row?.[`tiebreak_${role}_word`]);
+  const len = challengeTiebreakEffectiveLength(row?.[`tiebreak_${role}_word`]);
+  if (len < 0) return "предао";
+  if (!word) return "без речи (0)";
+  return `${displayWord(word)} (${len})`;
+}
+
+function renderTiebreakWaitingState(row) {
+  if (!tiebreakSession) return;
+  tiebreakSession.waiting = true;
+  tiebreakSession.row = row;
+  clearTiebreakTimers();
+  setTiebreakComposeUi(false);
+  if (challengeTiebreakInput) challengeTiebreakInput.disabled = true;
+  if (challengeTiebreakSubmit) challengeTiebreakSubmit.hidden = true;
+  if (challengeTiebreakTimer) challengeTiebreakTimer.hidden = true;
+  const letters = String(row.tiebreak_letters || tiebreakSession.letters || "");
+  showTiebreakBestWordHint(letters);
+  const other = tiebreakOtherRole(tiebreakSession.role);
+  const meName = tiebreakRoleDisplayName(row, tiebreakSession.role);
+  const otherName = tiebreakRoleDisplayName(row, other);
+  const myWord = tiebreakWordSummary(row, tiebreakSession.role);
+  const otherSubmitted = challengeTiebreakSubmitted(row, other);
+  if (challengeTiebreakOpponent) {
+    if (otherSubmitted) {
+      challengeTiebreakOpponent.hidden = false;
+      challengeTiebreakOpponent.textContent = `${otherName}: ${tiebreakWordSummary(row, other)}`;
+    } else {
+      challengeTiebreakOpponent.hidden = true;
+      challengeTiebreakOpponent.textContent = "";
+    }
+  }
+  if (challengeTiebreakMessage && !(challengeTiebreakSubmitted(row, "creator") && challengeTiebreakSubmitted(row, "opponent"))) {
+    challengeTiebreakMessage.textContent = otherSubmitted
+      ? `${meName}: ${myWord}. ${otherName}: ${tiebreakWordSummary(row, other)}.`
+      : `${meName}: ${myWord}. Чека се ${otherName}.`;
+  }
+  if (challengeTiebreakSubmitted(row, "creator") && challengeTiebreakSubmitted(row, "opponent")) {
+    const winnerRole = challengeTiebreakWinnerRole(row);
+    const winnerName = winnerRole === "creator"
+      ? tiebreakRoleDisplayName(row, "creator")
+      : winnerRole === "opponent"
+        ? tiebreakRoleDisplayName(row, "opponent")
+        : "";
+    if (challengeTiebreakMessage && winnerName) {
+      challengeTiebreakMessage.textContent = challengeTiebreakVictoryLine(winnerName);
+    } else if (challengeTiebreakMessage) {
+      challengeTiebreakMessage.textContent = "Нерешено у двобоју.";
+    }
+    window.setTimeout(async () => {
+      closeChallengeTiebreakOverlay();
+      await renderChallengeResult(row, Number(row?.[`${tiebreakSession.role}_score`] || 0));
+      renderChallengePanel("Двобој завршен. Изазов је одигран.");
+      refreshChallengeLobby().catch(() => {});
+      refreshAvatarAchievements({ popup: true }).catch(() => {});
+    }, 3200);
+  }
+}
+
+function pressTiebreakKey(key) {
+  if (!tiebreakComposeActive() || !challengeTiebreakInput || tiebreakSession?.waiting) return;
+  let value = normalizeLongWord(challengeTiebreakInput.value || "");
+  if (key === "back") {
+    value = value.slice(0, -1);
+  } else if (key === "enter") {
+    submitChallengeTiebreakWord(false).catch(() => {});
+    return;
+  } else if (/^[абвгдђежзијклљмнњопрстћуфхцчџш]$/.test(key) && value.length < CHALLENGE_TIEBREAK_MAX_WORD_LENGTH) {
+    value += key;
+  }
+  challengeTiebreakInput.value = displayWord(value);
+  updateTiebreakInputValidation();
+}
+
 function createChallengeCardTiebreakVs(row) {
   const wrap = document.createElement("div");
   wrap.className = "challenge-card-tiebreak-vs";
-  wrap.setAttribute("aria-label", "Нови дуел речи");
+  wrap.setAttribute("aria-label", "Двобој");
   const creator = row.creator || "Играч 1";
   const opponent = row.opponent || "Играч 2";
   const left = document.createElement("div");
@@ -15196,12 +15384,20 @@ function clearTiebreakTimers() {
 function closeChallengeTiebreakOverlay() {
   clearTiebreakTimers();
   tiebreakSession = null;
+  setTiebreakComposeUi(false);
+  resetTiebreakComposeExtras();
   if (challengeTiebreakOverlay) challengeTiebreakOverlay.hidden = true;
-  if (challengeTiebreakInput) challengeTiebreakInput.value = "";
+  if (challengeTiebreakInput) {
+    challengeTiebreakInput.value = "";
+    challengeTiebreakInput.disabled = false;
+  }
+  if (challengeTiebreakSubmit) challengeTiebreakSubmit.hidden = false;
+  if (challengeTiebreakTimer) challengeTiebreakTimer.hidden = false;
   if (challengeTiebreakMessage) challengeTiebreakMessage.textContent = "";
+  if (challengeTiebreakStop) challengeTiebreakStop.disabled = false;
 }
 
-function renderTiebreakLetterTiles(letters = "", lockedMask = []) {
+function renderTiebreakLetterTiles(letters = "", lockedMask = [], lockingIndex = -1) {
   if (!challengeTiebreakLetters) return;
   challengeTiebreakLetters.innerHTML = "";
   [...String(letters || "")].forEach((letter, index) => {
@@ -15209,6 +15405,7 @@ function renderTiebreakLetterTiles(letters = "", lockedMask = []) {
     tile.className = "challenge-tiebreak-letter";
     tile.textContent = letter.toUpperCase();
     if (lockedMask[index]) tile.classList.add("locked");
+    else if (index === lockingIndex) tile.classList.add("locking");
     else tile.classList.add("spinning");
     challengeTiebreakLetters.append(tile);
   });
@@ -15244,7 +15441,7 @@ function startTiebreakSpinner(letters, lockedMask) {
 async function persistTiebreakLetters(row, role, letters) {
   const cleanLetters = String(letters || "");
   if (cleanLetters.length !== CHALLENGE_TIEBREAK_LETTER_COUNT) {
-    throw new Error("Недостају слова за дуел.");
+    throw new Error("Недостају слова за двобој.");
   }
   const patch = {
     tiebreak_letters: cleanLetters,
@@ -15265,14 +15462,20 @@ async function fetchChallengeTiebreakLetters(code) {
 
 function beginTiebreakComposePhase(row) {
   if (!challengeTiebreakCompose || !challengeTiebreakSpinActions) return;
+  tiebreakSession.waiting = false;
   challengeTiebreakSpinActions.hidden = true;
   challengeTiebreakCompose.hidden = false;
+  resetTiebreakComposeExtras();
   if (challengeTiebreakLead) {
-    challengeTiebreakLead.textContent = `Састави најдужу реч од: ${[...String(row.tiebreak_letters || "")].join(" ").toUpperCase()}`;
+    challengeTiebreakLead.textContent = `Састави најдужу реч од: ${[...String(row.tiebreak_letters || tiebreakSession?.letters || "")].join(" ").toUpperCase()}`;
   }
   let remaining = CHALLENGE_TIEBREAK_WORD_SECONDS;
-  if (challengeTiebreakTimer) challengeTiebreakTimer.textContent = String(remaining);
+  if (challengeTiebreakTimer) {
+    challengeTiebreakTimer.hidden = false;
+    challengeTiebreakTimer.textContent = String(remaining);
+  }
   clearTiebreakTimers();
+  setTiebreakComposeUi(true);
   tiebreakWordTimer = window.setInterval(() => {
     remaining -= 1;
     if (challengeTiebreakTimer) challengeTiebreakTimer.textContent = String(Math.max(0, remaining));
@@ -15284,20 +15487,32 @@ function beginTiebreakComposePhase(row) {
   }, 1000);
   if (challengeTiebreakInput) {
     challengeTiebreakInput.value = "";
+    challengeTiebreakInput.disabled = false;
     challengeTiebreakInput.focus();
   }
+  if (challengeTiebreakSubmit) challengeTiebreakSubmit.hidden = false;
+  updateTiebreakInputValidation();
 }
 
-async function lockNextTiebreakLetter() {
-  if (!tiebreakSession) return false;
-  const index = tiebreakSession.locked.findIndex((locked) => !locked);
-  if (index < 0) return false;
-  tiebreakSession.locked[index] = true;
-  renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
-  if (!tiebreakSpinningIndices(tiebreakSession.locked).length) {
+async function sequenceStopTiebreakLetters() {
+  if (!tiebreakSession || tiebreakSession.stopping) return;
+  const pending = tiebreakSpinningIndices(tiebreakSession.locked);
+  if (!pending.length) {
     await lockAllTiebreakLetters();
+    return;
   }
-  return true;
+  tiebreakSession.stopping = true;
+  if (challengeTiebreakStop) challengeTiebreakStop.disabled = true;
+  clearTiebreakTimers();
+  for (const index of pending) {
+    renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked, index);
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    tiebreakSession.locked[index] = true;
+    renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
+    await new Promise((resolve) => window.setTimeout(resolve, CHALLENGE_TIEBREAK_STOP_SEQUENCE_MS));
+  }
+  tiebreakSession.stopping = false;
+  await lockAllTiebreakLetters();
 }
 
 async function lockAllTiebreakLetters() {
@@ -15348,10 +15563,11 @@ async function maybeFinalizeChallengeTiebreak(row) {
 
 async function submitChallengeTiebreakWord(timedOut = false) {
   if (!tiebreakSession?.row?.code || !tiebreakSession.role) return;
+  if (tiebreakSession.waiting) return;
   const row = tiebreakSession.row;
   const role = tiebreakSession.role;
   if (challengeTiebreakSubmitted(row, role)) {
-    closeChallengeTiebreakOverlay();
+    renderTiebreakWaitingState(row);
     return;
   }
   const letters = String(row.tiebreak_letters || tiebreakSession.letters || "");
@@ -15361,10 +15577,12 @@ async function submitChallengeTiebreakWord(timedOut = false) {
     if (challengeTiebreakMessage) {
       challengeTiebreakMessage.textContent = "Реч није у лексикону или не може од ових слова.";
     }
+    updateTiebreakInputValidation();
     return;
   }
   if (tiebreakSession.demo) {
     clearTiebreakTimers();
+    setTiebreakComposeUi(false);
     const len = word.length;
     const msg = timedOut && !word
       ? "Демо: време је истекло — без речи (0 слова)."
@@ -15372,7 +15590,7 @@ async function submitChallengeTiebreakWord(timedOut = false) {
         ? `Демо: ${displayWord(word)} — ${len} ${len === 1 ? "слово" : "слова"}.`
         : "Демо: празан одговор (0 слова).";
     if (challengeTiebreakMessage) challengeTiebreakMessage.textContent = msg;
-    window.alert(msg);
+    showTiebreakBestWordHint(letters);
     return;
   }
   clearTiebreakTimers();
@@ -15380,13 +15598,17 @@ async function submitChallengeTiebreakWord(timedOut = false) {
   try {
     let updated = await updateChallenge(row.code, patch, row);
     updated = await maybeFinalizeChallengeTiebreak(updated);
-    closeChallengeTiebreakOverlay();
-    await renderChallengeResult(updated, Number(updated?.[`${role}_score`] || 0));
-    renderChallengePanel(updated?.status === "played"
-      ? "Дуел речи завршен. Изазов је одигран."
-      : "Реч послата. Чека се противник.");
+    if (updated?.status === "played") {
+      closeChallengeTiebreakOverlay();
+      await renderChallengeResult(updated, Number(updated?.[`${role}_score`] || 0));
+      renderChallengePanel("Двобој завршен. Изазов је одигран.");
+      refreshChallengeLobby().catch(() => {});
+      refreshAvatarAchievements({ popup: true }).catch(() => {});
+      return;
+    }
+    renderTiebreakWaitingState(updated);
+    renderChallengePanel("Реч послата. Чека се противник у двобоју.");
     refreshChallengeLobby().catch(() => {});
-    refreshAvatarAchievements({ popup: true }).catch(() => {});
   } catch {
     if (challengeTiebreakMessage) challengeTiebreakMessage.textContent = "Снимање није успело. Пробај поново.";
   }
@@ -15396,7 +15618,7 @@ async function openChallengeTiebreak(row, role) {
   if (!challengeTiebreakOverlay || !row?.code || !role) return;
   await ensureTiebreakLexicon().catch(() => {});
   if (challengeTiebreakSubmitted(row, role)) {
-    renderChallengePanel("Већ си одиграо/ла дуел речи. Чека се противник.");
+    renderChallengePanel("Већ си одиграо/ла двобој. Чека се противник.");
     return;
   }
   const fetched = await fetchChallengeTiebreakLetters(row.code);
@@ -15420,7 +15642,7 @@ async function openChallengeTiebreak(row, role) {
     return;
   }
   openChallengeTiebreakSpinUi(generateTiebreakLetters(), {
-    leadText: "Заустави слова једно по једно или сва одједном.",
+    leadText: "Притисни Заустави — слова стају једно по једно, па креће одбројавање.",
     demo: false,
     row: prepared,
     role
@@ -15454,7 +15676,7 @@ async function openChallengeTiebreakDemo() {
   if (!challengeTiebreakOverlay) return;
   await ensureTiebreakLexicon().catch(() => {});
   openChallengeTiebreakSpinUi(generateTiebreakLetters(), {
-    leadText: "Демо — заустави слова једно по једно или сва одједном.",
+    leadText: "Демо двобоја — Заустави слова једно по једно, па унеси најдужу реч.",
     demo: true
   });
 }
@@ -15475,10 +15697,12 @@ if (typeof window !== "undefined") {
   window.openChallengeTiebreakDemo = openChallengeTiebreakDemo;
 }
 
-challengeTiebreakStopOne?.addEventListener("click", () => lockNextTiebreakLetter());
-challengeTiebreakStopAll?.addEventListener("click", () => lockAllTiebreakLetters());
+challengeTiebreakStop?.addEventListener("click", () => {
+  sequenceStopTiebreakLetters().catch(() => {});
+});
 challengeTiebreakSubmit?.addEventListener("click", () => submitChallengeTiebreakWord(false).catch(() => {}));
 challengeTiebreakClose?.addEventListener("click", () => closeChallengeTiebreakOverlay());
+challengeTiebreakInput?.addEventListener("input", () => updateTiebreakInputValidation());
 challengeTiebreakInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -15940,10 +16164,15 @@ function challengeCard(row, rows = []) {
     if (winnerRole === "tie") {
       outcome.textContent = "Нерешено";
     } else {
+      const tiebreakDone = String(row?.tiebreak_status || "").toLowerCase() === "done";
       const winnerLine = document.createElement("div");
-      winnerLine.textContent = `${challengeWinnerVerb(winnerName)} ${winnerName}`;
+      winnerLine.textContent = tiebreakDone
+        ? challengeTiebreakVictoryLine(winnerName)
+        : `${challengeWinnerVerb(winnerName)} ${winnerName}`;
       const scoreLine = document.createElement("div");
-      scoreLine.textContent = `${challengeWinnerScoreVerb(winnerName)} ${formatScore(challengeDifference(row))} бодова`;
+      scoreLine.textContent = tiebreakDone
+        ? `Разлика ${formatScore(challengeDifference(row))} слова у двобоју`
+        : `${challengeWinnerScoreVerb(winnerName)} ${formatScore(challengeDifference(row))} бодова`;
       outcome.append(winnerLine, scoreLine);
     }
     const lines = document.createElement("div");
@@ -16028,7 +16257,7 @@ function challengeCard(row, rows = []) {
   winner.textContent = playedChallenge(row)
     ? `Победник: ${challengeWinnerName(row)} · добија ${formatScore(challengeDifference(row))}`
     : awaitingTiebreak
-      ? `Нерешено · дуел речи · зелена карта још ${challengeCountdownText(row)}`
+      ? `Нерешено · двобој · зелена карта још ${challengeCountdownText(row)}`
       : challengeIsActive(row)
       ? `Зелена карта важи још ${challengeCountdownText(row)}`
       : isWeekendWitchActive() && challengeIsWitchHuntRow(row)
@@ -16077,7 +16306,7 @@ function challengeCard(row, rows = []) {
       const play = document.createElement("button");
       play.type = "button";
       play.textContent = "Настави изазов";
-      play.addEventListener("click", () => startChallengeTiebreak(row, role).catch((error) => renderChallengePanel(error?.message || "Дуел речи није отворен.")));
+      play.addEventListener("click", () => startChallengeTiebreak(row, role).catch((error) => renderChallengePanel(error?.message || "Двобој није отворен.")));
       actions.append(play);
       const surrender = document.createElement("button");
       surrender.type = "button";
@@ -16100,7 +16329,7 @@ function challengeCard(row, rows = []) {
     } else if (awaitingTiebreak && role && challengeTiebreakSubmitted(row, role)) {
       const waiting = document.createElement("div");
       waiting.className = "challenge-card-waiting";
-      waiting.textContent = "Дуел речи послат. Чека се противник.";
+      waiting.textContent = "Двобој послат. Чека се противник.";
       actions.append(waiting);
     } else if (challengeIsActive(row) && role && challengeAlreadyPlayed(row, role)) {
       const waiting = document.createElement("div");
@@ -16770,7 +16999,7 @@ async function finishChallenge(status) {
     const tiebreakPending = challengeAwaitingTiebreak(row);
     renderChallengePanel(
       tiebreakPending
-        ? `Нерешено (${solvedCount}/6, скор ${resultScore}). Настави зелену карту — дуел речи.`
+        ? `Нерешено (${solvedCount}/6, скор ${resultScore}). Настави зелену карту — двобој.`
         : status === "finished"
           ? `Изазов завршен: ${solvedCount}/6, скор ${resultScore}.`
           : `Изазов одигран: ${solvedCount}/6, скор ${resultScore}.`
@@ -18908,6 +19137,10 @@ function positionKeyboard() {
 }
 
 function pressKey(key) {
+  if (tiebreakComposeActive()) {
+    pressTiebreakKey(key);
+    return;
+  }
   if (done) return;
   if (key === "back") {
     current = current.slice(0, -1);
