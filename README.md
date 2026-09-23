@@ -39,6 +39,18 @@ const SUPABASE_CONFIG = {
 
 Without these values the app uses local results only.
 
+### Challenge tiebreak lexicon
+
+Words for the challenge **дуел речи** (length 2–12) come from `tiebreak-lexicon.json`, built offline — not from `public.words`.
+
+```bash
+node scripts/build-tiebreak-lexicon.js
+```
+
+Default source: [turanjanin/spisak-srpskih-reci](https://github.com/turanjanin/spisak-srpskih-reci) (`serbian-words.txt`, Cyrillic). See that repo’s `LICENSE.md`. Hunspell/LibreOffice `.dic` works with `--dic=...`.
+
+The app loads the JSON lazily (`ensureTiebreakLexicon`) with an in-memory bootstrap from the embedded 5-letter deck until fetch completes.
+
 `players` keeps one row per nickname. `scores` stays as the result history, so old scores are not deleted when a player has multiple played days.
 
 `scores.score` stores the daily score. The seasonal leaderboard is calculated in the app:

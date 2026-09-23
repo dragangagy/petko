@@ -11504,11 +11504,17 @@ let hallMedalIndex = 0;
 let hallTouchStartX = 0;
 let challengeSyncSnapshot = "";
 const CHALLENGE_TIEBREAK_LETTER_COUNT = 11;
+const CHALLENGE_TIEBREAK_MAX_WORD_LENGTH = 12;
 const CHALLENGE_TIEBREAK_WORD_SECONDS = 60;
 const CHALLENGE_TIEBREAK_FORFEIT = "__FORFEIT__";
 const CHALLENGE_TIEBREAK_SPIN_MS = 90;
 const CHALLENGE_TIEBREAK_ALPHABET = "абвгдђежзијклљмнњопрстћуфхцчџш";
+const TIEBREAK_LEXICON_GZ_URL = "./tiebreak-lexicon.json.gz";
+const TIEBREAK_LEXICON_JSON_URL = "./tiebreak-lexicon.json";
+const TIEBREAK_LEXICON_VERSION = 2;
+const TIEBREAK_LEXICON_STORAGE_KEY = "petko-tiebreak-lexicon-v1";
 let tiebreakLexiconSet = null;
+let tiebreakLexiconLoadPromise = null;
 let tiebreakSession = null;
 let tiebreakSpinTimer = 0;
 let tiebreakWordTimer = 0;
@@ -11555,7 +11561,7 @@ function normalize(text) {
     .slice(0, WORD_LENGTH);
 }
 
-function normalizeLongWord(text, maxLen = CHALLENGE_TIEBREAK_LETTER_COUNT) {
+function normalizeLongWord(text, maxLen = CHALLENGE_TIEBREAK_MAX_WORD_LENGTH) {
   const latin = {
     a: "а", b: "б", c: "ц", č: "ч", ć: "ћ", d: "д", đ: "ђ", e: "е", f: "ф", g: "г", h: "х", i: "и",
     j: "ј", k: "к", l: "л", m: "м", n: "н", o: "о", p: "п", r: "р", s: "с", š: "ш", t: "т", u: "у",
@@ -15033,14 +15039,80 @@ function challengeTiebreakWinnerRole(row) {
   return "tie";
 }
 
-function tiebreakLexicon() {
-  if (tiebreakLexiconSet) return tiebreakLexiconSet;
-  tiebreakLexiconSet = new Set(WORDS);
+function buildBootstrapTiebreakLexicon() {
+  const set = new Set();
+  WORDS.forEach((word) => {
+    const clean = normalizeLongWord(word);
+    if (clean.length >= 2 && clean.length <= CHALLENGE_TIEBREAK_MAX_WORD_LENGTH) set.add(clean);
+  });
   Object.keys(WORD_INFO).forEach((word) => {
     const clean = normalizeLongWord(word);
-    if (clean.length >= 2) tiebreakLexiconSet.add(clean);
+    if (clean.length >= 2 && clean.length <= CHALLENGE_TIEBREAK_MAX_WORD_LENGTH) set.add(clean);
   });
+  return set;
+}
+
+function mergeTiebreakLexiconWords(words) {
+  if (!Array.isArray(words)) return;
+  words.forEach((entry) => {
+    const clean = typeof entry === "string" ? entry : normalizeLongWord(entry);
+    if (clean.length >= 2 && clean.length <= CHALLENGE_TIEBREAK_MAX_WORD_LENGTH) {
+      tiebreakLexicon().add(clean);
+    }
+  });
+}
+
+function tiebreakLexicon() {
+  if (!tiebreakLexiconSet) tiebreakLexiconSet = buildBootstrapTiebreakLexicon();
   return tiebreakLexiconSet;
+}
+
+async function fetchTiebreakLexiconWords() {
+  if (typeof DecompressionStream !== "undefined") {
+    try {
+      const gzResponse = await fetch(TIEBREAK_LEXICON_GZ_URL, { cache: "no-cache" });
+      if (gzResponse.ok) {
+        const stream = gzResponse.body.pipeThrough(new DecompressionStream("gzip"));
+        const text = await new Response(stream).text();
+        const words = JSON.parse(text);
+        if (Array.isArray(words)) return words;
+      }
+    } catch {}
+  }
+  const jsonResponse = await fetch(TIEBREAK_LEXICON_JSON_URL, { cache: "no-cache" });
+  if (!jsonResponse.ok) return null;
+  const words = await jsonResponse.json();
+  return Array.isArray(words) ? words : null;
+}
+
+async function ensureTiebreakLexicon() {
+  tiebreakLexicon();
+  if (tiebreakLexiconLoadPromise) return tiebreakLexiconLoadPromise;
+  tiebreakLexiconLoadPromise = (async () => {
+    try {
+      const cached = localStorage.getItem(TIEBREAK_LEXICON_STORAGE_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed?.v === TIEBREAK_LEXICON_VERSION && Array.isArray(parsed.words)) {
+            mergeTiebreakLexiconWords(parsed.words);
+          }
+        } catch {}
+      }
+      const words = await fetchTiebreakLexiconWords();
+      if (!words?.length) return;
+      mergeTiebreakLexiconWords(words);
+      if (words.length > 0 && words.length < 200000) {
+        try {
+          localStorage.setItem(
+            TIEBREAK_LEXICON_STORAGE_KEY,
+            JSON.stringify({ v: TIEBREAK_LEXICON_VERSION, words })
+          );
+        } catch {}
+      }
+    } catch {}
+  })();
+  return tiebreakLexiconLoadPromise;
 }
 
 function randomTiebreakLetter() {
@@ -15078,7 +15150,7 @@ function wordUsesOnlyTiebreakLetters(word, letters = "") {
 
 function isValidTiebreakWord(word, letters = "") {
   const clean = normalizeLongWord(word);
-  if (clean.length < 2) return false;
+  if (clean.length < 2 || clean.length > CHALLENGE_TIEBREAK_MAX_WORD_LENGTH) return false;
   if (!wordUsesOnlyTiebreakLetters(clean, letters)) return false;
   return tiebreakLexicon().has(clean);
 }
@@ -15302,6 +15374,7 @@ async function submitChallengeTiebreakWord(timedOut = false) {
 
 async function openChallengeTiebreak(row, role) {
   if (!challengeTiebreakOverlay || !row?.code || !role) return;
+  await ensureTiebreakLexicon().catch(() => {});
   if (challengeTiebreakSubmitted(row, role)) {
     renderChallengePanel("Већ си одиграо/ла дуел речи. Чека се противник.");
     return;

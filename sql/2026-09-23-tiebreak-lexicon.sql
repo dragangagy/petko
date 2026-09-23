@@ -1,0 +1,7 @@
+-- Petko tiebreak lexicon: client-side JSON only (tiebreak-lexicon.json).
+-- Do NOT bulk-insert into public.words — that would break the 5-letter game.
+-- Generated: 2026-09-23T15:51:14.844Z
+-- Word count: 2119675, JSON size: ~42.84 MB
+-- Optional (only if count < ~200k):
+-- CREATE TABLE IF NOT EXISTS public.tiebreak_lexicon (word text PRIMARY KEY);
+-- \copy public.tiebreak_lexicon(word) FROM 'tiebreak-lexicon.json' WITH (FORMAT text);
