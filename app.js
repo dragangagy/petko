@@ -15306,21 +15306,29 @@ async function lockAllTiebreakLetters() {
   renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
   clearTiebreakTimers();
   if (!tiebreakSession.spinComplete) {
-    try {
-      const updated = await persistTiebreakLetters(tiebreakSession.row, tiebreakSession.role, tiebreakSession.letters);
-      tiebreakSession.row = updated;
+    if (tiebreakSession.demo) {
+      tiebreakSession.row = {
+        ...tiebreakSession.row,
+        tiebreak_letters: tiebreakSession.letters
+      };
       tiebreakSession.spinComplete = true;
-    } catch {
-      const fetched = await fetchChallengeTiebreakLetters(tiebreakSession.row.code);
-      if (fetched.letters) {
-        tiebreakSession.row = fetched.row || tiebreakSession.row;
-        tiebreakSession.letters = fetched.letters;
-        tiebreakSession.locked = fetched.letters.split("").map(() => true);
+    } else {
+      try {
+        const updated = await persistTiebreakLetters(tiebreakSession.row, tiebreakSession.role, tiebreakSession.letters);
+        tiebreakSession.row = updated;
         tiebreakSession.spinComplete = true;
-        renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
-      } else if (challengeTiebreakMessage) {
-        challengeTiebreakMessage.textContent = "Чување слова није успело. Пробај поново.";
-        return;
+      } catch {
+        const fetched = await fetchChallengeTiebreakLetters(tiebreakSession.row.code);
+        if (fetched.letters) {
+          tiebreakSession.row = fetched.row || tiebreakSession.row;
+          tiebreakSession.letters = fetched.letters;
+          tiebreakSession.locked = fetched.letters.split("").map(() => true);
+          tiebreakSession.spinComplete = true;
+          renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
+        } else if (challengeTiebreakMessage) {
+          challengeTiebreakMessage.textContent = "Чување слова није успело. Пробај поново.";
+          return;
+        }
       }
     }
   }
@@ -15346,13 +15354,25 @@ async function submitChallengeTiebreakWord(timedOut = false) {
     closeChallengeTiebreakOverlay();
     return;
   }
-  const letters = String(row.tiebreak_letters || "");
+  const letters = String(row.tiebreak_letters || tiebreakSession.letters || "");
   let word = normalizeLongWord(challengeTiebreakInput?.value || "");
   if (timedOut && !word) word = "";
   if (word && !isValidTiebreakWord(word, letters)) {
     if (challengeTiebreakMessage) {
       challengeTiebreakMessage.textContent = "Реч није у лексикону или не може од ових слова.";
     }
+    return;
+  }
+  if (tiebreakSession.demo) {
+    clearTiebreakTimers();
+    const len = word.length;
+    const msg = timedOut && !word
+      ? "Демо: време је истекло — без речи (0 слова)."
+      : word
+        ? `Демо: ${displayWord(word)} — ${len} ${len === 1 ? "слово" : "слова"}.`
+        : "Демо: празан одговор (0 слова).";
+    if (challengeTiebreakMessage) challengeTiebreakMessage.textContent = msg;
+    window.alert(msg);
     return;
   }
   clearTiebreakTimers();
@@ -15399,17 +15419,30 @@ async function openChallengeTiebreak(row, role) {
     beginTiebreakComposePhase(prepared);
     return;
   }
-  const letters = generateTiebreakLetters();
-  tiebreakSession = {
+  openChallengeTiebreakSpinUi(generateTiebreakLetters(), {
+    leadText: "Заустави слова једно по једно или сва одједном.",
+    demo: false,
     row: prepared,
+    role
+  });
+}
+
+async function startChallengeTiebreak(row, role) {
+  await openChallengeTiebreak(row, role);
+}
+
+function openChallengeTiebreakSpinUi(letters, { leadText = "", demo = false, row = null, role = "creator" } = {}) {
+  if (!challengeTiebreakOverlay) return;
+  tiebreakSession = {
+    row: row || { code: "__TIEBREAK_DEMO__", tiebreak_letters: "" },
     role,
     letters,
     locked: Array(CHALLENGE_TIEBREAK_LETTER_COUNT).fill(false),
-    spinComplete: false
+    spinComplete: false,
+    demo: Boolean(demo)
   };
-  if (challengeTiebreakLead) {
-    challengeTiebreakLead.textContent = "Заустави слова једно по једно или сва одједном.";
-  }
+  if (challengeTiebreakLead) challengeTiebreakLead.textContent = leadText;
+  if (challengeTiebreakMessage) challengeTiebreakMessage.textContent = demo ? "Преглед (демо) — ништа се не шаље у базу." : "";
   renderTiebreakLetterTiles(letters, tiebreakSession.locked);
   challengeTiebreakSpinActions.hidden = false;
   challengeTiebreakCompose.hidden = true;
@@ -15417,8 +15450,29 @@ async function openChallengeTiebreak(row, role) {
   startTiebreakSpinner(letters, tiebreakSession.locked);
 }
 
-async function startChallengeTiebreak(row, role) {
-  await openChallengeTiebreak(row, role);
+async function openChallengeTiebreakDemo() {
+  if (!challengeTiebreakOverlay) return;
+  await ensureTiebreakLexicon().catch(() => {});
+  openChallengeTiebreakSpinUi(generateTiebreakLetters(), {
+    leadText: "Демо — заустави слова једно по једно или сва одједном.",
+    demo: true
+  });
+}
+
+function tiebreakDemoFromQuery() {
+  return new URLSearchParams(window.location.search).get("tiebreakDemo") === "1";
+}
+
+function bootTiebreakDemoIfRequested() {
+  if (!tiebreakDemoFromQuery()) return;
+  if (petkoSplash) petkoSplash.hidden = true;
+  window.setTimeout(() => {
+    openChallengeTiebreakDemo().catch(() => {});
+  }, 0);
+}
+
+if (typeof window !== "undefined") {
+  window.openChallengeTiebreakDemo = openChallengeTiebreakDemo;
 }
 
 challengeTiebreakStopOne?.addEventListener("click", () => lockNextTiebreakLetter());
@@ -20793,6 +20847,7 @@ async function hydrateAndMaybeResume({ force = false, resume = false } = {}) {
 }
 
 async function bootPetkoApp() {
+  bootTiebreakDemoIfRequested();
   loadOnlineWords();
   syncWeekendWitchAvatarState();
   weekendWitchChallengeBonus();
