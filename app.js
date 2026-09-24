@@ -11514,6 +11514,10 @@ const CHALLENGE_TIEBREAK_FORFEIT = "__FORFEIT__";
 const CHALLENGE_TIEBREAK_SPIN_MS = 90;
 const CHALLENGE_TIEBREAK_STOP_SEQUENCE_MS = 280;
 const CHALLENGE_TIEBREAK_ALPHABET = "абвгдђежзијклљмнњопрстћуфхцчџш";
+const CHALLENGE_TIEBREAK_VOWELS = "аеиоу";
+const CHALLENGE_TIEBREAK_MIN_VOWELS = 3;
+const CHALLENGE_TIEBREAK_MAX_VOWELS = 5;
+const CHALLENGE_TIEBREAK_COMMON_CONSONANTS = "рнтслквдмпјзбг";
 const TIEBREAK_LEXICON_GZ_URL = "./tiebreak-lexicon.json.gz";
 const TIEBREAK_LEXICON_JSON_URL = "./tiebreak-lexicon.json";
 const TIEBREAK_LEXICON_VERSION = 2;
@@ -15226,7 +15230,43 @@ function randomTiebreakLetter() {
   return CHALLENGE_TIEBREAK_ALPHABET[index] || "а";
 }
 
+function randomIntInclusive(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function pickWeightedTiebreakLetter(pool, counts, maxRepeat) {
+  const available = pool.filter(([letter]) => (counts.get(letter) || 0) < maxRepeat);
+  const total = available.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = Math.random() * total;
+  for (const [letter, weight] of available) {
+    roll -= weight;
+    if (roll < 0) return letter;
+  }
+  return available[available.length - 1][0];
+}
+
 function generateTiebreakLetters() {
+  const vowelCount = randomIntInclusive(CHALLENGE_TIEBREAK_MIN_VOWELS, CHALLENGE_TIEBREAK_MAX_VOWELS);
+  const vowelPool = [...CHALLENGE_TIEBREAK_VOWELS].map((letter) => [letter, 1]);
+  const consonantPool = [...CHALLENGE_TIEBREAK_ALPHABET]
+    .filter((letter) => !CHALLENGE_TIEBREAK_VOWELS.includes(letter))
+    .map((letter) => [letter, CHALLENGE_TIEBREAK_COMMON_CONSONANTS.includes(letter) ? 5 : 1]);
+  const counts = new Map();
+  const chars = [];
+  for (let index = 0; index < CHALLENGE_TIEBREAK_LETTER_COUNT; index += 1) {
+    const pool = index < vowelCount ? vowelPool : consonantPool;
+    const letter = pickWeightedTiebreakLetter(pool, counts, 2);
+    counts.set(letter, (counts.get(letter) || 0) + 1);
+    chars.push(letter);
+  }
+  for (let index = chars.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [chars[index], chars[swap]] = [chars[swap], chars[index]];
+  }
+  return chars.join("");
+}
+
+function randomTiebreakSpinLetters() {
   let letters = "";
   for (let index = 0; index < CHALLENGE_TIEBREAK_LETTER_COUNT; index += 1) {
     letters += randomTiebreakLetter();
@@ -15676,8 +15716,16 @@ async function sequenceStopTiebreakLetters() {
   if (challengeTiebreakStop) challengeTiebreakStop.disabled = true;
   clearTiebreakTimers();
   for (const index of pending) {
+    if (!tiebreakSession) return;
     renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked, index);
     await new Promise((resolve) => window.setTimeout(resolve, 120));
+    if (!tiebreakSession) return;
+    const target = [...String(tiebreakSession.targetLetters || "")];
+    if (target[index]) {
+      const chars = [...String(tiebreakSession.letters || "")];
+      chars[index] = target[index];
+      tiebreakSession.letters = chars.join("");
+    }
     tiebreakSession.locked[index] = true;
     renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
     await new Promise((resolve) => window.setTimeout(resolve, CHALLENGE_TIEBREAK_STOP_SEQUENCE_MS));
@@ -15688,6 +15736,9 @@ async function sequenceStopTiebreakLetters() {
 
 async function lockAllTiebreakLetters() {
   if (!tiebreakSession) return;
+  if (!tiebreakSession.spinComplete && tiebreakSession.targetLetters?.length === CHALLENGE_TIEBREAK_LETTER_COUNT) {
+    tiebreakSession.letters = tiebreakSession.targetLetters;
+  }
   tiebreakSession.locked = tiebreakSession.locked.map(() => true);
   renderTiebreakLetterTiles(tiebreakSession.letters, tiebreakSession.locked);
   clearTiebreakTimers();
@@ -15831,12 +15882,14 @@ async function startChallengeTiebreak(row, role) {
   await openChallengeTiebreak(row, role);
 }
 
-function openChallengeTiebreakSpinUi(letters, { leadText = "", demo = false, row = null, role = "creator" } = {}) {
+function openChallengeTiebreakSpinUi(targetLetters, { leadText = "", demo = false, row = null, role = "creator" } = {}) {
   if (!challengeTiebreakOverlay) return;
+  const letters = randomTiebreakSpinLetters();
   tiebreakSession = {
     row: row || { code: "__TIEBREAK_DEMO__", tiebreak_letters: "" },
     role,
     letters,
+    targetLetters,
     locked: Array(CHALLENGE_TIEBREAK_LETTER_COUNT).fill(false),
     spinComplete: false,
     demo: Boolean(demo)
