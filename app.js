@@ -11435,6 +11435,8 @@ const challengeTiebreakBest = document.querySelector("#challengeTiebreakBest");
 const challengeTiebreakOpponent = document.querySelector("#challengeTiebreakOpponent");
 const challengeTiebreakSubmit = document.querySelector("#challengeTiebreakSubmit");
 const challengeTiebreakClose = document.querySelector("#challengeTiebreakClose");
+const challengeTiebreakKeyboardSlot = document.querySelector("#challengeTiebreakKeyboardSlot");
+let tiebreakKeyboardHome = null;
 const hallPanelEl = document.querySelector("#hallPanel");
 const hallCarouselEl = document.querySelector("#hallCarousel");
 const hallGridEl = document.querySelector("#hallGrid");
@@ -15288,16 +15290,69 @@ function tiebreakComposeActive() {
   );
 }
 
+function tiebreakKeyboardDocked() {
+  return Boolean(keyboardEl && challengeTiebreakKeyboardSlot && keyboardEl.parentNode === challengeTiebreakKeyboardSlot);
+}
+
+function dockKeyboardInTiebreak() {
+  if (!keyboardEl || !challengeTiebreakKeyboardSlot) return;
+  if (!tiebreakKeyboardDocked()) {
+    tiebreakKeyboardHome = {
+      parent: keyboardEl.parentNode,
+      next: keyboardEl.nextSibling,
+      hadKeys: keyboardEl.childElementCount > 0
+    };
+    challengeTiebreakKeyboardSlot.appendChild(keyboardEl);
+  }
+  renderKeyboard();
+  positionKeyboard();
+}
+
+function undockKeyboardFromTiebreak() {
+  if (!tiebreakKeyboardDocked()) return;
+  const home = tiebreakKeyboardHome;
+  tiebreakKeyboardHome = null;
+  const parent = home?.parent || document.querySelector(".app-shell");
+  if (!parent) return;
+  const next = home?.next && home.next.parentNode === parent ? home.next : null;
+  parent.insertBefore(keyboardEl, next);
+  if (home && !home.hadKeys) {
+    keyboardEl.innerHTML = "";
+  } else {
+    renderKeyboard();
+  }
+  positionKeyboard();
+}
+
+function currentTiebreakLetters() {
+  return String(tiebreakSession?.row?.tiebreak_letters || tiebreakSession?.letters || "");
+}
+
+function tiebreakRemainingLetterCounts() {
+  const counts = tiebreakLetterCounts(currentTiebreakLetters());
+  for (const letter of normalizeLongWord(challengeTiebreakInput?.value || "")) {
+    counts.set(letter, (counts.get(letter) || 0) - 1);
+  }
+  return counts;
+}
+
+function refreshTiebreakKeyAvailability() {
+  if (!tiebreakKeyboardDocked()) return;
+  const remaining = tiebreakRemainingLetterCounts();
+  keyboardEl.querySelectorAll(".key").forEach((button) => {
+    const key = button.dataset.key;
+    if (key === "enter" || key === "back") return;
+    button.classList.toggle("tiebreak-off", (remaining.get(key) || 0) <= 0);
+  });
+}
+
 function setTiebreakComposeUi(active) {
   if (active) {
     document.body.dataset.challengeTiebreak = "compose";
-    renderKeyboard();
-    requestAnimationFrame(() => {
-      positionKeyboard();
-      if (keyboardEl) keyboardEl.scrollIntoView({ block: "nearest", behavior: "instant" });
-    });
+    dockKeyboardInTiebreak();
   } else {
     delete document.body.dataset.challengeTiebreak;
+    undockKeyboardFromTiebreak();
   }
 }
 
@@ -15319,8 +15374,9 @@ function resetTiebreakComposeExtras() {
 }
 
 function updateTiebreakInputValidation() {
+  refreshTiebreakKeyAvailability();
   if (!challengeTiebreakValidate || !challengeTiebreakInput) return;
-  const letters = String(tiebreakSession?.row?.tiebreak_letters || tiebreakSession?.letters || "");
+  const letters = currentTiebreakLetters();
   const word = normalizeLongWord(challengeTiebreakInput.value || "");
   if (!word) {
     challengeTiebreakValidate.hidden = true;
@@ -15425,6 +15481,7 @@ function pressTiebreakKey(key) {
     submitChallengeTiebreakWord(false).catch(() => {});
     return;
   } else if (/^[абвгдђежзијклљмнњопрстћуфхцчџш]$/.test(key) && value.length < CHALLENGE_TIEBREAK_MAX_WORD_LENGTH) {
+    if ((tiebreakRemainingLetterCounts().get(key) || 0) <= 0) return;
     value += key;
   }
   challengeTiebreakInput.value = displayWord(value);
@@ -19284,6 +19341,7 @@ function hideWordReveal() {
 
 function renderKeyboard() {
   keyboardEl.innerHTML = "";
+  const tiebreakKeys = tiebreakKeyboardDocked();
   KEY_ROWS.forEach((letters) => {
     const row = document.createElement("div");
     row.className = "key-row";
@@ -19294,12 +19352,13 @@ function renderKeyboard() {
       button.dataset.key = letter;
       button.textContent = label;
       if (letter === "enter" || letter === "back") button.classList.add("wide");
-      if (keyStates.has(letter)) button.classList.add(keyStates.get(letter));
+      if (!tiebreakKeys && keyStates.has(letter)) button.classList.add(keyStates.get(letter));
       button.addEventListener("click", () => pressKey(letter));
       row.append(button);
     });
     keyboardEl.append(row);
   });
+  if (tiebreakKeys) refreshTiebreakKeyAvailability();
 }
 
 function positionKeyboard() {
