@@ -15382,8 +15382,26 @@ function refreshTiebreakKeyAvailability() {
   keyboardEl.querySelectorAll(".key").forEach((button) => {
     const key = button.dataset.key;
     if (key === "enter" || key === "back") return;
-    button.classList.toggle("tiebreak-off", (remaining.get(key) || 0) <= 0);
+    const left = remaining.get(key) || 0;
+    button.classList.toggle("tiebreak-off", left <= 0);
+    button.disabled = left <= 0;
+    setTiebreakCountBadge(button, left);
   });
+}
+
+function setTiebreakCountBadge(element, count) {
+  let badge = element.querySelector(".tiebreak-count-badge");
+  if (count > 1) {
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "tiebreak-count-badge";
+      badge.setAttribute("aria-hidden", "true");
+      element.append(badge);
+    }
+    badge.textContent = String(count);
+  } else if (badge) {
+    badge.remove();
+  }
 }
 
 function setTiebreakComposeUi(active) {
@@ -15585,6 +15603,7 @@ function closeChallengeTiebreakOverlay() {
 function renderTiebreakLetterTiles(letters = "", lockedMask = [], lockingIndex = -1) {
   if (!challengeTiebreakLetters) return;
   challengeTiebreakLetters.innerHTML = "";
+  challengeTiebreakLetters.classList.remove("collapsed");
   [...String(letters || "")].forEach((letter, index) => {
     const tile = document.createElement("span");
     tile.className = "challenge-tiebreak-letter";
@@ -15592,6 +15611,19 @@ function renderTiebreakLetterTiles(letters = "", lockedMask = [], lockingIndex =
     if (lockedMask[index]) tile.classList.add("locked");
     else if (index === lockingIndex) tile.classList.add("locking");
     else tile.classList.add("spinning");
+    challengeTiebreakLetters.append(tile);
+  });
+}
+
+function renderTiebreakComposeLetters(letters = "") {
+  if (!challengeTiebreakLetters) return;
+  challengeTiebreakLetters.innerHTML = "";
+  challengeTiebreakLetters.classList.add("collapsed");
+  tiebreakLetterCounts(letters).forEach((count, letter) => {
+    const tile = document.createElement("span");
+    tile.className = "challenge-tiebreak-letter locked";
+    tile.textContent = letter.toUpperCase();
+    setTiebreakCountBadge(tile, count);
     challengeTiebreakLetters.append(tile);
   });
 }
@@ -15677,8 +15709,10 @@ function beginTiebreakComposePhase(row) {
   challengeTiebreakSpinActions.hidden = true;
   challengeTiebreakCompose.hidden = false;
   resetTiebreakComposeExtras();
+  const composeLetters = String(row.tiebreak_letters || tiebreakSession?.letters || "");
+  renderTiebreakComposeLetters(composeLetters);
   if (challengeTiebreakLead) {
-    challengeTiebreakLead.textContent = `Састави најдужу реч од: ${[...String(row.tiebreak_letters || tiebreakSession?.letters || "")].join(" ").toUpperCase()}`;
+    challengeTiebreakLead.textContent = `Састави најдужу реч од: ${[...composeLetters].join(" ").toUpperCase()}`;
   }
   let remaining = CHALLENGE_TIEBREAK_WORD_SECONDS;
   if (challengeTiebreakTimer) {

@@ -3357,54 +3357,90 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 .challenge-tiebreak-keyboard-slot .keyboard {
   position: static !important;
   inset: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  top: auto !important;
   z-index: auto !important;
   display: grid !important;
-  box-sizing: border-box;
   width: 100% !important;
-  max-width: 100%;
-  margin: 0;
-  padding: 4px;
-  gap: 4px;
+  max-width: 500px;
+  margin: 0 auto;
   transform: none !important;
   filter: none !important;
   opacity: 1 !important;
   pointer-events: auto !important;
   visibility: visible !important;
-  backdrop-filter: none;
-  box-shadow: none;
-}
-
-.challenge-tiebreak-keyboard-slot .key-row {
-  gap: 3px;
 }
 
 .challenge-tiebreak-keyboard-slot .key {
-  height: 36px;
-  padding: 0;
-  font-size: 13px;
-}
-
-.challenge-tiebreak-keyboard-slot .key.wide {
-  font-size: 12px;
+  position: relative;
 }
 
 .challenge-tiebreak-keyboard-slot .key.tiebreak-off {
-  opacity: 0.28;
+  opacity: 0.3;
+  cursor: default;
+}
+
+.tiebreak-count-badge {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  min-width: 11px;
+  height: 11px;
+  padding: 0 2px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #171202;
+  font-size: 8px;
+  font-weight: 950;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.challenge-tiebreak-letters.collapsed {
+  display: flex;
+  justify-content: center;
+}
+
+.challenge-tiebreak-letters.collapsed .challenge-tiebreak-letter {
+  position: relative;
+  flex: 0 0 calc((100% - 11 * var(--tiebreak-letter-gap)) / 12);
+  width: auto;
+}
+
+.challenge-tiebreak-letters.collapsed .tiebreak-count-badge {
+  top: 0;
+  right: 0;
+  min-width: 9px;
+  height: 9px;
+  padding: 0 1px;
+  font-size: 7px;
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-overlay {
   align-items: start;
-  padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  padding: max(8px, env(safe-area-inset-top)) 4px max(8px, env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-card {
-  width: min(420px, calc(100vw - 16px));
+  width: min(calc(100vw - 8px), 520px);
   max-height: calc(100svh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   gap: 6px;
-  padding: 10px 8px;
+  padding: 10px 3px;
+}
+
+body[data-challenge-tiebreak="compose"] .challenge-tiebreak-card > :not(.challenge-tiebreak-compose),
+body[data-challenge-tiebreak="compose"] .challenge-tiebreak-compose > :not(.challenge-tiebreak-keyboard-slot):not(.challenge-tiebreak-timer) {
+  width: auto;
+  margin-left: 6px;
+  margin-right: 6px;
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-compose {
