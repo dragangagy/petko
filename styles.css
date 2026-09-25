@@ -3345,39 +3345,20 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   display: none;
 }
 
-.challenge-tiebreak-keyboard-slot {
-  width: 100%;
-  min-width: 0;
-}
-
-.challenge-tiebreak-keyboard-slot:empty {
-  display: none;
-}
-
-.challenge-tiebreak-keyboard-slot .keyboard {
-  position: static !important;
-  inset: auto !important;
-  left: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  top: auto !important;
-  z-index: auto !important;
+body[data-challenge-tiebreak="compose"] > .keyboard {
   display: grid !important;
-  width: 100% !important;
-  max-width: 500px;
-  margin: 0 auto;
-  transform: none !important;
-  filter: none !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  visibility: visible !important;
+  z-index: 180;
+  filter: none;
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
 }
 
-.challenge-tiebreak-keyboard-slot .key {
+body[data-challenge-tiebreak="compose"] > .keyboard .key {
   position: relative;
 }
 
-.challenge-tiebreak-keyboard-slot .key.tiebreak-off {
+body[data-challenge-tiebreak="compose"] > .keyboard .key.tiebreak-off {
   opacity: 0.3;
   cursor: default;
 }
@@ -3422,25 +3403,19 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-overlay {
+  --tiebreak-kb-space: calc(var(--petko-kb-h, 170px) + max(5px, env(safe-area-inset-bottom)) + 8px);
   align-items: start;
-  padding: max(8px, env(safe-area-inset-top)) 4px max(8px, env(safe-area-inset-bottom));
+  padding: max(8px, env(safe-area-inset-top)) 8px var(--tiebreak-kb-space);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-card {
-  width: min(calc(100vw - 8px), 520px);
-  max-height: calc(100svh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  width: min(420px, calc(100vw - 16px));
+  max-height: calc(100svh - max(8px, env(safe-area-inset-top)) - var(--tiebreak-kb-space));
+  max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - var(--tiebreak-kb-space));
   gap: 6px;
-  padding: 10px 3px;
-}
-
-body[data-challenge-tiebreak="compose"] .challenge-tiebreak-card > :not(.challenge-tiebreak-compose),
-body[data-challenge-tiebreak="compose"] .challenge-tiebreak-compose > :not(.challenge-tiebreak-keyboard-slot):not(.challenge-tiebreak-timer) {
-  width: auto;
-  margin-left: 6px;
-  margin-right: 6px;
+  padding: 10px 8px;
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-compose {

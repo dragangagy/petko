@@ -11435,8 +11435,8 @@ const challengeTiebreakBest = document.querySelector("#challengeTiebreakBest");
 const challengeTiebreakOpponent = document.querySelector("#challengeTiebreakOpponent");
 const challengeTiebreakSubmit = document.querySelector("#challengeTiebreakSubmit");
 const challengeTiebreakClose = document.querySelector("#challengeTiebreakClose");
-const challengeTiebreakKeyboardSlot = document.querySelector("#challengeTiebreakKeyboardSlot");
 let tiebreakKeyboardHome = null;
+let challengeFinishHold = null;
 const hallPanelEl = document.querySelector("#hallPanel");
 const hallCarouselEl = document.querySelector("#hallCarousel");
 const hallGridEl = document.querySelector("#hallGrid");
@@ -15331,18 +15331,18 @@ function tiebreakComposeActive() {
 }
 
 function tiebreakKeyboardDocked() {
-  return Boolean(keyboardEl && challengeTiebreakKeyboardSlot && keyboardEl.parentNode === challengeTiebreakKeyboardSlot);
+  return Boolean(keyboardEl && tiebreakKeyboardHome && keyboardEl.parentNode === document.body);
 }
 
 function dockKeyboardInTiebreak() {
-  if (!keyboardEl || !challengeTiebreakKeyboardSlot) return;
+  if (!keyboardEl || !document.body) return;
   if (!tiebreakKeyboardDocked()) {
     tiebreakKeyboardHome = {
       parent: keyboardEl.parentNode,
       next: keyboardEl.nextSibling,
       hadKeys: keyboardEl.childElementCount > 0
     };
-    challengeTiebreakKeyboardSlot.appendChild(keyboardEl);
+    document.body.appendChild(keyboardEl);
   }
   renderKeyboard();
   positionKeyboard();
@@ -17059,6 +17059,7 @@ function showChallengeIntro() {
 }
 
 function exitChallengeToLobby() {
+  clearFinishedChallengeHold();
   saveChallengeProgress();
   resetChallengeSectionState();
   gameType = "challenge";
@@ -17125,6 +17126,7 @@ async function playChallengeVs(row) {
 }
 
 async function startChallengeGame(row, role) {
+  clearFinishedChallengeHold();
   await hydrateGameSessionsFromCloud({ force: true }).catch(() => false);
   const serverRow = hydrateChallengeRow(row);
   if (!serverRow || !Array.isArray(serverRow.words) || serverRow.words.length !== CHALLENGE_WORDS) {
@@ -17278,6 +17280,52 @@ async function acceptChallenge(codeInput = "", options = {}) {
   await startChallengeGame(accepted || row, "opponent");
 }
 
+function holdFinishedChallenge() {
+  clearFinishedChallengeHold();
+  const hold = { ready: false, tapped: false, lobbyMessage: "", timer: 0 };
+  const onInteract = () => {
+    if (challengeFinishHold !== hold) return;
+    hold.tapped = true;
+    hold.detach();
+    if (hold.ready) exitFinishedChallengeHold();
+  };
+  hold.detach = () => {
+    clearTimeout(hold.timer);
+    document.removeEventListener("pointerdown", onInteract, true);
+    document.removeEventListener("keydown", onInteract, true);
+  };
+  hold.timer = setTimeout(() => {
+    if (challengeFinishHold !== hold) return;
+    document.addEventListener("pointerdown", onInteract, true);
+    document.addEventListener("keydown", onInteract, true);
+  }, 400);
+  challengeFinishHold = hold;
+  return hold;
+}
+
+function releaseFinishedChallengeHold(hold, lobbyMessage = "") {
+  if (!hold || challengeFinishHold !== hold) return;
+  hold.ready = true;
+  hold.lobbyMessage = lobbyMessage;
+  if (hold.tapped) exitFinishedChallengeHold();
+}
+
+function exitFinishedChallengeHold() {
+  const hold = challengeFinishHold;
+  if (!hold) return;
+  challengeFinishHold = null;
+  hold.detach();
+  exitChallengeToLobby();
+  if (hold.lobbyMessage) renderChallengePanel(hold.lobbyMessage);
+  render();
+}
+
+function clearFinishedChallengeHold() {
+  if (!challengeFinishHold) return;
+  challengeFinishHold.detach();
+  challengeFinishHold = null;
+}
+
 async function finishChallenge(status) {
   done = true;
   document.body.dataset.challengePlaying = "true";
@@ -17285,45 +17333,53 @@ async function finishChallenge(status) {
   renderSolutionsPanel(true);
   const resultScore = challengeScoreValue(status);
   const solvedCount = solvedAt.filter(Boolean).length;
-  messageEl.textContent = status === "finished"
+  const attempts = guesses.length;
+  const solvedFlags = solvedAt.map(Boolean);
+  const challenge = activeChallenge ? { ...activeChallenge } : null;
+  messageEl.textContent = `${status === "finished"
     ? `Изазов решен: ${solvedCount}/6. Скор ${resultScore}.`
-    : `Изазов завршен: ${solvedCount}/6. Решења: ${displayWords(targets)}. Скор ${resultScore}.`;
-  if (!activeChallenge?.code || !supabaseConfigured()) return;
-  const prefix = activeChallenge.role === "creator" ? "creator" : "opponent";
+    : `Изазов завршен: ${solvedCount}/6. Решења: ${displayWords(targets)}. Скор ${resultScore}.`} Додирни за наставак.`;
+  const hold = holdFinishedChallenge();
+  if (!challenge?.code || !supabaseConfigured()) {
+    releaseFinishedChallengeHold(hold);
+    return;
+  }
+  const prefix = challenge.role === "creator" ? "creator" : "opponent";
   const otherRole = prefix === "creator" ? "opponent" : "creator";
-  const currentRow = await fetchChallenge(activeChallenge.code).catch(() => null);
+  const currentRow = await fetchChallenge(challenge.code).catch(() => null);
   const sidePatch = {
     [`${prefix}_score`]: resultScore,
-    [`${prefix}_attempts`]: guesses.length,
+    [`${prefix}_attempts`]: attempts,
     [`${prefix}_solved`]: solvedCount,
     [`${prefix}_played_at`]: new Date().toISOString()
   };
   const patch = challengePatchAfterSideFinish(currentRow, sidePatch, otherRole);
-  rememberPendingChallengeResult(activeChallenge.code, prefix, patch, {
+  rememberPendingChallengeResult(challenge.code, prefix, patch, {
     score: resultScore,
-    solvedFlags: solvedAt.map(Boolean)
+    solvedFlags
   });
+  let lobbyMessage;
   try {
-    await updateChallenge(activeChallenge.code, patch);
-    forgetPendingChallengeResult(activeChallenge.code);
-    clearChallengeProgress(activeChallenge.code);
-    rememberChallengePlayed(activeChallenge.code, prefix);
-    const row = await fetchChallenge(activeChallenge.code);
-    await renderChallengeResult(row, resultScore, { showPanelWords: false, solvedFlags: solvedAt.map(Boolean) });
-    exitChallengeToLobby();
+    await updateChallenge(challenge.code, patch);
+    forgetPendingChallengeResult(challenge.code);
+    clearChallengeProgress(challenge.code);
+    rememberChallengePlayed(challenge.code, prefix);
+    const row = await fetchChallenge(challenge.code);
+    await renderChallengeResult(row, resultScore, { showPanelWords: false, solvedFlags });
     const tiebreakPending = challengeAwaitingTiebreak(row);
-    renderChallengePanel(
-      tiebreakPending
-        ? `Нерешено (${solvedCount}/6, скор ${resultScore}). Настави зелену карту — двобој.`
-        : status === "finished"
-          ? `Изазов завршен: ${solvedCount}/6, скор ${resultScore}.`
-          : `Изазов одигран: ${solvedCount}/6, скор ${resultScore}.`
-    );
+    lobbyMessage = tiebreakPending
+      ? `Нерешено (${solvedCount}/6, скор ${resultScore}). Настави зелену карту — двобој.`
+      : status === "finished"
+        ? `Изазов завршен: ${solvedCount}/6, скор ${resultScore}.`
+        : `Изазов одигран: ${solvedCount}/6, скор ${resultScore}.`;
     refreshAvatarAchievements({ popup: true }).catch(() => {});
   } catch {
-    renderChallengePanel("Резултат је сачуван локално; покушаћу поново online.");
+    lobbyMessage = "Резултат је сачуван локално; покушаћу поново online.";
+    if (challengeFinishHold === hold) renderChallengePanel(lobbyMessage);
   }
+  if (challengeFinishHold !== hold) return;
   render();
+  releaseFinishedChallengeHold(hold, lobbyMessage);
 }
 
 async function surrenderChallenge(row) {
@@ -19451,6 +19507,8 @@ function renderKeyboard() {
 function positionKeyboard() {
   keyboardEl.style.top = "";
   keyboardEl.style.bottom = "";
+  const height = keyboardEl.offsetHeight;
+  if (height > 0) document.documentElement.style.setProperty("--petko-kb-h", `${height}px`);
 }
 
 function pressKey(key) {
@@ -20663,6 +20721,7 @@ window.addEventListener("resize", () => requestAnimationFrame(positionKeyboard))
 
 typeButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    clearFinishedChallengeHold();
     saveChallengeProgress();
     clearChallengePanelWords();
     const nextType = button.dataset.type;
@@ -20680,6 +20739,7 @@ typeButtons.forEach((button) => {
 
 modeButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    clearFinishedChallengeHold();
     if (gameType === "competitive") return;
     const requestedMode = Number(button.dataset.mode);
     startGame("normal", 1);
