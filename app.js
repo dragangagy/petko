@@ -5527,7 +5527,8 @@ const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
 const PROFILE_AVATAR_APPROVED_KEY = "petko-profile-avatar-approved-v1";
 const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const PROFILE_UNLOCK_SEEN_KEY = "petko-profile-unlock-seen-v1";
-const CHALLENGE_FAVORITES_KEY = "petko-challenge-favorites-v1";
+const CHALLENGE_FAVORITES_KEY = "petko-favorite-opponents-v1";
+const CHALLENGE_FAVORITES_LEGACY_KEY = "petko-challenge-favorites-v1";
 const DEVICE_ID_KEY = "petko-device-id-v1";
 const PROFILE_DEVICE_ID_KEY = "petko-profile-device-id-v1";
 const NORMAL_STATS_KEY = "petko-normal-stats-v1";
@@ -11416,6 +11417,7 @@ const challengePickerStats = document.querySelector("#challengePickerStats");
 const challengePickerGrid = document.querySelector("#challengePickerGrid");
 const challengePickerMessage = document.querySelector("#challengePickerMessage");
 const challengePickerSubmit = document.querySelector("#challengePickerSubmit");
+const challengePickerProfile = document.querySelector("#challengePickerProfile");
 const challengeVsOverlay = document.querySelector("#challengeVsOverlay");
 const challengeVsLeftAvatar = document.querySelector("#challengeVsLeftAvatar");
 const challengeVsLeftName = document.querySelector("#challengeVsLeftName");
@@ -13823,8 +13825,16 @@ function challengeFavoriteId(name) {
 
 function loadChallengeFavorites() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(CHALLENGE_FAVORITES_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    let raw = localStorage.getItem(CHALLENGE_FAVORITES_KEY);
+    if (raw === null) {
+      raw = localStorage.getItem(CHALLENGE_FAVORITES_LEGACY_KEY);
+      if (raw !== null) {
+        localStorage.setItem(CHALLENGE_FAVORITES_KEY, raw);
+        localStorage.removeItem(CHALLENGE_FAVORITES_LEGACY_KEY);
+      }
+    }
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.map((item) => challengeFavoriteId(item)).filter(Boolean) : [];
   } catch {
     return [];
   }
@@ -13886,20 +13896,20 @@ function challengeDirectedCounts(rows = [], first, second) {
   }, { first: 0, second: 0 });
 }
 
-function renderChallengePickerStats(value) {
-  if (!challengePickerStats) return;
+function renderChallengePickerStats(value, target = challengePickerStats) {
+  if (!target) return;
   const me = loadPlayerName() || "Играч";
   if (!value) {
-    challengePickerStats.textContent = "Изабери играча за међусобни скор.";
+    target.textContent = "Изабери играча за међусобни скор.";
     return;
   }
   if (value === "__new__") {
-    challengePickerStats.textContent = "Нови корисник добија линк и код. Када прихвати, постаје противник у изазову.";
+    target.textContent = "Нови корисник добија линк и код. Када прихвати, постаје противник у изазову.";
     return;
   }
   const pair = challengePairScore(challengePickerRows, me, value);
   const directed = challengeDirectedCounts(challengePickerRows, me, value);
-  challengePickerStats.innerHTML = "";
+  target.innerHTML = "";
   const table = document.createElement("div");
   table.className = "challenge-score-table";
   const title = document.createElement("div");
@@ -13925,7 +13935,7 @@ function renderChallengePickerStats(value) {
     meta.append(item);
   });
   table.append(title, board, meta);
-  challengePickerStats.append(table);
+  target.append(table);
 }
 
 function selectChallengePickerPlayer(value) {
@@ -13974,35 +13984,371 @@ function renderChallengePickerGrid() {
       const avatar = document.createElement("span");
       avatar.className = "profile-avatar";
       renderAvatarForName(avatar, item.label, { current: item.kind === "new" });
-      if (item.kind !== "new") {
+      if (favorite) {
         const heart = document.createElement("span");
         heart.className = "challenge-favorite-toggle";
-        heart.setAttribute("role", "button");
-        heart.setAttribute("tabindex", "0");
-        heart.setAttribute("aria-label", favorite ? "Уклони из фаворита" : "Додај у фаворите");
-        heart.textContent = favorite ? "♥" : "♡";
-        const toggle = (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          toggleChallengeFavorite(item.value);
-          renderChallengePickerGrid();
-        };
-        heart.addEventListener("click", toggle);
-        heart.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") toggle(event);
-        });
+        heart.setAttribute("aria-label", "Омиљени изазивач");
+        heart.textContent = "♥";
         button.append(heart);
       }
       const label = document.createElement("span");
       label.className = "challenge-picker-player-name";
       label.textContent = item.label;
       button.append(avatar, label);
-      button.addEventListener("click", () => selectChallengePickerPlayer(item.value));
+      button.addEventListener("click", () => {
+        selectChallengePickerPlayer(item.value);
+        if (item.kind !== "new") openChallengeOpponentProfile(item.value);
+      });
       challengePickerGrid.append(button);
     });
 }
 
+const CHALLENGE_PROFILE_BASE_COLUMNS = [
+  "code",
+  "day",
+  "status",
+  "creator",
+  "creator_device",
+  "opponent",
+  "opponent_device",
+  "accepted_at",
+  "created_at",
+  "creator_score",
+  "creator_attempts",
+  "creator_solved",
+  "creator_played_at",
+  "opponent_score",
+  "opponent_attempts",
+  "opponent_solved",
+  "opponent_played_at"
+];
+const CHALLENGE_PROFILE_COLUMNS = [
+  ...CHALLENGE_PROFILE_BASE_COLUMNS,
+  "tiebreak_status",
+  "tiebreak_creator_word",
+  "tiebreak_opponent_word"
+].join(",");
+const CHALLENGE_PROFILE_COLUMNS_LEGACY = CHALLENGE_PROFILE_BASE_COLUMNS.join(",");
+const CHALLENGE_PROFILE_CACHE_MS = 5 * 60 * 1000;
+const CHALLENGE_PROFILE_MIN_BARS = 3;
+const CHALLENGE_PROFILE_MIN_DESCRIPTION = 5;
+const challengeProfileCache = new Map();
+let challengeProfileToken = 0;
+
+function challengeProfileFilterValue(text) {
+  const quoted = /[",()\s]/.test(text)
+    ? `"${text.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`
+    : text;
+  return encodeURIComponent(quoted);
+}
+
+async function fetchChallengeProfileRows(name) {
+  const text = cleanChallengeName(name);
+  const id = challengeFavoriteId(text);
+  if (!id) return [];
+  const cached = challengeProfileCache.get(id);
+  if (cached && Date.now() - cached.at < CHALLENGE_PROFILE_CACHE_MS) return cached.rows;
+  if (!supabaseConfigured()) throw new Error("Supabase није подешен.");
+  // ilike без џокера = поређење без обзира на велика/мала слова; имена са џокерима иду преко eq.
+  const operator = /[*%_\\]/.test(text) ? "eq" : "ilike";
+  const value = challengeProfileFilterValue(text);
+  const request = (columns) => fetch(supabaseUrl(`${challengeTable()}?${[
+    `select=${columns}`,
+    `or=(creator.${operator}.${value},opponent.${operator}.${value})`,
+    "order=created_at.desc",
+    "limit=300"
+  ].join("&")}`), { headers: supabaseHeaders() });
+  let response = await request(CHALLENGE_PROFILE_COLUMNS);
+  if (!response.ok) {
+    const details = await supabaseResponseBodyText(response);
+    if (!postgrestSchemaColumnError(details)) throw new Error("Статистика играча није учитана.");
+    response = await request(CHALLENGE_PROFILE_COLUMNS_LEGACY);
+    if (!response.ok) throw new Error("Статистика играча није учитана.");
+  }
+  const payload = await response.json();
+  const rows = (Array.isArray(payload) ? payload : [])
+    .filter((row) => sameChallengeName(row?.creator, text) || sameChallengeName(row?.opponent, text));
+  challengeProfileCache.set(id, { at: Date.now(), rows });
+  return rows;
+}
+
+function challengeProfileStrengthMap(rows = challengeStatsRows) {
+  const totals = new Map();
+  const add = (name, wins, losses, draws) => {
+    const id = challengeFavoriteId(name);
+    if (!id) return;
+    const total = totals.get(id) || { wins: 0, losses: 0, draws: 0 };
+    total.wins += wins;
+    total.losses += losses;
+    total.draws += draws;
+    totals.set(id, total);
+  };
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const aWins = Number(row?.player_a_wins) || 0;
+    const bWins = Number(row?.player_b_wins) || 0;
+    const draws = Number(row?.draws) || 0;
+    add(row?.player_a, aWins, bWins, draws);
+    add(row?.player_b, bWins, aWins, draws);
+  });
+  const strength = new Map();
+  totals.forEach((total, id) => {
+    const games = total.wins + total.losses + total.draws;
+    if (games >= CHALLENGE_PROFILE_MIN_BARS) strength.set(id, ((total.wins + total.draws / 2) / games) * 100);
+  });
+  return strength;
+}
+
+function challengeProfileStats(name, rows = []) {
+  const stats = {
+    accepted: 0,
+    sent: 0,
+    decided: 0,
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    resolved: 0,
+    finishedSelf: 0,
+    solvedSum: 0,
+    solvedCount: 0,
+    opponents: new Set(),
+    sentOpponents: new Set()
+  };
+  rows.forEach((row) => {
+    const role = sameChallengeName(row?.creator, name) ? "creator" : (sameChallengeName(row?.opponent, name) ? "opponent" : "");
+    if (!role) return;
+    // Witch Hunt редови имају сезонска правила (Ловац/Вештица, аутоматска победа на крају викенда) и не улазе у профил.
+    if (challengeIsWitchHuntRow(row)) return;
+    const status = String(row?.status || "").toLowerCase();
+    if (status === "cancelled" || isOpenChallengeOpponent(row?.opponent) || selfChallengeRow(row)) return;
+    const accepted = Boolean(row?.accepted_at) || status === "accepted" || status === "played" || challengeSidePlayed(row, "opponent");
+    if (!accepted) return;
+    const other = role === "creator" ? row.opponent : row.creator;
+    stats.accepted += 1;
+    if (role === "creator") stats.sent += 1;
+    const played = challengeSidePlayed(row, role);
+    const surrendered = played && (
+      challengeRoleSurrendered(row, role) || row?.[`tiebreak_${role}_word`] === CHALLENGE_TIEBREAK_FORFEIT
+    );
+    const decided = playedChallenge(row);
+    if (played || decided || challengeExpired(row)) {
+      stats.resolved += 1;
+      if (played && !surrendered) stats.finishedSelf += 1;
+    }
+    if (played && !challengeRoleSurrendered(row, role)) {
+      stats.solvedSum += Math.min(6, Math.max(0, Number(row?.[`${role}_solved`]) || 0));
+      stats.solvedCount += 1;
+    }
+    if (!decided) return;
+    stats.decided += 1;
+    stats.opponents.add(challengeFavoriteId(other));
+    if (role === "creator") stats.sentOpponents.add(challengeFavoriteId(other));
+    const winner = challengeWinner(row);
+    if (winner === "tie") stats.ties += 1;
+    else if (winner === role) stats.wins += 1;
+    else stats.losses += 1;
+  });
+  const enough = stats.decided >= CHALLENGE_PROFILE_MIN_BARS;
+  stats.strength = enough ? ((stats.wins + stats.ties / 2) / stats.decided) * 100 : null;
+  stats.endurance = enough && stats.resolved ? (stats.finishedSelf / stats.resolved) * 100 : null;
+  stats.precision = enough && stats.solvedCount ? (stats.solvedSum / stats.solvedCount / 6) * 100 : null;
+  stats.enough = enough;
+  return stats;
+}
+
+function challengeProfileDescription(name, stats) {
+  const traits = [];
+  const add = (text, score) => traits.push({ text, score: Math.min(2, score) });
+  const creatorRatio = stats.accepted ? stats.sent / stats.accepted : 0;
+  if (creatorRatio >= 0.65) add("Главни изазивач — често први шаље изазов.", 1 + (creatorRatio - 0.65) / 0.35);
+  else if (creatorRatio <= 0.25) add("Ретко изазива, али прихвата дуеле.", 1 + (0.25 - creatorRatio) / 0.25);
+  const spread = stats.decided ? stats.opponents.size / stats.decided : 0;
+  if (stats.decided >= 8 && spread >= 0.6) add("Изазива све редом.", 1 + (spread - 0.6) / 0.4);
+  if (stats.strength !== null) {
+    const strengthMap = challengeProfileStrengthMap();
+    const known = [...stats.sentOpponents].map((id) => strengthMap.get(id)).filter(Number.isFinite);
+    if (known.length >= 3) {
+      const diff = known.reduce((sum, value) => sum + value, 0) / known.length - stats.strength;
+      if (diff <= -15) add("Изазива углавном слабије од себе.", 1 + (-diff - 15) / 30);
+      else if (diff >= 15) add("Не бежи од јачих противника.", 1 + (diff - 15) / 30);
+    }
+    if (stats.strength >= 70) add("Ретко губи изазов.", 1 + (stats.strength - 70) / 30);
+    else if (stats.strength <= 30) add("Губи чешће него што побеђује.", 1 + (30 - stats.strength) / 30);
+  }
+  if (stats.endurance !== null) {
+    if (stats.endurance <= 60) add("Често одустаје или пусти да изазов истекне.", 1 + (60 - stats.endurance) / 60);
+    else if (stats.endurance >= 95) add("Увек одигра до краја.", 1 + (stats.endurance - 95) / 10);
+  }
+  if (stats.precision !== null && stats.precision >= 80) add("Решава скоро све табле.", 1 + (stats.precision - 80) / 40);
+  if (!traits.length) return "Стабилан играч без изражених слабости.";
+  return traits.sort((a, b) => b.score - a.score).slice(0, 2).map((trait) => trait.text).join(" ");
+}
+
+function challengeProfileBar(kind, icon, label) {
+  const root = document.createElement("div");
+  root.className = `challenge-profile-bar ${kind}`;
+  const head = document.createElement("div");
+  head.className = "challenge-profile-bar-head";
+  const title = document.createElement("span");
+  title.textContent = `${icon} ${label}`;
+  const value = document.createElement("strong");
+  value.textContent = "…";
+  head.append(title, value);
+  const track = document.createElement("div");
+  track.className = "challenge-profile-bar-track";
+  const fill = document.createElement("div");
+  fill.className = "challenge-profile-bar-fill";
+  track.append(fill);
+  root.append(head, track);
+  return {
+    root,
+    set(percent) {
+      const valid = Number.isFinite(percent);
+      const rounded = valid ? Math.round(Math.min(100, Math.max(0, percent))) : 0;
+      value.textContent = valid ? `${rounded}%` : "—";
+      root.classList.toggle("empty", !valid);
+      fill.style.width = "0%";
+      if (!valid) return;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        fill.style.width = `${rounded}%`;
+      }));
+    }
+  };
+}
+
+function setChallengeProfileView(open) {
+  challengePickerProfile?.closest(".challenge-picker-card")?.classList.toggle("profile-open", open);
+  if (challengePickerProfile) challengePickerProfile.hidden = !open;
+  if (challengePickerMessage) challengePickerMessage.textContent = "";
+}
+
+function closeChallengeOpponentProfile() {
+  challengeProfileToken += 1;
+  if (challengePickerProfile) challengePickerProfile.innerHTML = "";
+  setChallengeProfileView(false);
+}
+
+function openChallengeOpponentProfile(name) {
+  if (!challengePickerProfile || !cleanChallengeName(name)) return;
+  const token = ++challengeProfileToken;
+  challengePickerProfile.innerHTML = "";
+  setChallengeProfileView(true);
+  challengePickerProfile.scrollTop = 0;
+
+  const favorite = document.createElement("button");
+  favorite.type = "button";
+  favorite.className = "challenge-profile-fav";
+  const heart = document.createElement("span");
+  heart.className = "challenge-profile-heart";
+  heart.setAttribute("aria-hidden", "true");
+  const favoriteLabel = document.createElement("span");
+  favoriteLabel.className = "challenge-profile-fav-label";
+  favorite.append(heart, favoriteLabel);
+  const paintFavorite = () => {
+    const on = isChallengeFavorite(name);
+    favorite.classList.toggle("on", on);
+    favorite.setAttribute("aria-pressed", on ? "true" : "false");
+    heart.textContent = on ? "♥" : "♡";
+    favoriteLabel.textContent = on ? "Омиљени изазивач" : "Додај у омиљене изазиваче";
+  };
+  paintFavorite();
+  favorite.addEventListener("click", () => {
+    toggleChallengeFavorite(name);
+    paintFavorite();
+    renderChallengePickerGrid();
+  });
+
+  const title = document.createElement("h3");
+  title.className = "challenge-profile-name";
+  title.textContent = name;
+
+  const bars = document.createElement("div");
+  bars.className = "challenge-profile-bars";
+  const strengthBar = challengeProfileBar("strength", "💪", "Снага");
+  const enduranceBar = challengeProfileBar("endurance", "🛡️", "Издржљивост");
+  const precisionBar = challengeProfileBar("precision", "🎯", "Прецизност");
+  bars.append(strengthBar.root, enduranceBar.root, precisionBar.root);
+  const note = document.createElement("div");
+  note.className = "challenge-profile-note";
+  note.textContent = "Учитавам статистику…";
+
+  const bottom = document.createElement("div");
+  bottom.className = "challenge-profile-bottom";
+  const avatar = document.createElement("span");
+  avatar.className = "profile-avatar challenge-profile-avatar";
+  renderAvatarForName(avatar, name);
+  const about = document.createElement("div");
+  about.className = "challenge-profile-about";
+  const description = document.createElement("p");
+  description.className = "challenge-profile-desc";
+  description.textContent = "…";
+  const counts = document.createElement("p");
+  counts.className = "challenge-profile-counts";
+  about.append(description, counts);
+  bottom.append(avatar, about);
+
+  const headToHead = document.createElement("div");
+  headToHead.className = "challenge-picker-stats challenge-profile-h2h";
+  renderChallengePickerStats(name, headToHead);
+
+  const actions = document.createElement("div");
+  actions.className = "challenge-profile-actions";
+  const go = document.createElement("button");
+  go.type = "button";
+  go.className = "challenge-profile-go";
+  go.textContent = "⚔️ ИЗАЗОВИ";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "challenge-profile-back";
+  back.textContent = "↩️ ОДУСТАНИ";
+  actions.append(go, back);
+  go.addEventListener("click", async () => {
+    if (challengePickerBusy) return;
+    go.disabled = true;
+    back.disabled = true;
+    selectChallengePickerPlayer(name);
+    try {
+      await submitChallengePicker();
+    } finally {
+      go.disabled = false;
+      back.disabled = false;
+    }
+  });
+  back.addEventListener("click", () => {
+    if (challengePickerBusy) return;
+    closeChallengeOpponentProfile();
+  });
+
+  challengePickerProfile.append(favorite, title, bars, note, bottom, headToHead, actions);
+
+  fetchChallengeProfileRows(name)
+    .then((rows) => {
+      if (token !== challengeProfileToken) return;
+      const stats = challengeProfileStats(name, rows);
+      strengthBar.set(stats.strength);
+      enduranceBar.set(stats.endurance);
+      precisionBar.set(stats.precision);
+      note.textContent = stats.enough ? "" : "Нема довољно одиграних изазова";
+      note.hidden = stats.enough;
+      description.textContent = stats.decided >= CHALLENGE_PROFILE_MIN_DESCRIPTION
+        ? challengeProfileDescription(name, stats)
+        : "Опис се открива после 5 одиграних изазова.";
+      const tieText = stats.ties ? ` · Нерешено: ${stats.ties}` : "";
+      counts.textContent = `Одиграно: ${stats.decided} · Победе: ${stats.wins} · Порази: ${stats.losses}${tieText}`;
+    })
+    .catch(() => {
+      if (token !== challengeProfileToken) return;
+      strengthBar.set(null);
+      enduranceBar.set(null);
+      precisionBar.set(null);
+      note.hidden = false;
+      note.textContent = "Статистика тренутно није доступна.";
+      description.textContent = "Опис се открива после 5 одиграних изазова.";
+      counts.textContent = "";
+    });
+}
+
 function closeChallengePicker() {
+  closeChallengeOpponentProfile();
   if (challengePickerModal) challengePickerModal.hidden = true;
   if (challengePlayerButton) challengePlayerButton.setAttribute("aria-expanded", "false");
   challengePickerBusy = false;
@@ -14011,6 +14357,7 @@ function closeChallengePicker() {
 
 async function openChallengePicker() {
   if (!challengePickerModal) return;
+  closeChallengeOpponentProfile();
   challengePickerModal.hidden = false;
   challengePickerBusy = false;
   challengePickerSelected = "";
@@ -16438,6 +16785,10 @@ function challengeCard(row, rows = []) {
     watermark.setAttribute("aria-hidden", "true");
     watermark.textContent = "ДВОБОЈ · ДВОБОЈ · ДВОБОЈ · ДВОБОЈ";
     card.append(watermark);
+    const tiebreakNote = document.createElement("div");
+    tiebreakNote.className = "challenge-card-tiebreak-note";
+    tiebreakNote.textContent = "Нерешеним исходом активиран је двобој";
+    card.append(tiebreakNote);
     card.append(createChallengeCardTiebreakVs(row));
     const countdown = document.createElement("div");
     countdown.className = "challenge-card-tiebreak-countdown";

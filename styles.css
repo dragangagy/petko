@@ -2481,13 +2481,14 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   height: 22px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 215, 0, 0.35);
+  border: 1px solid rgba(239, 68, 68, 0.4);
   border-radius: 999px;
   background: rgba(2, 8, 23, 0.72);
-  color: var(--gold);
+  color: #ef4444;
   font-size: 15px;
   line-height: 1;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
 }
 
 .challenge-picker-player .profile-avatar {
@@ -2530,6 +2531,247 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .challenge-picker-submit:disabled {
   opacity: 0.45;
+}
+
+.challenge-picker-card.profile-open {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.challenge-picker-card.profile-open > h2,
+.challenge-picker-card.profile-open > .challenge-picker-search,
+.challenge-picker-card.profile-open > .challenge-picker-stats,
+.challenge-picker-card.profile-open > .challenge-picker-grid,
+.challenge-picker-card.profile-open > .challenge-picker-submit {
+  display: none;
+}
+
+.challenge-profile {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 2px 2px 4px;
+}
+
+.challenge-profile[hidden] {
+  display: none;
+}
+
+.challenge-profile-fav {
+  justify-self: start;
+  max-width: calc(100% - 44px);
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 6px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 999px;
+  background: rgba(8, 13, 27, 0.72);
+  color: rgba(255, 255, 255, 0.86);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.challenge-profile-heart {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.9);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.challenge-profile-fav.on {
+  border-color: rgba(239, 68, 68, 0.66);
+  color: #fecaca;
+}
+
+.challenge-profile-fav.on .challenge-profile-heart {
+  background: rgba(127, 29, 29, 0.55);
+  color: #ef4444;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
+}
+
+.challenge-profile-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--gold);
+  font-size: 24px;
+  font-weight: 1000;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.challenge-profile-bars {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 10px;
+  background: rgba(8, 13, 27, 0.58);
+}
+
+.challenge-profile-bar {
+  display: grid;
+  gap: 4px;
+}
+
+.challenge-profile-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.challenge-profile-bar-head strong {
+  font-size: 13px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+}
+
+.challenge-profile-bar.strength strong { color: #4ade80; }
+.challenge-profile-bar.endurance strong { color: var(--gold); }
+.challenge-profile-bar.precision strong { color: #38bdf8; }
+.challenge-profile-bar.empty strong { color: rgba(255, 255, 255, 0.45); }
+
+.challenge-profile-bar-track {
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(2, 6, 18, 0.9);
+}
+
+.challenge-profile-bar-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background-size: 18px 18px, 100% 100%;
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.challenge-profile-bar.strength .challenge-profile-bar-fill {
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16) 25%, transparent 25% 50%, rgba(255, 255, 255, 0.16) 50% 75%, transparent 75%),
+    linear-gradient(90deg, #15803d, #22c55e);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+
+.challenge-profile-bar.endurance .challenge-profile-bar-fill {
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 25%, transparent 25% 50%, rgba(255, 255, 255, 0.18) 50% 75%, transparent 75%),
+    linear-gradient(90deg, #b45309, #ffd700);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+}
+
+.challenge-profile-bar.precision .challenge-profile-bar-fill {
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16) 25%, transparent 25% 50%, rgba(255, 255, 255, 0.16) 50% 75%, transparent 75%),
+    linear-gradient(90deg, #0369a1, #38bdf8);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.challenge-profile-note {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.challenge-profile-note[hidden] {
+  display: none;
+}
+
+.challenge-profile-bottom {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.challenge-profile .challenge-profile-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  font-size: 40px;
+}
+
+.challenge-profile .challenge-profile-avatar.has-image {
+  border-radius: 0;
+}
+
+.challenge-profile-about {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.challenge-profile-desc,
+.challenge-profile-counts {
+  margin: 0;
+}
+
+.challenge-profile-desc {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.challenge-profile-counts {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.3;
+}
+
+.challenge-profile-h2h {
+  min-height: 0;
+}
+
+.challenge-profile-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.challenge-profile-actions button {
+  min-height: 48px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+}
+
+.challenge-profile-go {
+  border: 1px solid rgba(255, 215, 0, 0.7);
+  background: linear-gradient(180deg, #15803d, #166534);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.28);
+}
+
+.challenge-profile-back {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(30, 41, 59, 0.92);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.challenge-profile-actions button:disabled {
+  opacity: 0.5;
 }
 
 .challenge-history {
@@ -3097,6 +3339,20 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .challenge-card.tiebreak-compact .challenge-card-tiebreak-vs .challenge-tiebreak-side strong {
   font-size: 11px;
+}
+
+.challenge-card-tiebreak-note {
+  justify-self: center;
+  max-width: 100%;
+  padding: 3px 10px;
+  border: 1px solid rgba(34, 197, 94, 0.38);
+  border-radius: 999px;
+  background: rgba(2, 8, 23, 0.55);
+  color: #bbf7d0;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
 }
 
 .challenge-card-tiebreak-countdown {
