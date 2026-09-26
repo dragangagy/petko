@@ -11489,6 +11489,8 @@ let activeChallenge = null;
 let challengePickerPlayers = [];
 let challengePickerRows = [];
 let challengeStatsRows = [];
+// Колоне из sql/2026-09-26-challenge-stats-endurance.sql; старија база их нема.
+const CHALLENGE_STATS_SIDE_FIELDS = ["finished", "surrenders", "forfeits", "solved_sum", "solved_games"];
 let wordEditorAllowed = false;
 let wordModalMeaningEditable = false;
 let wordModalCurrentWord = "";
@@ -14074,14 +14076,43 @@ async function fetchChallengeProfileRows(name) {
   return rows;
 }
 
+function challengeProfileSideCounts(row, side) {
+  if (row?.[`player_${side}_finished`] === undefined) return null;
+  const counts = {};
+  CHALLENGE_STATS_SIDE_FIELDS.forEach((field) => {
+    counts[field] = Math.max(0, Number(row?.[`player_${side}_${field}`]) || 0);
+  });
+  return counts;
+}
+
 function challengeProfileAggregateTotals(rows = []) {
   const totals = new Map();
+  const emptyTotal = () => ({
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    sent: 0,
+    received: 0,
+    pairs: new Map(),
+    side: { finished: 0, surrenders: 0, forfeits: 0, solved_sum: 0, solved_games: 0 },
+    hasSide: false
+  });
+  const addSide = (self, other, side) => {
+    const id = challengeFavoriteId(self);
+    if (!side || !id || id === challengeFavoriteId(other)) return;
+    const total = totals.get(id) || emptyTotal();
+    CHALLENGE_STATS_SIDE_FIELDS.forEach((field) => {
+      total.side[field] += side[field];
+    });
+    total.hasSide = true;
+    totals.set(id, total);
+  };
   const add = (self, other, wins, losses, draws, sent, received) => {
     const id = challengeFavoriteId(self);
     const otherId = challengeFavoriteId(other);
     const games = wins + losses + draws;
     if (!id || !otherId || id === otherId || games <= 0) return;
-    const total = totals.get(id) || { wins: 0, losses: 0, draws: 0, sent: 0, received: 0, pairs: new Map() };
+    const total = totals.get(id) || emptyTotal();
     total.wins += wins;
     total.losses += losses;
     total.draws += draws;
@@ -14101,6 +14132,8 @@ function challengeProfileAggregateTotals(rows = []) {
     const bSent = Number(row?.player_b_sent) || 0;
     add(row?.player_a, row?.player_b, aWins, bWins, draws, aSent, bSent);
     add(row?.player_b, row?.player_a, bWins, aWins, draws, bSent, aSent);
+    addSide(row?.player_a, row?.player_b, challengeProfileSideCounts(row, "a"));
+    addSide(row?.player_b, row?.player_a, challengeProfileSideCounts(row, "b"));
   });
   totals.forEach((total) => {
     total.played = total.wins + total.losses + total.draws;
@@ -14117,11 +14150,20 @@ async function fetchChallengeProfileAggregates() {
   let rows = null;
   if (supabaseConfigured()) {
     try {
-      const response = await fetch(supabaseUrl(`${challengeStatsTable()}?${[
-        "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
+      const baseColumns = "player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at";
+      const sideColumns = ["a", "b"].flatMap((side) => CHALLENGE_STATS_SIDE_FIELDS.map((field) => `player_${side}_${field}`));
+      const request = (columns) => fetch(supabaseUrl(`${challengeStatsTable()}?${[
+        `select=${columns}`,
         "order=last_played_at.desc.nullslast",
         "limit=5000"
       ].join("&")}`), { headers: supabaseHeaders() });
+      let response = await request(`${baseColumns},${sideColumns.join(",")}`);
+      if (!response.ok) {
+        const details = await supabaseResponseBodyText(response);
+        if (sideColumns.some((column) => postgrestSchemaColumnError(details, column))) {
+          response = await request(baseColumns);
+        }
+      }
       if (response.ok) {
         const payload = await response.json();
         rows = mergeChallengeStatsRows([Array.isArray(payload) ? payload : []]);
@@ -14139,8 +14181,8 @@ async function fetchChallengeProfileAggregates() {
   return totals;
 }
 
-// challenge_stats не чува предаје, истекле изазове ни решене табле, па Издржљивост и Прецизност
-// долазе само из сирових `challenges` редова који још нису очишћени.
+// Резерва за Издржљивост и Прецизност када challenge_stats још нема довољно
+// трајних бројача: сирови `challenges` редови који још нису очишћени.
 function challengeProfileRawStats(name, rows = []) {
   const raw = { resolved: 0, finishedSelf: 0, solvedSum: 0, solvedCount: 0 };
   (Array.isArray(rows) ? rows : []).forEach((row) => {
@@ -14171,6 +14213,17 @@ function challengeProfileStats(name, totals, rows = []) {
   const raw = challengeProfileRawStats(name, rows);
   const played = own?.played || 0;
   const enough = played >= CHALLENGE_PROFILE_MIN_BARS;
+  const side = own?.hasSide ? own.side : null;
+  const sideResolved = side ? side.finished + side.surrenders + side.forfeits : 0;
+  let endurance = null;
+  if (enough && sideResolved >= CHALLENGE_PROFILE_MIN_RAW_ROWS) endurance = (side.finished / sideResolved) * 100;
+  else if (enough && raw.resolved >= CHALLENGE_PROFILE_MIN_RAW_ROWS) endurance = (raw.finishedSelf / raw.resolved) * 100;
+  let precision = null;
+  if (enough && side && side.solved_games >= CHALLENGE_PROFILE_MIN_RAW_ROWS) {
+    precision = (side.solved_sum / (side.solved_games * 6)) * 100;
+  } else if (enough && raw.solvedCount >= CHALLENGE_PROFILE_MIN_RAW_ROWS) {
+    precision = (raw.solvedSum / raw.solvedCount / 6) * 100;
+  }
   return {
     played,
     wins: own?.wins || 0,
@@ -14180,12 +14233,8 @@ function challengeProfileStats(name, totals, rows = []) {
     received: own?.received || 0,
     pairs: own?.pairs || new Map(),
     strength: enough ? own.strength : null,
-    endurance: enough && raw.resolved >= CHALLENGE_PROFILE_MIN_RAW_ROWS
-      ? (raw.finishedSelf / raw.resolved) * 100
-      : null,
-    precision: enough && raw.solvedCount >= CHALLENGE_PROFILE_MIN_RAW_ROWS
-      ? (raw.solvedSum / raw.solvedCount / 6) * 100
-      : null,
+    endurance,
+    precision,
     enough
   };
 }
@@ -15046,6 +15095,15 @@ async function fetchChallengeHistory() {
   return mergeChallengeHistoryRows(payloads);
 }
 
+function challengeStatsSideFields(row, fromSide, toSide) {
+  const fields = {};
+  CHALLENGE_STATS_SIDE_FIELDS.forEach((field) => {
+    const value = row?.[`player_${fromSide}_${field}`];
+    if (value !== undefined && value !== null) fields[`player_${toSide}_${field}`] = Number(value) || 0;
+  });
+  return fields;
+}
+
 function mergeChallengeStatsRows(rows = []) {
   const merged = new Map();
   rows.flat().forEach((row) => {
@@ -15067,7 +15125,9 @@ function mergeChallengeStatsRows(rows = []) {
           player_a_sent: Number(row.player_a_sent) || 0,
           player_b_sent: Number(row.player_b_sent) || 0,
           total_games: Number(row.total_games) || 0,
-          last_played_at: row.last_played_at || ""
+          last_played_at: row.last_played_at || "",
+          ...challengeStatsSideFields(row, "a", "a"),
+          ...challengeStatsSideFields(row, "b", "b")
         }
       : {
           player_a: bRaw,
@@ -15078,7 +15138,9 @@ function mergeChallengeStatsRows(rows = []) {
           player_a_sent: Number(row.player_b_sent) || 0,
           player_b_sent: Number(row.player_a_sent) || 0,
           total_games: Number(row.total_games) || 0,
-          last_played_at: row.last_played_at || ""
+          last_played_at: row.last_played_at || "",
+          ...challengeStatsSideFields(row, "b", "a"),
+          ...challengeStatsSideFields(row, "a", "b")
         };
     const current = merged.get(key);
     if (!current) {
@@ -15098,7 +15160,9 @@ function mergeChallengeStatsRows(rows = []) {
       player_a_sent: keep.player_a_sent,
       player_b_sent: keep.player_b_sent,
       total_games: keep.total_games,
-      last_played_at: keep.last_played_at || current.last_played_at || ""
+      last_played_at: keep.last_played_at || current.last_played_at || "",
+      ...challengeStatsSideFields(keep, "a", "a"),
+      ...challengeStatsSideFields(keep, "b", "b")
     });
   });
   return [...merged.values()];
