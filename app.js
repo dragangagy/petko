@@ -14032,7 +14032,9 @@ const CHALLENGE_PROFILE_COLUMNS_LEGACY = CHALLENGE_PROFILE_BASE_COLUMNS.join(","
 const CHALLENGE_PROFILE_CACHE_MS = 5 * 60 * 1000;
 const CHALLENGE_PROFILE_MIN_BARS = 3;
 const CHALLENGE_PROFILE_MIN_DESCRIPTION = 5;
+const CHALLENGE_PROFILE_MIN_RAW_ROWS = 3;
 const challengeProfileCache = new Map();
+let challengeProfileAggregateCache = null;
 let challengeProfileToken = 0;
 
 function challengeProfileFilterValue(text) {
@@ -14072,102 +14074,144 @@ async function fetchChallengeProfileRows(name) {
   return rows;
 }
 
-function challengeProfileStrengthMap(rows = challengeStatsRows) {
+function challengeProfileAggregateTotals(rows = []) {
   const totals = new Map();
-  const add = (name, wins, losses, draws) => {
-    const id = challengeFavoriteId(name);
-    if (!id) return;
-    const total = totals.get(id) || { wins: 0, losses: 0, draws: 0 };
+  const add = (self, other, wins, losses, draws, sent, received) => {
+    const id = challengeFavoriteId(self);
+    const otherId = challengeFavoriteId(other);
+    const games = wins + losses + draws;
+    if (!id || !otherId || id === otherId || games <= 0) return;
+    const total = totals.get(id) || { wins: 0, losses: 0, draws: 0, sent: 0, received: 0, pairs: new Map() };
     total.wins += wins;
     total.losses += losses;
     total.draws += draws;
+    total.sent += sent;
+    total.received += received;
+    const pair = total.pairs.get(otherId) || { games: 0, sent: 0 };
+    pair.games += games;
+    pair.sent += sent;
+    total.pairs.set(otherId, pair);
     totals.set(id, total);
   };
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const aWins = Number(row?.player_a_wins) || 0;
     const bWins = Number(row?.player_b_wins) || 0;
     const draws = Number(row?.draws) || 0;
-    add(row?.player_a, aWins, bWins, draws);
-    add(row?.player_b, bWins, aWins, draws);
+    const aSent = Number(row?.player_a_sent) || 0;
+    const bSent = Number(row?.player_b_sent) || 0;
+    add(row?.player_a, row?.player_b, aWins, bWins, draws, aSent, bSent);
+    add(row?.player_b, row?.player_a, bWins, aWins, draws, bSent, aSent);
   });
-  const strength = new Map();
-  totals.forEach((total, id) => {
-    const games = total.wins + total.losses + total.draws;
-    if (games >= CHALLENGE_PROFILE_MIN_BARS) strength.set(id, ((total.wins + total.draws / 2) / games) * 100);
+  totals.forEach((total) => {
+    total.played = total.wins + total.losses + total.draws;
+    total.strength = total.played >= CHALLENGE_PROFILE_MIN_BARS
+      ? ((total.wins + total.draws / 2) / total.played) * 100
+      : null;
   });
-  return strength;
+  return totals;
 }
 
-function challengeProfileStats(name, rows = []) {
-  const stats = {
-    accepted: 0,
-    sent: 0,
-    decided: 0,
-    wins: 0,
-    losses: 0,
-    ties: 0,
-    resolved: 0,
-    finishedSelf: 0,
-    solvedSum: 0,
-    solvedCount: 0,
-    opponents: new Set(),
-    sentOpponents: new Set()
-  };
-  rows.forEach((row) => {
+async function fetchChallengeProfileAggregates() {
+  const cached = challengeProfileAggregateCache;
+  if (cached && Date.now() - cached.at < CHALLENGE_PROFILE_CACHE_MS) return cached.totals;
+  let rows = null;
+  if (supabaseConfigured()) {
+    try {
+      const response = await fetch(supabaseUrl(`${challengeStatsTable()}?${[
+        "select=player_a,player_b,player_a_wins,player_b_wins,draws,player_a_sent,player_b_sent,total_games,last_played_at",
+        "order=last_played_at.desc.nullslast",
+        "limit=5000"
+      ].join("&")}`), { headers: supabaseHeaders() });
+      if (response.ok) {
+        const payload = await response.json();
+        rows = mergeChallengeStatsRows([Array.isArray(payload) ? payload : []]);
+      }
+    } catch {
+      rows = null;
+    }
+  }
+  if (!rows) {
+    if (!Array.isArray(challengeStatsRows) || !challengeStatsRows.length) throw new Error("Статистика играча није учитана.");
+    return challengeProfileAggregateTotals(challengeStatsRows);
+  }
+  const totals = challengeProfileAggregateTotals(rows);
+  challengeProfileAggregateCache = { at: Date.now(), totals };
+  return totals;
+}
+
+// challenge_stats не чува предаје, истекле изазове ни решене табле, па Издржљивост и Прецизност
+// долазе само из сирових `challenges` редова који још нису очишћени.
+function challengeProfileRawStats(name, rows = []) {
+  const raw = { resolved: 0, finishedSelf: 0, solvedSum: 0, solvedCount: 0 };
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
     const role = sameChallengeName(row?.creator, name) ? "creator" : (sameChallengeName(row?.opponent, name) ? "opponent" : "");
     if (!role) return;
-    // Witch Hunt редови имају сезонска правила (Ловац/Вештица, аутоматска победа на крају викенда) и не улазе у профил.
-    if (challengeIsWitchHuntRow(row)) return;
     const status = String(row?.status || "").toLowerCase();
     if (status === "cancelled" || isOpenChallengeOpponent(row?.opponent) || selfChallengeRow(row)) return;
     const accepted = Boolean(row?.accepted_at) || status === "accepted" || status === "played" || challengeSidePlayed(row, "opponent");
     if (!accepted) return;
-    const other = role === "creator" ? row.opponent : row.creator;
-    stats.accepted += 1;
-    if (role === "creator") stats.sent += 1;
     const played = challengeSidePlayed(row, role);
     const surrendered = played && (
       challengeRoleSurrendered(row, role) || row?.[`tiebreak_${role}_word`] === CHALLENGE_TIEBREAK_FORFEIT
     );
-    const decided = playedChallenge(row);
-    if (played || decided || challengeExpired(row)) {
-      stats.resolved += 1;
-      if (played && !surrendered) stats.finishedSelf += 1;
+    if (played || playedChallenge(row) || challengeExpired(row)) {
+      raw.resolved += 1;
+      if (played && !surrendered) raw.finishedSelf += 1;
     }
     if (played && !challengeRoleSurrendered(row, role)) {
-      stats.solvedSum += Math.min(6, Math.max(0, Number(row?.[`${role}_solved`]) || 0));
-      stats.solvedCount += 1;
+      raw.solvedSum += Math.min(6, Math.max(0, Number(row?.[`${role}_solved`]) || 0));
+      raw.solvedCount += 1;
     }
-    if (!decided) return;
-    stats.decided += 1;
-    stats.opponents.add(challengeFavoriteId(other));
-    if (role === "creator") stats.sentOpponents.add(challengeFavoriteId(other));
-    const winner = challengeWinner(row);
-    if (winner === "tie") stats.ties += 1;
-    else if (winner === role) stats.wins += 1;
-    else stats.losses += 1;
   });
-  const enough = stats.decided >= CHALLENGE_PROFILE_MIN_BARS;
-  stats.strength = enough ? ((stats.wins + stats.ties / 2) / stats.decided) * 100 : null;
-  stats.endurance = enough && stats.resolved ? (stats.finishedSelf / stats.resolved) * 100 : null;
-  stats.precision = enough && stats.solvedCount ? (stats.solvedSum / stats.solvedCount / 6) * 100 : null;
-  stats.enough = enough;
-  return stats;
+  return raw;
 }
 
-function challengeProfileDescription(name, stats) {
+function challengeProfileStats(name, totals, rows = []) {
+  const own = totals?.get(challengeFavoriteId(name));
+  const raw = challengeProfileRawStats(name, rows);
+  const played = own?.played || 0;
+  const enough = played >= CHALLENGE_PROFILE_MIN_BARS;
+  return {
+    played,
+    wins: own?.wins || 0,
+    losses: own?.losses || 0,
+    draws: own?.draws || 0,
+    sent: own?.sent || 0,
+    received: own?.received || 0,
+    pairs: own?.pairs || new Map(),
+    strength: enough ? own.strength : null,
+    endurance: enough && raw.resolved >= CHALLENGE_PROFILE_MIN_RAW_ROWS
+      ? (raw.finishedSelf / raw.resolved) * 100
+      : null,
+    precision: enough && raw.solvedCount >= CHALLENGE_PROFILE_MIN_RAW_ROWS
+      ? (raw.solvedSum / raw.solvedCount / 6) * 100
+      : null,
+    enough
+  };
+}
+
+function challengeProfileDescription(stats, totals) {
   const traits = [];
   const add = (text, score) => traits.push({ text, score: Math.min(2, score) });
-  const creatorRatio = stats.accepted ? stats.sent / stats.accepted : 0;
-  if (creatorRatio >= 0.65) add("Главни изазивач — често први шаље изазов.", 1 + (creatorRatio - 0.65) / 0.35);
-  else if (creatorRatio <= 0.25) add("Ретко изазива, али прихвата дуеле.", 1 + (0.25 - creatorRatio) / 0.25);
-  const spread = stats.decided ? stats.opponents.size / stats.decided : 0;
-  if (stats.decided >= 8 && spread >= 0.6) add("Изазива све редом.", 1 + (spread - 0.6) / 0.4);
+  const directed = stats.sent + stats.received;
+  const creatorRatio = directed ? stats.sent / directed : 0;
+  if (directed && creatorRatio >= 0.65) add("Главни изазивач — често први шаље изазов.", 1 + (creatorRatio - 0.65) / 0.35);
+  else if (directed && creatorRatio <= 0.25) add("Ретко изазива, али прихвата дуеле.", 1 + (0.25 - creatorRatio) / 0.25);
+  const spread = stats.played ? stats.pairs.size / stats.played : 0;
+  if (stats.played >= 8 && spread >= 0.6) add("Изазива све редом.", 1 + (spread - 0.6) / 0.4);
   if (stats.strength !== null) {
-    const strengthMap = challengeProfileStrengthMap();
-    const known = [...stats.sentOpponents].map((id) => strengthMap.get(id)).filter(Number.isFinite);
-    if (known.length >= 3) {
-      const diff = known.reduce((sum, value) => sum + value, 0) / known.length - stats.strength;
+    let known = 0;
+    let weight = 0;
+    let sum = 0;
+    stats.pairs.forEach((pair, otherId) => {
+      const value = totals?.get(otherId)?.strength;
+      if (!pair.sent || !Number.isFinite(value)) return;
+      known += 1;
+      weight += pair.sent;
+      sum += value * pair.sent;
+    });
+    if (known >= 3) {
+      const diff = sum / weight - stats.strength;
       if (diff <= -15) add("Изазива углавном слабије од себе.", 1 + (-diff - 15) / 30);
       else if (diff >= 15) add("Не бежи од јачих противника.", 1 + (diff - 15) / 30);
     }
@@ -14320,20 +14364,28 @@ function openChallengeOpponentProfile(name) {
 
   challengePickerProfile.append(favorite, title, bars, note, bottom, headToHead, actions);
 
-  fetchChallengeProfileRows(name)
-    .then((rows) => {
+  Promise.all([
+    fetchChallengeProfileAggregates(),
+    fetchChallengeProfileRows(name).catch(() => [])
+  ])
+    .then(([totals, rows]) => {
       if (token !== challengeProfileToken) return;
-      const stats = challengeProfileStats(name, rows);
+      const stats = challengeProfileStats(name, totals, rows);
       strengthBar.set(stats.strength);
       enduranceBar.set(stats.endurance);
       precisionBar.set(stats.precision);
       note.textContent = stats.enough ? "" : "Нема довољно одиграних изазова";
       note.hidden = stats.enough;
-      description.textContent = stats.decided >= CHALLENGE_PROFILE_MIN_DESCRIPTION
-        ? challengeProfileDescription(name, stats)
+      description.textContent = stats.played >= CHALLENGE_PROFILE_MIN_DESCRIPTION
+        ? challengeProfileDescription(stats, totals)
         : "Опис се открива после 5 одиграних изазова.";
-      const tieText = stats.ties ? ` · Нерешено: ${stats.ties}` : "";
-      counts.textContent = `Одиграно: ${stats.decided} · Победе: ${stats.wins} · Порази: ${stats.losses}${tieText}`;
+      const tieText = stats.draws ? ` · Нерешено: ${stats.draws}` : "";
+      const summary = document.createElement("span");
+      summary.textContent = `Одиграно: ${stats.played} · Победе: ${stats.wins} · Порази: ${stats.losses}${tieText}`;
+      const direction = document.createElement("span");
+      direction.textContent = `Послао: ${stats.sent} · Примио: ${stats.received}`;
+      if (stats.played) counts.replaceChildren(summary, document.createElement("br"), direction);
+      else counts.replaceChildren(summary);
     })
     .catch(() => {
       if (token !== challengeProfileToken) return;
