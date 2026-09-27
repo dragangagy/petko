@@ -15598,7 +15598,14 @@ function challengeTiebreakEffectiveLength(raw) {
   return challengeTiebreakEffectiveWord(raw).length;
 }
 
+function challengeTiebreakForfeited(row, role) {
+  return row?.[`tiebreak_${role}_word`] === CHALLENGE_TIEBREAK_FORFEIT;
+}
+
 function challengeTiebreakWinnerRole(row) {
+  const creatorForfeit = challengeTiebreakForfeited(row, "creator");
+  const opponentForfeit = challengeTiebreakForfeited(row, "opponent");
+  if (creatorForfeit !== opponentForfeit) return creatorForfeit ? "opponent" : "creator";
   if (!challengeTiebreakSubmitted(row, "creator") || !challengeTiebreakSubmitted(row, "opponent")) return null;
   const creatorLen = challengeTiebreakEffectiveLength(row.tiebreak_creator_word);
   const opponentLen = challengeTiebreakEffectiveLength(row.tiebreak_opponent_word);
@@ -16297,9 +16304,16 @@ async function submitChallengeTiebreakWord(timedOut = false) {
     return;
   }
   const letters = String(row.tiebreak_letters || tiebreakSession.letters || "");
-  let word = normalizeLongWord(challengeTiebreakInput?.value || "");
-  if (timedOut && !word) word = "";
-  if (word && !isValidTiebreakWord(word, letters)) {
+  // Рачуна се само реч потврђена пре истека времена; после истека увек 0 слова.
+  if (timedOut) tiebreakSession.timedOut = true;
+  const expired = Boolean(tiebreakSession.timedOut);
+  let word = expired ? "" : normalizeLongWord(challengeTiebreakInput?.value || "");
+  if (expired) {
+    if (challengeTiebreakInput) challengeTiebreakInput.disabled = true;
+    if (challengeTiebreakMessage) {
+      challengeTiebreakMessage.textContent = "Време је истекло без потврде — уписује се 0 слова.";
+    }
+  } else if (word && !isValidTiebreakWord(word, letters)) {
     if (challengeTiebreakMessage) {
       challengeTiebreakMessage.textContent = "Реч није у лексикону или не може од ових слова.";
     }
@@ -16310,8 +16324,8 @@ async function submitChallengeTiebreakWord(timedOut = false) {
     clearTiebreakTimers();
     setTiebreakComposeUi(false);
     const len = word.length;
-    const msg = timedOut && !word
-      ? "Демо: време је истекло — без речи (0 слова)."
+    const msg = expired
+      ? "Демо: време је истекло без потврде — 0 слова."
       : word
         ? `Демо: ${displayWord(word)} — ${len} ${len === 1 ? "слово" : "слова"}.`
         : "Демо: празан одговор (0 слова).";
@@ -16444,7 +16458,13 @@ challengeTiebreakStop?.addEventListener("click", () => {
   sequenceStopTiebreakLetters().catch(() => {});
 });
 challengeTiebreakSubmit?.addEventListener("click", () => submitChallengeTiebreakWord(false).catch(() => {}));
-challengeTiebreakClose?.addEventListener("click", () => closeChallengeTiebreakOverlay());
+challengeTiebreakClose?.addEventListener("click", () => {
+  // Затварање током одбројавања не сме да донесе ново време: уписује се 0 слова.
+  if (tiebreakWordTimer && tiebreakComposeActive() && !tiebreakSession.demo) {
+    submitChallengeTiebreakWord(true).catch(() => {});
+  }
+  closeChallengeTiebreakOverlay();
+});
 challengeTiebreakInput?.addEventListener("input", () => updateTiebreakInputValidation());
 challengeTiebreakInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
@@ -16957,8 +16977,11 @@ function challengeCard(row, rows = []) {
         ? challengeTiebreakVictoryLine(winnerName)
         : `${challengeWinnerVerb(winnerName)} ${winnerName}`;
       const scoreLine = document.createElement("div");
+      const loserRole = winnerRole === "creator" ? "opponent" : "creator";
       scoreLine.textContent = tiebreakDone
-        ? `Разлика ${formatScore(challengeDifference(row))} слова у двобоју`
+        ? challengeTiebreakForfeited(row, loserRole)
+          ? "Двобој је предат"
+          : `Разлика ${formatScore(challengeDifference(row))} слова у двобоју`
         : `${challengeWinnerScoreVerb(winnerName)} ${formatScore(challengeDifference(row))} бодова`;
       outcome.append(winnerLine, scoreLine);
     }
@@ -17849,9 +17872,34 @@ async function finishChallenge(status) {
   releaseFinishedChallengeHold(hold, lobbyMessage);
 }
 
+async function surrenderChallengeTiebreak(row, role) {
+  const current = await fetchChallenge(row.code).catch(() => null) || row;
+  if (challengeTiebreakSubmitted(current, role)) {
+    renderChallengePanel("Већ си одиграо/ла двобој. Чека се противник.");
+    refreshChallengePanel();
+    return;
+  }
+  // Предаја одмах одлучује двобој: противник побеђује и без своје речи.
+  const patch = {
+    [`tiebreak_${role}_word`]: CHALLENGE_TIEBREAK_FORFEIT,
+    tiebreak_status: "done",
+    status: "played"
+  };
+  const updated = await updateChallenge(row.code, patch, current);
+  if (tiebreakSession?.row?.code === row.code) closeChallengeTiebreakOverlay();
+  renderChallengePanel("Двобој је предат.");
+  refreshChallengePanel();
+  refreshAvatarAchievements({ popup: true }).catch(() => {});
+  return updated;
+}
+
 async function surrenderChallenge(row) {
   if (!row?.code || !supabaseConfigured()) return;
   const role = challengeRole(row);
+  if (role && challengeAwaitingTiebreak(row)) {
+    await surrenderChallengeTiebreak(row, role);
+    return;
+  }
   if (!role || challengeAlreadyPlayed(row, role)) return;
   const otherRole = role === "creator" ? "opponent" : "creator";
   const sidePatch = {
@@ -17872,11 +17920,14 @@ async function surrenderChallenge(row) {
 }
 
 function confirmSurrenderChallenge(row) {
+  const duel = challengeAwaitingTiebreak(row);
   showWordModal({
-    title: "Предаја изазова",
-    word: "изазов",
-    text: "Да ли сигурно желиш да предаш овај изазов?",
-    reviewText: "Када потврдиш, овај изазов се уписује као одигран са твоје стране.",
+    title: duel ? "Предаја двобоја" : "Предаја изазова",
+    word: duel ? "двобој" : "изазов",
+    text: duel ? "Да ли сигурно желиш да предаш двобој?" : "Да ли сигурно желиш да предаш овај изазов?",
+    reviewText: duel
+      ? "Када потврдиш, противник побеђује у двобоју."
+      : "Када потврдиш, овај изазов се уписује као одигран са твоје стране.",
     buttons: [
       {
         label: "Да, предај",
