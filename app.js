@@ -21556,7 +21556,33 @@ function renderPlayerStats(rows) {
   }
 
   const stats = aggregatePlayerRows(rows);
-  playerStatsEl.textContent = `Коначно ${formatScore(stats.finalScore)} · Победе ${formatScore(stats.wins)} · Покушаји ${formatScore(stats.attempts)} · Најбољи ${formatScore(stats.best)} · Низ ${formatScore(stats.streak)}`;
+  const streak = liveCompetitiveStreak(rows);
+  playerStatsEl.textContent = `Коначно ${formatScore(stats.finalScore)} · Победе ${formatScore(stats.wins)} · Покушаји ${formatScore(stats.attempts)} · Најбољи ${formatScore(stats.best)} · Тренутни низ ${formatScore(streak)}`;
+}
+
+function liveCompetitiveStreak(rows = []) {
+  const today = todayId();
+  const yesterday = (() => {
+    const d = new Date(`${today}T00:00:00`);
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+
+  const todayLocal = todayResult();
+  if (todayLocal && todayLocal.status !== "finished") return 0;
+  const local = todayLocal
+    ? Math.max(Number(todayLocal.streak) || 0, currentStreakFor("finished"))
+    : Math.max(0, currentStreakFor("finished") - 1);
+
+  let online = 0;
+  if (Array.isArray(rows)) {
+    const latest = rows
+      .filter((row) => scoreDate(row) === today || scoreDate(row) === yesterday)
+      .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))[0];
+    if (latest && Number(latest.wins) > 0) online = Number(latest.streak) || 0;
+  }
+
+  return Math.max(local, online);
 }
 
 function onlineRowDate(row) {
