@@ -42,3 +42,7 @@ release/**/*.msix
 release/**/*.appxbundle
 release/**/*.blockmap
 release/**/*.xcarchive/
+
+# Tiebreak lexicon build leftovers (keep tiebreak-lexicon.json.gz tracked)
+tiebreak-lexicon.json
+.tmp-tiebreak-lexicon/
