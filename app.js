@@ -5691,6 +5691,7 @@ const PROFILE_UNLOCK_GROUPS = {
   }
 };
 const PLAYER_AVATAR_CACHE = new Map();
+const PLAYER_AVATAR_ROW_CACHE = new Map();
 const SUPABASE_CONFIG = {
   url: "https://api.g-lab.rs",
   restPrefix: "",
@@ -11506,6 +11507,7 @@ let challengePlayersCache = { at: 0, rows: null };
 let challengeStatsCache = { at: 0, rows: null };
 let onlineNormalStatsSummary = null;
 let avatarAchievementStats = null;
+let weekendWitchAvatarPhase = null;
 let challengePickerSelected = "";
 let challengePickerBusy = false;
 let hallMedals = [];
@@ -18091,6 +18093,68 @@ function isProfileAvatarApproved(id = "") {
   return Boolean(id && !isWeekendEventAvatarId(id) && localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY) === id);
 }
 
+function isProfileAvatarUsable(avatar) {
+  if (!avatar) return false;
+  if (isWeekendEventAvatarId(avatar.id)) return isWeekendWitchActive();
+  if (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id)) return true;
+  // Achievement stats load asynchronously; until then an earned avatar must not be downgraded.
+  return !avatarAchievementStats && !avatar.adminOnly && Boolean(profileAvatarUnlockInfo(avatar));
+}
+
+function loadWeekendPreviousAvatarStore() {
+  const raw = localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY) || "";
+  try {
+    const data = JSON.parse(raw || "{}");
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  } catch {
+    // Older versions stored one plain avatar id per device, shared by every nickname on it.
+    return profileAvatarById(raw) ? { legacy: raw } : {};
+  }
+}
+
+function loadWeekendPreviousAvatar(name = loadPlayerName()) {
+  const store = loadWeekendPreviousAvatarStore();
+  const entry = name ? store[`player:${playerAvatarCacheKey(name)}`] : null;
+  const id = entry && entry.weekend === latestWitchHuntWeekendStart() ? entry.id : "";
+  const avatar = profileAvatarById(id);
+  return avatar && !isWeekendEventAvatarId(avatar.id) ? avatar.id : "";
+}
+
+function loadLegacyWeekendPreviousAvatar() {
+  const id = loadWeekendPreviousAvatarStore().legacy || "";
+  return id && !isWeekendEventAvatarId(id) && profileAvatarById(id) ? id : "";
+}
+
+function saveWeekendPreviousAvatar(id = "", name = loadPlayerName()) {
+  const avatar = profileAvatarById(id);
+  if (!name || !avatar || isWeekendEventAvatarId(avatar.id)) return;
+  const weekend = weekendWitchId();
+  const store = Object.fromEntries(Object.entries(loadWeekendPreviousAvatarStore())
+    .filter(([key, entry]) => key.startsWith("player:") && entry?.weekend === weekend));
+  store[`player:${playerAvatarCacheKey(name)}`] = { id: avatar.id, weekend };
+  localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, JSON.stringify(store));
+}
+
+function clearWeekendPreviousAvatar(name = loadPlayerName()) {
+  const store = loadWeekendPreviousAvatarStore();
+  delete store.legacy;
+  if (name) delete store[`player:${playerAvatarCacheKey(name)}`];
+  if (Object.keys(store).length) localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, JSON.stringify(store));
+  else localStorage.removeItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
+}
+
+function cachedPlayerBaseAvatarId(name = "") {
+  const row = PLAYER_AVATAR_ROW_CACHE.get(playerAvatarCacheKey(name));
+  const avatar = profileAvatarById(row?.avatar_id);
+  return avatar && !isWeekendEventAvatarId(avatar.id) ? avatar.id : "";
+}
+
+function refreshAvatarsAfterWeekendPhaseChange() {
+  updateStatusProfile();
+  refreshChallengePanel();
+  refreshOnlineLeaderboard();
+}
+
 function loadWeekendWitchState() {
   try {
     return { weekend: weekendWitchId(), ...JSON.parse(localStorage.getItem(WEEKEND_WITCH_KEY) || "{}") };
@@ -18105,63 +18169,56 @@ function saveWeekendWitchState(data = {}) {
 
 function syncWeekendWitchAvatarState() {
   const active = isWeekendWitchActive();
+  if (weekendWitchAvatarPhase !== null && weekendWitchAvatarPhase !== active) {
+    window.setTimeout(refreshAvatarsAfterWeekendPhaseChange, 0);
+  }
+  weekendWitchAvatarPhase = active;
   const current = localStorage.getItem(PROFILE_AVATAR_KEY) || "";
+  const player = loadPlayerName();
   if (active) {
     const state = loadWeekendWitchState();
     if (state.weekend !== weekendWitchId()) saveWeekendWitchState({});
     if (isWeekendEventAvatarId(current)) return;
     const avatar = profileAvatarById(current) || PROFILE_AVATARS[0];
-    if (current && !localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY)) {
-      localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, avatar.id);
-    }
-    if (challengeAvatarIsMale(avatar)) {
-      const hunter = challengeWeekendHunterAvatar();
-      localStorage.setItem(PROFILE_AVATAR_KEY, hunter.id);
-      saveWeekendWitchState({ selected: hunter.id });
-      const player = loadPlayerName();
-      if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), hunter.id);
-      syncProfileAvatarToSupabase(hunter.id).catch(() => false);
-    } else {
-      const witch = challengeWeekendWitchAvatar(loadPlayerName());
-      if (!witch) return;
-      localStorage.setItem(PROFILE_AVATAR_KEY, witch.id);
-      saveWeekendWitchState({ selected: witch.id });
-      const player = loadPlayerName();
-      if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), witch.id);
-      syncProfileAvatarToSupabase(witch.id).catch(() => false);
-    }
+    if (current && !loadWeekendPreviousAvatar(player)) saveWeekendPreviousAvatar(avatar.id, player);
+    const selected = state.weekend === weekendWitchId() ? state.selected : "";
+    const eventAvatar = challengeAvatarIsMale(avatar)
+      ? challengeWeekendHunterAvatar()
+      : (isWeekendWitchAvatarId(selected) && profileAvatarById(selected)) || challengeWeekendWitchAvatar(player);
+    if (!eventAvatar) return;
+    localStorage.setItem(PROFILE_AVATAR_KEY, eventAvatar.id);
+    saveWeekendWitchState({ selected: eventAvatar.id });
+    if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), eventAvatar.id);
+    syncProfileAvatarToSupabase(eventAvatar.id).catch(() => false);
     return;
   }
   if (!isWeekendEventAvatarId(current)) return;
-  const previous = localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
   const eventAvatar = profileAvatarById(current);
   const candidates = BASE_PROFILE_AVATARS.filter((avatar) => avatar.group === eventAvatar?.group);
-  const seed = `${weekendWitchId()}|${profileDeviceId()}|${loadPlayerName()}|${eventAvatar?.group || "male"}`;
+  const seed = `${latestWitchHuntWeekendStart()}|${player}|${eventAvatar?.group || "male"}`;
   let hash = 0;
   [...seed].forEach((letter) => { hash = ((hash * 31) + letter.charCodeAt(0)) >>> 0; });
-  const fallback = previous && !isWeekendEventAvatarId(previous) && profileAvatarById(previous)
-    && isProfileAvatarUnlocked(profileAvatarById(previous))
-    ? previous
-    : (candidates[hash % candidates.length] || PROFILE_AVATARS[0]).id;
+  // Local values are only shown until fetchCurrentPlayerProfile applies avatar_id from the players table.
+  const restored = loadWeekendPreviousAvatar(player)
+    || cachedPlayerBaseAvatarId(player)
+    || loadLegacyWeekendPreviousAvatar();
+  const fallback = restored || (candidates[hash % candidates.length] || PROFILE_AVATARS[0]).id;
   localStorage.setItem(PROFILE_AVATAR_KEY, fallback);
-  localStorage.removeItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
-  if (isWeekendEventAvatarId(localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY))) {
-    saveApprovedProfileAvatarId("");
-  }
+  clearWeekendPreviousAvatar(player);
+  if (restored) saveApprovedProfileAvatarId(restored);
+  else if (isWeekendEventAvatarId(localStorage.getItem(PROFILE_AVATAR_APPROVED_KEY))) saveApprovedProfileAvatarId("");
   saveWeekendWitchState({});
-  const player = loadPlayerName();
   if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), fallback);
   updateStatusProfile();
-  // Osnovni avatar u Supabase-u nije menjan tokom vikenda, zato ga ovde ne prepisujemo.
+  // avatar_id in the players table is never changed during the weekend, so it is read back, not written.
+  fetchCurrentPlayerProfile().catch(() => null);
 }
 
 function loadProfileAvatarId() {
   syncWeekendWitchAvatarState();
   const id = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
   const avatar = profileAvatarById(id);
-  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id) || (isWeekendWitchActive() && isWeekendEventAvatarId(avatar.id)))
-    ? avatar.id
-    : PROFILE_AVATARS[0].id;
+  return isProfileAvatarUsable(avatar) ? avatar.id : PROFILE_AVATARS[0].id;
 }
 
 function profileAvatarById(id) {
@@ -18185,9 +18242,7 @@ function currentProfileAvatar() {
 
 function normalizeProfileAvatarId(id) {
   const avatar = profileAvatarById(id);
-  return avatar && (isProfileAvatarUnlocked(avatar) || isProfileAvatarApproved(avatar.id) || (isWeekendWitchActive() && isWeekendEventAvatarId(avatar.id)))
-    ? avatar.id
-    : PROFILE_AVATARS[0].id;
+  return isProfileAvatarUsable(avatar) ? avatar.id : PROFILE_AVATARS[0].id;
 }
 
 function playerAvatarCacheKey(name) {
@@ -18195,22 +18250,31 @@ function playerAvatarCacheKey(name) {
 }
 
 function weekendAvatarFromPlayerRow(row = {}) {
+  const active = isWeekendWitchActive();
   const weekendAvatar = profileAvatarById(row.weekend_avatar_id);
-  return isWeekendWitchActive() && row.weekend_avatar_weekend === weekendWitchId() && weekendAvatar
-    ? weekendAvatar
-    : profileAvatarById(row.avatar_id);
+  if (active && row.weekend_avatar_weekend === weekendWitchId() && weekendAvatar) return weekendAvatar;
+  const avatar = profileAvatarById(row.avatar_id);
+  return avatar && (active || !isWeekendEventAvatarId(avatar.id)) ? avatar : null;
 }
 
 function cachePlayerAvatar(row = {}) {
   const key = playerAvatarCacheKey(row.nickname);
-  const avatar = weekendAvatarFromPlayerRow(row);
-  if (key && avatar) PLAYER_AVATAR_CACHE.set(key, avatar.id);
+  if (!key) return;
+  const merged = { ...(PLAYER_AVATAR_ROW_CACHE.get(key) || {}) };
+  ["avatar_id", "weekend_avatar_id", "weekend_avatar_weekend"].forEach((field) => {
+    if (field in row) merged[field] = row[field];
+  });
+  PLAYER_AVATAR_ROW_CACHE.set(key, merged);
+  const avatar = weekendAvatarFromPlayerRow(merged);
+  if (avatar) PLAYER_AVATAR_CACHE.set(key, avatar.id);
 }
 
 function applySupabaseProfileAvatar(row = {}, nickname = loadPlayerName()) {
   const avatar = profileAvatarById(row.avatar_id);
   const cleanName = normalizePlayerName(nickname || row.nickname || "");
   if (!avatar) return false;
+  // Several nicknames can share one device_id; never take another nickname's avatar.
+  if (row.nickname && nickname && !sameChallengeName(row.nickname, nickname)) return false;
   if (isWeekendEventAvatarId(avatar.id) && !isWeekendWitchActive()) return false;
   if (!isWeekendEventAvatarId(avatar.id)) saveApprovedProfileAvatarId(avatar.id);
   localStorage.setItem(PROFILE_AVATAR_KEY, normalizeProfileAvatarId(avatar.id));
@@ -18223,8 +18287,13 @@ function applySupabaseProfileAvatar(row = {}, nickname = loadPlayerName()) {
 }
 
 function cachedProfileAvatar(name = "") {
-  const id = PLAYER_AVATAR_CACHE.get(playerAvatarCacheKey(name));
-  return profileAvatarById(id);
+  const key = playerAvatarCacheKey(name);
+  // Resolve from the stored row on every read so a Sunday-to-Monday rollover
+  // switches back to avatar_id without waiting for a refetch.
+  const row = PLAYER_AVATAR_ROW_CACHE.get(key);
+  if (row) return weekendAvatarFromPlayerRow(row);
+  const avatar = profileAvatarById(PLAYER_AVATAR_CACHE.get(key));
+  return avatar && isWeekendEventAvatarId(avatar.id) && !isWeekendWitchActive() ? null : avatar;
 }
 
 function deterministicProfileAvatar(name = "") {
@@ -18292,9 +18361,7 @@ function saveProfileAvatar(id) {
   const cleanId = normalizeProfileAvatarId(id);
   if (isWeekendEventAvatarId(cleanId) && isWeekendWitchActive()) {
     const current = localStorage.getItem(PROFILE_AVATAR_KEY) || PROFILE_AVATARS[0].id;
-    if (!isWeekendEventAvatarId(current)) {
-      localStorage.setItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY, current);
-    }
+    if (!isWeekendEventAvatarId(current)) saveWeekendPreviousAvatar(current);
     saveWeekendWitchState({ selected: cleanId });
     const data = loadWeekendWitchChallengeBonus();
     if (data.weekend !== weekendWitchId() || !data.lastAwardAt) {
@@ -18302,24 +18369,22 @@ function saveProfileAvatar(id) {
     }
   }
   localStorage.setItem(PROFILE_AVATAR_KEY, cleanId);
-  const cleanAvatar = profileAvatarById(cleanId);
-  if (cleanAvatar && isProfileAvatarUnlocked(cleanAvatar)) saveApprovedProfileAvatarId("");
+  // Remember the explicit choice so it survives reloads before achievement stats arrive.
+  if (!isWeekendEventAvatarId(cleanId)) saveApprovedProfileAvatarId(cleanId);
   const player = loadPlayerName();
   if (player) PLAYER_AVATAR_CACHE.set(playerAvatarCacheKey(player), cleanId);
   updateStatusProfile();
   renderProfileModal();
   ensurePlayerRowInSupabase()
-    .then((ok) => {
-      if (!ok) return syncProfileAvatarToSupabase(cleanId);
-      return true;
-    })
-    .catch(() => syncProfileAvatarToSupabase(cleanId).catch(() => false));
+    .catch(() => false)
+    .then(() => syncProfileAvatarToSupabase(cleanId))
+    .catch(() => false);
 }
 
 async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
   if (!supabaseConfigured()) return false;
   const cleanId = normalizeProfileAvatarId(id);
-  const name = normalizePlayerName(loadPlayerName() || "");
+  const name = loadPlayerName() ? normalizePlayerName(loadPlayerName()) : "";
   const weekendAvatar = isWeekendWitchActive() && isWeekendEventAvatarId(cleanId);
   // Za vreme Witch Hunta stalni avatar je zaključan za upis.
   // Samo sezonski Lovac/Veštica sme da se šalje u weekend_avatar_id.
@@ -18327,16 +18392,9 @@ async function syncProfileAvatarToSupabase(id = loadProfileAvatarId()) {
   const patch = weekendAvatar
     ? { weekend_avatar_id: cleanId, weekend_avatar_weekend: weekendWitchId() }
     : { avatar_id: cleanId };
-  const jobs = [];
-  if (profileDeviceId()) {
-    jobs.push(patchSupabaseRows(`${playersTable()}?device_id=eq.${encodeURIComponent(profileDeviceId())}`, patch));
-  }
-  if (name) {
-    jobs.push(patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, patch));
-  }
-  if (!jobs.length) return false;
-  await Promise.allSettled(jobs);
-  return true;
+  // Only this nickname's row: a device_id filter also hit other nicknames on the same device.
+  if (!name) return false;
+  return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, patch);
 }
 
 function playerAvatarRegistrationPayload(id = loadProfileAvatarId()) {
@@ -18344,10 +18402,7 @@ function playerAvatarRegistrationPayload(id = loadProfileAvatarId()) {
   if (!isWeekendWitchActive() || !isWeekendEventAvatarId(cleanId)) {
     return { avatar_id: cleanId };
   }
-  const previous = localStorage.getItem(WEEKEND_WITCH_PREVIOUS_AVATAR_KEY);
-  const baseAvatar = previous && !isWeekendEventAvatarId(previous) && profileAvatarById(previous)
-    ? previous
-    : deterministicProfileAvatar(loadPlayerName()).id;
+  const baseAvatar = loadWeekendPreviousAvatar() || deterministicProfileAvatar(loadPlayerName()).id;
   return {
     // Osnovni avatar ostaje trajni avatar; sezonski se čuva odvojeno.
     avatar_id: baseAvatar,
@@ -18642,15 +18697,17 @@ async function fetchPlayerRows() {
 
 async function ensurePlayerRowInSupabase() {
   if (!supabaseConfigured()) return false;
-  const name = normalizePlayerName(loadPlayerName() || "");
-  if (!name) return false;
+  // normalizePlayerName("") yields the shared default "Играч" row, which must not be claimed.
+  if (!loadPlayerName()) return false;
+  const name = normalizePlayerName(loadPlayerName());
   const registered = await registerPlayerName(name).catch(() => null);
   if (registered === true) return true;
   if (registered === false) {
+    // Runs on every focus/visibility change, so it must not touch avatar columns:
+    // the local avatar may be a weekend placeholder or not yet restored from the table.
     return patchSupabaseRows(`${playersTable()}?nickname=eq.${encodeURIComponent(name)}`, {
       device_id: deviceId(),
-      last_seen: new Date().toISOString(),
-      ...playerAvatarRegistrationPayload()
+      last_seen: new Date().toISOString()
     });
   }
   return false;
@@ -21757,21 +21814,15 @@ async function fetchPlayerByDeviceId(targetDeviceId) {
 
 async function fetchCurrentPlayerProfile() {
   if (!supabaseConfigured()) return null;
-  const name = normalizePlayerName(loadPlayerName() || "");
+  const rawName = loadPlayerName();
+  const name = rawName ? normalizePlayerName(rawName) : "";
+  const select = "select=nickname,device_id,avatar_id,weekend_avatar_id,weekend_avatar_weekend";
+  // One device_id can belong to several nicknames, so look up by device only before a name exists.
   const queries = [
-    [
-      "select=nickname,device_id,avatar_id",
-      `device_id=eq.${encodeURIComponent(profileDeviceId())}`,
-      "limit=1"
-    ].join("&")
+    name
+      ? [select, `nickname=eq.${encodeURIComponent(name)}`, "limit=1"].join("&")
+      : [select, `device_id=eq.${encodeURIComponent(profileDeviceId())}`, "limit=1"].join("&")
   ];
-  if (name) {
-    queries.push([
-      "select=nickname,device_id,avatar_id",
-      `nickname=eq.${encodeURIComponent(name)}`,
-      "limit=1"
-    ].join("&"));
-  }
   for (const query of queries) {
     const response = await fetch(supabaseUrl(`${playersTable()}?${query}`), {
       headers: supabaseHeaders()
