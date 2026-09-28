@@ -19765,6 +19765,7 @@ function closeWordModal() {
   if (wordModal) wordModal.hidden = true;
   if (wordModal) delete wordModal.dataset.variant;
   document.body.dataset.wordModalOpen = "false";
+  onDismiss?.();
 }
 
 function setWordModalEditLink(visible, allowed) {
@@ -19874,7 +19875,10 @@ function setWordModalButtons(buttons) {
     button.type = "button";
     button.className = item.tone;
     button.textContent = item.label;
-    button.addEventListener("click", item.onClick);
+    button.addEventListener("click", (event) => {
+      wordModalDismissHandler = null;
+      item.onClick?.(event);
+    });
     wordModalActions.append(button);
   });
 }
