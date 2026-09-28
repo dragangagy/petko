@@ -89,6 +89,16 @@ create table if not exists public.challenges (
   opponent_played_at timestamptz
 );
 
+alter table public.challenges
+  add column if not exists creator_faction text,
+  add column if not exists opponent_faction text,
+  add column if not exists tiebreak_status text,
+  add column if not exists tiebreak_letters text,
+  add column if not exists tiebreak_started_by text,
+  add column if not exists tiebreak_started_at timestamptz,
+  add column if not exists tiebreak_creator_word text,
+  add column if not exists tiebreak_opponent_word text;
+
 alter table public.challenges enable row level security;
 
 drop policy if exists "challenges_read" on public.challenges;
