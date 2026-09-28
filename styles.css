@@ -1164,7 +1164,8 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .word-modal[data-variant="witch-confirm"] .word-card,
-.word-modal[data-variant="hunter-blocked"] .word-card {
+.word-modal[data-variant="hunter-blocked"] .word-card,
+.word-modal[data-variant="witch-warning"] .word-card {
   width: min(460px, 94vw);
   gap: 14px;
   padding: 24px;
@@ -1172,31 +1173,36 @@ body[data-game-type="normal"] .status-panel p {
 }
 
 .word-modal[data-variant="witch-confirm"] .word-card h2,
-.word-modal[data-variant="hunter-blocked"] .word-card h2 {
+.word-modal[data-variant="hunter-blocked"] .word-card h2,
+.word-modal[data-variant="witch-warning"] .word-card h2 {
   font-size: 24px;
   text-align: center;
 }
 
 .word-modal[data-variant="witch-confirm"] .word-modal-word,
-.word-modal[data-variant="hunter-blocked"] .word-modal-word {
+.word-modal[data-variant="hunter-blocked"] .word-modal-word,
+.word-modal[data-variant="witch-warning"] .word-modal-word {
   font-size: 31px;
   line-height: 1.1;
 }
 
 .word-modal[data-variant="witch-confirm"] .word-card p,
-.word-modal[data-variant="hunter-blocked"] .word-card p {
+.word-modal[data-variant="hunter-blocked"] .word-card p,
+.word-modal[data-variant="witch-warning"] .word-card p {
   font-size: 18px;
   line-height: 1.45;
   text-align: center;
 }
 
-.word-modal[data-variant="hunter-blocked"] .word-card {
+.word-modal[data-variant="hunter-blocked"] .word-card,
+.word-modal[data-variant="witch-warning"] .word-card {
   border-color: rgba(248, 113, 113, 0.88);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.56), 0 0 32px rgba(248, 113, 113, 0.24);
 }
 
 .word-modal[data-variant="witch-confirm"] .word-modal-actions button,
-.word-modal[data-variant="hunter-blocked"] .word-modal-actions button {
+.word-modal[data-variant="hunter-blocked"] .word-modal-actions button,
+.word-modal[data-variant="witch-warning"] .word-modal-actions button {
   min-height: 52px;
   font-size: 17px;
 }

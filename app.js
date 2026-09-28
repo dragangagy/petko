@@ -11494,6 +11494,7 @@ const CHALLENGE_STATS_SIDE_FIELDS = ["finished", "surrenders", "forfeits", "solv
 let wordEditorAllowed = false;
 let wordModalMeaningEditable = false;
 let wordModalCurrentWord = "";
+let wordModalDismissHandler = null;
 const WORD_VERIFIED = new Set();
 const CHALLENGE_PLAYER_ACTIVE_MS = 7 * 24 * 60 * 60 * 1000;
 /** Svakih ovoliko dana bez obične igre = +1 nerešena (započeta) partija u uspešnosti. */
@@ -15429,26 +15430,27 @@ function challengeProfileAvatar(name = "") {
 function confirmWitchSisterChallenge(opponent = "") {
   return new Promise((resolve) => {
     showWordModal({
-      modalVariant: "witch-confirm",
-      title: "Викенд вештичарења",
-      word: "сестра вештица",
-      text: `Изазиваш сестру вештицу ${opponent}. Овај изазов је дозвољен.`,
-      reviewText: "Потврди да желиш да пошаљеш изазов.",
+      modalVariant: "witch-warning",
+      title: "Кодекс Вештица",
+      word: "вештица не напада вештицу",
+      text: `Играч ${opponent} је такође Вештица. Изазов између две Вештице је дозвољен, али поен увек иде Ловцима, без обзира ко победи.`,
+      reviewText: "Ти си вештица, ти радиш шта хоћеш.",
+      onDismiss: () => resolve(false),
       buttons: [
         {
-          label: "Да",
-          tone: "success",
+          label: "⚔️ ИЗАЗОВИ ИПАК",
+          tone: "danger",
           onClick: () => {
-            closeWordModal();
             resolve(true);
+            closeWordModal();
           }
         },
         {
-          label: "Не",
-          tone: "danger",
+          label: "↩️ ОДУСТАНИ",
+          tone: "success",
           onClick: () => {
-            closeWordModal();
             resolve(false);
+            closeWordModal();
           }
         }
       ]
@@ -15463,17 +15465,45 @@ function showHunterChallengeBlocked(opponent = "") {
       title: "Кодекс Ловаца",
       word: "ловци не нападају ловце",
       text: `Не можеш послати изазов играчу ${opponent} јер сте обојица Ловци.`,
-      reviewText: "Током Witch Hunta Ловац може изазвати само Вештицу.",
+      reviewText: "Током лова на вештице Ловац може изазвати само Вештицу.",
+      onDismiss: () => resolve(),
       buttons: [{
         label: "Разумем",
         tone: "success",
         onClick: () => {
-          closeWordModal();
           resolve();
+          closeWordModal();
         }
       }]
     });
   });
+}
+
+function weekendChallengePair(creator = "", opponent = "") {
+  const creatorIsHunter = challengeAvatarIsMale(challengeProfileAvatar(creator));
+  const opponentIsHunter = challengeAvatarIsMale(challengeProfileAvatar(opponent));
+  if (creatorIsHunter && opponentIsHunter) return "hunters";
+  if (!creatorIsHunter && !opponentIsHunter) return "witches";
+  return "mixed";
+}
+
+function weekendChallengeOpponentKnown(opponent = "") {
+  return isOpenChallengeOpponent(opponent)
+    || sameChallengeName(opponent, loadPlayerName())
+    || PLAYER_AVATAR_CACHE.has(playerAvatarCacheKey(opponent));
+}
+
+async function confirmWeekendChallengePair(pair, opponent = "") {
+  if (pair === "hunters") {
+    await showHunterChallengeBlocked(opponent);
+    renderChallengePanel("Ловац не може изазвати Ловца током лова на вештице.");
+    return false;
+  }
+  if (pair === "witches" && !(await confirmWitchSisterChallenge(opponent))) {
+    renderChallengePanel("Изазов сестри вештици није послат.");
+    return false;
+  }
+  return true;
 }
 
 function challengeWinnerVerb(name = "") {
@@ -17421,8 +17451,6 @@ async function createChallenge(selectedOpponent = null) {
     openProfileModal();
     return false;
   }
-  const nickname = await savePlayerNameUnique(profileName);
-  if (!nickname) return false;
   const selectedChallengeOpponent = selectedOpponent ?? challengePickerSelected;
   let opponent = cleanChallengeName(selectedChallengeOpponent || challengePlayerSelect?.value || "");
   const shareAfterCreate = false;
@@ -17434,30 +17462,30 @@ async function createChallenge(selectedOpponent = null) {
     renderChallengePanel("Изабери регистрованог играча.");
     return false;
   }
+  if (sameChallengeName(profileName, opponent)) {
+    renderChallengePanel("Не можеш изазвати самог себе.");
+    return false;
+  }
+  let weekendPair = "";
+  let weekendAvatarRefresh = null;
+  if (isWeekendWitchActive() && !shareAfterCreate) {
+    // Upozorenje mora da se otvori odmah na klik: mreža se čeka samo ako protivnik nije u kešu.
+    weekendAvatarRefresh = refreshChallengePlayerAvatars().catch(() => null);
+    if (!weekendChallengeOpponentKnown(opponent)) await weekendAvatarRefresh;
+    weekendPair = weekendChallengePair(profileName, opponent);
+    if (!(await confirmWeekendChallengePair(weekendPair, opponent))) return false;
+    renderChallengePanel("Шаљем изазов...");
+  }
+  const nickname = await savePlayerNameUnique(profileName);
+  if (!nickname) return false;
   if (sameChallengeName(nickname, opponent)) {
     renderChallengePanel("Не можеш изазвати самог себе.");
     return false;
   }
-  if (isWeekendWitchActive() && !shareAfterCreate) {
-    // Resolve Supabase weekend avatars before deciding which modal to show.
-    await refreshChallengePlayerAvatars().catch(() => []);
-    const creatorAvatar = challengeProfileAvatar(nickname);
-    const opponentAvatar = challengeProfileAvatar(opponent);
-    const creatorIsHunter = challengeAvatarIsMale(creatorAvatar);
-    const opponentIsHunter = challengeAvatarIsMale(opponentAvatar);
-
-    if (creatorIsHunter && opponentIsHunter) {
-      await showHunterChallengeBlocked(opponent);
-      renderChallengePanel("Ловац не може изазвати Ловца tokom Witch Hunta.");
-      return false;
-    }
-    if (!creatorIsHunter && !opponentIsHunter) {
-      const confirmed = await confirmWitchSisterChallenge(opponent);
-      if (!confirmed) {
-        renderChallengePanel("Изазов сестри вештици није послат.");
-        return false;
-      }
-    }
+  if (weekendAvatarRefresh) {
+    await weekendAvatarRefresh;
+    const freshPair = weekendChallengePair(nickname, opponent);
+    if (freshPair !== weekendPair && !(await confirmWeekendChallengePair(freshPair, opponent))) return false;
   }
   const sentToday = await fetchSentChallengesToday().catch(() => loadSentChallengeRowsToday());
   updateChallengeQuota(sentToday);
@@ -19671,6 +19699,8 @@ function renderSolutionsPanel(show) {
 }
 
 function closeWordModal() {
+  const onDismiss = wordModalDismissHandler;
+  wordModalDismissHandler = null;
   exitWordModalEditMode();
   wordModalMeaningEditable = false;
   wordModalCurrentWord = "";
@@ -19843,8 +19873,9 @@ function setWordModalBody(text) {
   wordModalText.innerHTML = renderWordCardHtml(text);
 }
 
-function showWordModal({ title, word, text, reviewText = "", buttons, modalVariant = "", meaningEditable = false }) {
+function showWordModal({ title, word, text, reviewText = "", buttons, modalVariant = "", meaningEditable = false, onDismiss = null }) {
   if (!wordModal || !wordModalTitle || !wordModalWord || !wordModalText) return;
+  wordModalDismissHandler = typeof onDismiss === "function" ? onDismiss : null;
   exitWordModalEditMode();
   wordModalMeaningEditable = meaningEditable;
   wordModalCurrentWord = meaningEditable ? String(word || "") : "";
