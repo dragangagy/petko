@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 const CACHE_NAME = "petko-cache-v447";
-=======
-const CACHE_NAME = "petko-cache-v447";
->>>>>>> parent of 3e53d9d (Revert "Remove vulgar words")
 
 const ASSETS = [
   "./",
