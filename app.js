@@ -13399,6 +13399,14 @@ function embeddedWordMeaning(word) {
   return mergeWordMeaning(BOOTSTRAP_WORD_INFO[word], WORD_INFO[word]);
 }
 
+// Privremeno: loš UPDATE je upisao isto značenje u sve redove baze — ignoriši ga do restore-a.
+function isCorruptedDbMeaning(word, text) {
+  if (String(word || "").trim().toLowerCase() === "давни") return false;
+  const clean = String(text || "").replace(/\s+/gu, " ").trim();
+  const meaningPart = clean.replace(/^Значење:\s*/u, "").replace(/\s*Граматика:.*$/u, "").trim();
+  return meaningPart === "Који је био веома давно.";
+}
+
 function markWordVerified(word, verified = true) {
   const clean = normalize(word);
   if (!clean) return;
@@ -13543,7 +13551,8 @@ async function fetchWordMeaning(word) {
       return meaning || "";
     }
     const fallbackRows = await fallback.json();
-    const remoteFallback = String(fallbackRows?.[0]?.meaning || "").trim();
+    let remoteFallback = String(fallbackRows?.[0]?.meaning || "").trim();
+    if (isCorruptedDbMeaning(word, remoteFallback)) remoteFallback = "";
     if (remoteFallback) meaning = remoteFallback;
     else meaning = mergeWordMeaning(meaning, remoteFallback);
     if (meaning) WORD_INFO[word] = meaning;
@@ -13552,7 +13561,8 @@ async function fetchWordMeaning(word) {
   }
 
   const rows = await response.json();
-  const remote = String(rows?.[0]?.meaning || "").trim();
+  let remote = String(rows?.[0]?.meaning || "").trim();
+  if (isCorruptedDbMeaning(word, remote)) remote = "";
   // Baza je izvor istine posle uređivanja — ne zadržavaj ugrađeni tekst.
   if (remote) meaning = remote;
   if (meaning) WORD_INFO[word] = meaning;
