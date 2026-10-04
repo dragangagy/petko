@@ -5788,6 +5788,10 @@ const COMPETITIVE_LEVELS = [1, 2, 4, 8];
 const COMPETITIVE_LEVEL_POINTS = [4, 8, 16, 32];
 const COMPETITIVE_LEVEL_ATTEMPTS = [6, 7, 9, 13];
 const COMPETITIVE_FAIL_PENALTY = -2;
+const COMPETITIVE_RANK_MIN_DAYS = 10;
+const COMPETITIVE_RANK_PRIOR_DAYS = 10;
+const COMPETITIVE_RANK_PRIOR_SCORE = 40;
+const COMPETITIVE_RANK_ACTIVITY_WEIGHT = 3;
 const UNUSED_ATTEMPT_BONUS = 5;
 const CHALLENGE_WORDS = 6;
 const CHALLENGE_ATTEMPTS = 11;
@@ -20816,7 +20820,7 @@ async function fetchOnlineLeaderboard() {
   const query = [
     `select=nickname,score,attempts,wins,streak,created_at`,
     `order=created_at.desc`,
-    `limit=1000`
+    `limit=5000`
   ].join("&");
   const response = await fetch(supabaseUrl(`${SUPABASE_CONFIG.table}?${query}`), {
     headers: supabaseHeaders()
@@ -20890,16 +20894,22 @@ function aggregatePlayerRows(rows) {
   const playedDays = dayRows.length;
   const totalScore = dayRows.reduce((sum, row) => sum + row.score, 0);
   const average = playedDays ? totalScore / playedDays : 0;
-  const activityBonus = Math.min(playedDays, 20) * 0.5;
+  // Prosek se vuče ka COMPETITIVE_RANK_PRIOR_SCORE dok igrač nema dovoljno dana.
+  const adjustedAverage = playedDays
+    ? (totalScore + COMPETITIVE_RANK_PRIOR_DAYS * COMPETITIVE_RANK_PRIOR_SCORE) / (playedDays + COMPETITIVE_RANK_PRIOR_DAYS)
+    : 0;
+  const activityBonus = COMPETITIVE_RANK_ACTIVITY_WEIGHT * Math.log2(1 + playedDays);
   const streak = Math.max(0, ...dayRows.map((row) => row.streak || 0));
   const streakBonus = Math.min(streak, 10);
-  const finalScore = average + activityBonus + streakBonus;
+  const finalScore = playedDays ? adjustedAverage + activityBonus + streakBonus : 0;
   const bestDay = dayRows.reduce((best, row) => (!best || row.score > best.score ? row : best), null);
   const lastDay = dayRows.reduce((last, row) => (!last || row.date > last.date ? row : last), null);
   const wonGames = dayRows.reduce((sum, row) => sum + row.wins, 0);
 
   return {
     attempts: playedDays,
+    average,
+    qualified: playedDays >= COMPETITIVE_RANK_MIN_DAYS,
     attemptsAt: lastDay?.createdAt || "",
     best: playedDays ? Math.max(...dayRows.map((row) => row.score)) : 0,
     bestAt: bestDay?.createdAt || "",
@@ -20983,13 +20993,15 @@ function aggregateLeaderboard(rows) {
   const byName = new Map();
   rows.forEach((row) => {
     const nickname = (row.nickname || "Играч").trim() || "Играч";
-    if (!byName.has(nickname)) byName.set(nickname, []);
-    byName.get(nickname).push(row);
+    const key = nickname.toLocaleLowerCase("sr");
+    if (!byName.has(key)) byName.set(key, { nickname, rows: [] });
+    byName.get(key).rows.push(row);
   });
 
-  return [...byName.entries()]
-    .map(([nickname, playerRows]) => ({ nickname, ...aggregatePlayerRows(playerRows) }))
+  return [...byName.values()]
+    .map(({ nickname, rows: playerRows }) => ({ nickname, ...aggregatePlayerRows(playerRows) }))
     .sort((a, b) =>
+      Number(b.qualified) - Number(a.qualified) ||
       b.finalScore - a.finalScore ||
       b.best - a.best ||
       b.playedDays - a.playedDays ||
@@ -21431,8 +21443,11 @@ async function renderHallOfFame() {
       ...localLectorRows
     ]);
     const playerRows = leaderboard.map((row) => row);
-    const totalScoreLeaders = playerRows.filter((row) => Number(row.attempts) >= 5);
-    const rawScores = bestDailyScoreRows(rows.map((row) => ({
+    const totalScoreLeaders = playerRows.filter((row) => row.qualified);
+    const qualifiedNames = new Set(totalScoreLeaders.map((row) => row.nickname.toLocaleLowerCase("sr")));
+    const rawScores = bestDailyScoreRows(rows.filter((row) =>
+      qualifiedNames.has(((row.nickname || "Играч").trim() || "Играч").toLocaleLowerCase("sr"))
+    ).map((row) => ({
       nickname: (row.nickname || "Играч").trim() || "Играч",
       score: Number(row.score) || 0,
       attempts: Number(row.attempts) || 0,
@@ -21444,8 +21459,8 @@ async function renderHallOfFame() {
     const medals = [
       medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија. У листу улазе играчи са најмање 10 започетих обичних партија."),
       medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt", "Броји се свака победа у одиграном изазову. Нерешени изазови не улазе као победа."),
-      medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор."),
-      medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
+      medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор. Улазе играчи са најмање 10 одиграних турнира."),
+      medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе играчи са најмање 10 одиграних турнира. Резултат = прилагођени просек + бонус за активност + бонус за низ. Прилагођени просек рачуна се као да је играч одиграо још 10 турнира са по 40 поена, па неколико јаких дана не може да донесе прво место; што више играш, то се више рачуна твој прави просек. Бонус за активност је 3 × log₂(1 + број турнира) и расте са сваким турниром, све спорије. Бонус за низ је најдужи низ, највише 10."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
       medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Партија се рачуна као започета чим уђеш у обичну игру. Ако је не решиш у року од 7 дана, уписује се као неуспех; изгубљена партија је неуспех одмах. Ако 7 дана не започнеш ниједну партију, и то се рачуна као неуспех. Улазе играчи са најмање 10 започетих партија."),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
@@ -22049,9 +22064,16 @@ function renderOnlineLeaderboard(rows) {
     return;
   }
 
-  leaderboard.forEach((row, index) => {
+  let rank = 0;
+  leaderboard.forEach((row) => {
     const item = document.createElement("li");
-    item.textContent = `${index + 1}. ${row.nickname} · ${formatScore(row.finalScore)} · просек ${formatScore(row.playedDays ? row.totalScore / row.playedDays : 0)} · дани ${row.playedDays} · низ ${row.streak}`;
+    const stats = `${formatScore(row.finalScore)} · просек ${formatScore(row.average)} · дани ${row.playedDays} · низ ${row.streak}`;
+    if (row.qualified) {
+      rank += 1;
+      item.textContent = `${rank}. ${row.nickname} · ${stats}`;
+    } else {
+      item.textContent = `– ${row.nickname} · ${stats} · још ${COMPETITIVE_RANK_MIN_DAYS - row.playedDays} до ранга`;
+    }
     listingListEl.append(item);
   });
 }
