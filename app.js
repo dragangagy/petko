@@ -12444,18 +12444,22 @@ function saveNormalStats(stats) {
 
 async function submitNormalStats(stats = loadNormalStats()) {
   if (!supabaseConfigured()) return false;
-  const response = await fetch(supabaseUrl(`${normalStatsTable()}?on_conflict=device_id`), {
+  const payload = {
+    nickname: loadPlayerName() || "Играч",
+    device_id: deviceId(),
+    started: Number(stats.started) || 0,
+    finished: Number(stats.finished) || 0,
+    updated_at: new Date().toISOString()
+  };
+  const post = (body) => fetch(supabaseUrl(`${normalStatsTable()}?on_conflict=device_id`), {
     method: "POST",
     headers: supabaseJsonHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
-    body: JSON.stringify({
-      nickname: loadPlayerName() || "Играч",
-      device_id: deviceId(),
-      started: Number(stats.started) || 0,
-      finished: Number(stats.finished) || 0,
-      updated_at: new Date().toISOString()
-    })
+    body: JSON.stringify(body)
   });
-  return response.ok;
+  const response = await post({ ...payload, pending_started_at: stats.pendingStartedAt || null });
+  if (response.ok) return true;
+  // Starija šema bez kolone pending_started_at.
+  return (await post(payload)).ok;
 }
 
 function displayNormalStats() {
@@ -12657,6 +12661,7 @@ function maybeShowWeekendWitchOffer() {
 function bumpNormalStarted() {
   const stats = loadNormalStats();
   stats.started += 1;
+  stats.pendingStartedAt = new Date().toISOString();
   saveNormalStats(stats);
   renderNormalStats();
   submitNormalStats(stats)
@@ -12672,6 +12677,7 @@ function bumpNormalStarted() {
 function bumpNormalFinished() {
   const stats = loadNormalStats();
   stats.finished += 1;
+  stats.pendingStartedAt = null;
   saveNormalStats(stats);
   renderNormalStats();
   submitNormalStats(stats)
@@ -12682,6 +12688,14 @@ function bumpNormalFinished() {
       }
     })
     .catch(() => {});
+}
+
+function closeNormalPending() {
+  const stats = loadNormalStats();
+  if (!stats.pendingStartedAt) return;
+  stats.pendingStartedAt = null;
+  saveNormalStats(stats);
+  submitNormalStats(stats).catch(() => {});
 }
 
 function markNormalStarted() {
@@ -20559,6 +20573,7 @@ function submitGuess() {
     } else {
       messageEl.textContent = `Реч је била: ${displayWords(targets)}`;
       playPetkoMoment("normalMiss", { force: true });
+      closeNormalPending();
       resetFridayNormalStreak();
       resetNormalChallengeStreak();
       clearNormalProgress();
@@ -20812,14 +20827,15 @@ async function fetchOnlineLeaderboard() {
 
 async function fetchNormalStatsRows() {
   if (!supabaseConfigured()) return [];
-  const query = [
-    "select=nickname,started,finished,updated_at",
+  const fetchRows = (columns) => fetch(supabaseUrl(`${normalStatsTable()}?${[
+    `select=${columns}`,
     "order=updated_at.desc",
     "limit=1000"
-  ].join("&");
-  const response = await fetch(supabaseUrl(`${normalStatsTable()}?${query}`), {
+  ].join("&")}`), {
     headers: supabaseHeaders()
   });
+  let response = await fetchRows("nickname,started,finished,updated_at,pending_started_at");
+  if (!response.ok) response = await fetchRows("nickname,started,finished,updated_at");
   if (!response.ok) return [];
   const rows = await response.json();
   return Array.isArray(rows) ? rows : [];
@@ -20922,11 +20938,20 @@ function normalSuccessRows(rows) {
       nickname,
       started: 0,
       finished: 0,
+      pendingFresh: 0,
+      pendingExpired: 0,
       successRate: 0,
       successRateAt: ""
     };
     current.started += started;
     current.finished += finished;
+    if (row.pending_started_at) {
+      if (normalSuccessIdleDays(row.pending_started_at) >= NORMAL_SUCCESS_IDLE_GAME_DAYS) {
+        current.pendingExpired += 1;
+      } else {
+        current.pendingFresh += 1;
+      }
+    }
     if (!current.successRateAt || updatedAt > current.successRateAt) {
       current.nickname = nickname;
       current.successRateAt = updatedAt;
@@ -20938,9 +20963,11 @@ function normalSuccessRows(rows) {
     .map((row) => {
       const baseStarted = Math.max(0, Number(row.started) || 0);
       const finished = Math.min(baseStarted, Math.max(0, Number(row.finished) || 0));
-      const idleUnsolved = normalSuccessIdleUnsolvedGames(row.successRateAt);
-      // Ko ne igra: svakih 7 dana +1 započeta nerešena partija → pada %.
-      const started = baseStarted + idleUnsolved;
+      // Partija u toku nije neuspeh dok ne prođe 7 dana od ulaska.
+      const settledStarted = Math.max(finished, baseStarted - row.pendingFresh);
+      // Ko ne igra: svakih 7 dana +1 nerešena; istekla partija u toku već pokriva prvu nedelju.
+      const idleUnsolved = Math.max(0, normalSuccessIdleUnsolvedGames(row.successRateAt) - row.pendingExpired);
+      const started = settledStarted + idleUnsolved;
       return {
         ...row,
         started,
@@ -21420,7 +21447,7 @@ async function renderHallOfFame() {
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
-      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Партија се рачуна као започета чим уђеш у обичну игру, па свака напуштена или нерешена партија спушта успешност. Ако играч не игра, сваких 7 дана неактивности рачуна му се још једна започета а нерешена партија. Улазе играчи са најмање 10 започетих партија."),
+      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Партија се рачуна као започета чим уђеш у обичну игру. Ако је не решиш у року од 7 дана, уписује се као неуспех; изгубљена партија је неуспех одмах. Ако 7 дана не започнеш ниједну партију, и то се рачуна као неуспех. Улазе играчи са најмање 10 започетих партија."),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
       medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt", "Броји се број различитих дана у којима је играч имао такмичарски резултат."),
       medalEntry("Најјачи изазов скор", challengeStrongLeaders, (row) => row.best, "", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у валидном изазову. Ако противник преда, не одигра до краја или има мање од 10 одиграних изазова, тај резултат не улази. Када играч више пута оствари исти најбољи скор, приказује се као 30/2, 30/3 и има предност над једним истим скором.", {

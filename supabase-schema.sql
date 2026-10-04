@@ -672,8 +672,11 @@ create table if not exists public.normal_stats (
   nickname text not null,
   device_id text not null unique,
   started integer not null default 0,
-  finished integer not null default 0
+  finished integer not null default 0,
+  pending_started_at timestamptz
 );
+
+alter table public.normal_stats add column if not exists pending_started_at timestamptz;
 
 alter table public.normal_stats enable row level security;
 
