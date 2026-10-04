@@ -19886,6 +19886,10 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
       const normalProgress = loadNormalProgress();
       if (normalProgress) {
         restoreNormalProgress(normalProgress);
+        if (options.userEntered) {
+          markNormalStarted();
+          saveNormalProgress();
+        }
         return;
       }
     } else {
@@ -19945,6 +19949,7 @@ function startGame(nextType = gameType, requestedMode, options = {}) {
     : isPetkoFriday()
       ? "Петак за Петка: реши 5 обичних заредом за +5 на главни скор."
       : "";
+  if (gameType === "normal" && options.userEntered) markNormalStarted();
   render();
   saveCompetitiveProgress();
   saveNormalProgress();
@@ -21415,7 +21420,7 @@ async function renderHallOfFame() {
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе само играчи са најмање 5 одиграних турнира. Рачуна се просек дневних скорова, уз бонус за активне дане и бонус за низ."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
-      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Ако играч не игра, сваких 7 дана неактивности рачуна му се једна започета а нерешена партија, па успешност пада. Улазе играчи са најмање 10 започетих партија."),
+      medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Партија се рачуна као започета чим уђеш у обичну игру, па свака напуштена или нерешена партија спушта успешност. Ако играч не игра, сваких 7 дана неактивности рачуна му се још једна започета а нерешена партија. Улазе играчи са најмање 10 започетих партија."),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
       medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt", "Броји се број различитих дана у којима је играч имао такмичарски резултат."),
       medalEntry("Најјачи изазов скор", challengeStrongLeaders, (row) => row.best, "", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у валидном изазову. Ако противник преда, не одигра до краја или има мање од 10 одиграних изазова, тај резултат не улази. Када играч више пута оствари исти најбољи скор, приказује се као 30/2, 30/3 и има предност над једним истим скором.", {
@@ -21676,7 +21681,7 @@ typeButtons.forEach((button) => {
       showCompetitiveIntro();
       return;
     }
-    startGame(nextType);
+    startGame(nextType, undefined, { userEntered: true });
   });
 });
 
@@ -21685,13 +21690,13 @@ modeButtons.forEach((button) => {
     clearFinishedChallengeHold();
     if (gameType === "competitive") return;
     const requestedMode = Number(button.dataset.mode);
-    startGame("normal", 1);
+    startGame("normal", 1, { userEntered: true });
   });
 });
 
 nextLevelButton.addEventListener("click", () => {
   if (gameType === "normal") {
-    startGame("normal", 1, { nextNormal: true });
+    startGame("normal", 1, { nextNormal: true, userEntered: true });
     return;
   }
   if (competitiveIntro) {
