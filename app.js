@@ -5994,6 +5994,7 @@ const SUPABASE_CONFIG = {
   restPrefix: "",
   anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InBldGtvLWhhIiwiaWF0IjoxNzg3NzQ0OTAyLCJleHAiOjIxMDMxMDQ5MDJ9.89GdhPNVZL1yXM_to4MBvF_M6xCwWMM97YwS56VQAaw",
   table: "scores",
+  leaderboardView: "scores_leaderboard",
   challengeTable: "challenges",
   challengeStatsTable: "challenge_stats",
   challengeScoreStatsTable: "challenge_score_stats",
@@ -12508,13 +12509,13 @@ async function refreshAvatarAchievements(options = {}) {
   const name = loadPlayerName();
   const stats = emptyAvatarAchievementStats();
   if (supabaseConfigured() && name) {
-    const [normalRows, scoreRows, challengeRows] = await Promise.all([
+    const [normalRows, leaderboard, challengeRows] = await Promise.all([
       fetchNormalStatsRows().catch(() => []),
-      fetchOnlineLeaderboard().catch(() => []),
+      fetchCompetitiveLeaderboard().catch(() => []),
       fetchChallengeStatsRows().catch(() => [])
     ]);
     const normalMine = normalSuccessRows(normalRows).find((row) => sameChallengeName(row.nickname, name));
-    const tournamentMine = aggregateLeaderboard(scoreRows).find((row) => sameChallengeName(row.nickname, name));
+    const tournamentMine = (leaderboard || []).find((row) => sameChallengeName(row.nickname, name));
     const challengeMine = normalizeChallengeWinStatsRows(challengeRows).find((row) => sameChallengeName(row.nickname, name));
     if (normalMine) {
       stats.normalStarted = Math.max(stats.normalStarted, Number(normalMine.started) || 0);
@@ -14082,17 +14083,17 @@ async function fetchChallengePlayers() {
   const currentName = loadPlayerName();
 
   // Samo igrači sa stvarnom igrom u poslednjih 7 dana — ne samo last_seen / registracija.
-  const [playerRows, normalRows, scoreRows, challengeRows, challengeStatsRows] = await Promise.all([
+  const [playerRows, normalRows, leaderboard, challengeRows, challengeStatsRows] = await Promise.all([
     fetchPlayerRows().catch(() => null),
     fetchNormalStatsRows().catch(() => []),
-    fetchOnlineLeaderboard().catch(() => []),
+    fetchCompetitiveLeaderboard().catch(() => []),
     fetchChallengeHistory().catch(() => []),
     fetchChallengeStatsRows().catch(() => [])
   ]);
 
   const recentNames = collectRecentlyActiveChallengeNames({
     normalRows,
-    scoreRows,
+    scoreRows: (leaderboard || []).map((row) => ({ nickname: row.nickname, created_at: row.lastAt })),
     challengeRows,
     challengeStatsRows
   }, currentName);
@@ -19107,7 +19108,7 @@ async function playerNameTaken(name) {
   }
   const [normalRows, scoreRows, challengeRows] = await Promise.all([
     fetchNormalStatsRows().catch(() => []),
-    fetchOnlineLeaderboard().catch(() => []),
+    fetchCompetitiveLeaderboard().catch(() => []),
     fetchChallengeHistory().catch(() => [])
   ]);
   return [
@@ -20893,36 +20894,84 @@ function aggregatePlayerRows(rows) {
   const dayRows = [...days.values()];
   const playedDays = dayRows.length;
   const totalScore = dayRows.reduce((sum, row) => sum + row.score, 0);
+  const streak = Math.max(0, ...dayRows.map((row) => row.streak || 0));
+  const bestDay = dayRows.reduce((best, row) => (!best || row.score > best.score ? row : best), null);
+  const lastDay = dayRows.reduce((last, row) => (!last || row.date > last.date ? row : last), null);
+  const wonGames = dayRows.reduce((sum, row) => sum + row.wins, 0);
+
+  return competitivePlayerSummary({
+    playedDays,
+    totalScore,
+    best: playedDays ? Math.max(...dayRows.map((row) => row.score)) : 0,
+    bestAt: bestDay?.createdAt || "",
+    streak,
+    wins: wonGames,
+    lastAt: lastDay?.createdAt || ""
+  });
+}
+
+function competitivePlayerSummary({ playedDays, totalScore, best, bestAt, streak, wins, lastAt }) {
   const average = playedDays ? totalScore / playedDays : 0;
   // Prosek se vuče ka COMPETITIVE_RANK_PRIOR_SCORE dok igrač nema dovoljno dana.
   const adjustedAverage = playedDays
     ? (totalScore + COMPETITIVE_RANK_PRIOR_DAYS * COMPETITIVE_RANK_PRIOR_SCORE) / (playedDays + COMPETITIVE_RANK_PRIOR_DAYS)
     : 0;
   const activityBonus = COMPETITIVE_RANK_ACTIVITY_WEIGHT * Math.log2(1 + playedDays);
-  const streak = Math.max(0, ...dayRows.map((row) => row.streak || 0));
   const streakBonus = Math.min(streak, 10);
-  const finalScore = playedDays ? adjustedAverage + activityBonus + streakBonus : 0;
-  const bestDay = dayRows.reduce((best, row) => (!best || row.score > best.score ? row : best), null);
-  const lastDay = dayRows.reduce((last, row) => (!last || row.date > last.date ? row : last), null);
-  const wonGames = dayRows.reduce((sum, row) => sum + row.wins, 0);
-
   return {
     attempts: playedDays,
     average,
     qualified: playedDays >= COMPETITIVE_RANK_MIN_DAYS,
-    attemptsAt: lastDay?.createdAt || "",
-    best: playedDays ? Math.max(...dayRows.map((row) => row.score)) : 0,
-    bestAt: bestDay?.createdAt || "",
-    finalScore,
-    finalScoreAt: lastDay?.createdAt || "",
+    attemptsAt: lastAt,
+    best,
+    bestAt,
+    finalScore: playedDays ? adjustedAverage + activityBonus + streakBonus : 0,
+    finalScoreAt: lastAt,
+    lastAt,
     playedDays,
-    playedDaysAt: lastDay?.createdAt || "",
+    playedDaysAt: lastAt,
     streak,
-    streakAt: lastDay?.createdAt || "",
+    streakAt: lastAt,
     totalScore,
-    wins: wonGames,
-    winsAt: lastDay?.createdAt || ""
+    wins,
+    winsAt: lastAt
   };
+}
+
+function sortCompetitiveLeaderboard(players) {
+  return players.sort((a, b) =>
+    Number(b.qualified) - Number(a.qualified) ||
+    b.finalScore - a.finalScore ||
+    b.best - a.best ||
+    b.playedDays - a.playedDays ||
+    a.nickname.localeCompare(b.nickname)
+  );
+}
+
+/** Rang lista iz pogleda scores_leaderboard (jedan red po igraču); bez pogleda sabira sirove rezultate. */
+async function fetchCompetitiveLeaderboard() {
+  if (!supabaseConfigured()) return null;
+  const query = "select=nickname,played_days,total_score,best_score,best_at,max_streak,wins,last_at";
+  const response = await fetch(supabaseUrl(`${SUPABASE_CONFIG.leaderboardView}?${query}`), {
+    headers: supabaseHeaders()
+  }).catch(() => null);
+  const rows = response?.ok ? await response.json().catch(() => null) : null;
+  if (Array.isArray(rows)) {
+    return sortCompetitiveLeaderboard(rows.map((row) => ({
+      nickname: (row.nickname || "Играч").trim() || "Играч",
+      ...competitivePlayerSummary({
+        playedDays: Number(row.played_days) || 0,
+        totalScore: Number(row.total_score) || 0,
+        best: Number(row.best_score) || 0,
+        bestAt: row.best_at || "",
+        streak: Number(row.max_streak) || 0,
+        wins: Number(row.wins) || 0,
+        lastAt: row.last_at || ""
+      })
+    })));
+  }
+  const rawRows = await fetchOnlineLeaderboard();
+  return Array.isArray(rawRows) ? aggregateLeaderboard(rawRows) : null;
 }
 
 function normalSuccessIdleDays(updatedAt) {
@@ -20998,38 +21047,8 @@ function aggregateLeaderboard(rows) {
     byName.get(key).rows.push(row);
   });
 
-  return [...byName.values()]
-    .map(({ nickname, rows: playerRows }) => ({ nickname, ...aggregatePlayerRows(playerRows) }))
-    .sort((a, b) =>
-      Number(b.qualified) - Number(a.qualified) ||
-      b.finalScore - a.finalScore ||
-      b.best - a.best ||
-      b.playedDays - a.playedDays ||
-      a.nickname.localeCompare(b.nickname)
-    )
-    .slice(0, 100);
-}
-
-function bestDailyScoreRows(rows) {
-  const byName = new Map();
-  rows.forEach((row) => {
-    const nickname = (row.nickname || "Играч").trim() || "Играч";
-    const key = nickname.toLocaleLowerCase("sr");
-    const scoreValue = Number(row.score) || 0;
-    const createdAt = row.created_at || "";
-    const current = byName.get(key);
-    if (!current || scoreValue > current.score || (scoreValue === current.score && createdAt > current.created_at)) {
-      byName.set(key, {
-        nickname,
-        score: scoreValue,
-        attempts: Number(row.attempts) || 0,
-        wins: Number(row.wins) || 0,
-        streak: Number(row.streak) || 0,
-        created_at: createdAt
-      });
-    }
-  });
-  return [...byName.values()];
+  return sortCompetitiveLeaderboard([...byName.values()]
+    .map(({ nickname, rows: playerRows }) => ({ nickname, ...aggregatePlayerRows(playerRows) })));
 }
 
 function bestBy(items, valueFn) {
@@ -21407,16 +21426,15 @@ async function renderHallOfFame() {
   hallPanelEl.hidden = gameType !== "hall";
   renderHallLoading();
   try {
-    const [scoreRows, challengeRows, normalRows, lectorRows, challengeScoreRows, challengeStatsRows] = await Promise.all([
-      fetchOnlineLeaderboard(),
+    const [competitiveRows, challengeRows, normalRows, lectorRows, challengeScoreRows, challengeStatsRows] = await Promise.all([
+      fetchCompetitiveLeaderboard(),
       fetchChallengeHistory(),
       fetchNormalStatsRows(),
       fetchLectorStatsRows(),
       fetchChallengeScoreStatsRows().catch(() => []),
       fetchChallengeStatsRows().catch(() => [])
     ]);
-    const rows = Array.isArray(scoreRows) ? scoreRows : [];
-    const leaderboard = aggregateLeaderboard(rows);
+    const leaderboard = Array.isArray(competitiveRows) ? competitiveRows : [];
     const challengeRowsSafe = Array.isArray(challengeRows) ? challengeRows : [];
     const onlineChallengeWinRows = normalizeChallengeWinStatsRows(Array.isArray(challengeStatsRows) ? challengeStatsRows : []);
     const challengeLeaders = onlineChallengeWinRows.length
@@ -21444,17 +21462,11 @@ async function renderHallOfFame() {
     ]);
     const playerRows = leaderboard.map((row) => row);
     const totalScoreLeaders = playerRows.filter((row) => row.qualified);
-    const qualifiedNames = new Set(totalScoreLeaders.map((row) => row.nickname.toLocaleLowerCase("sr")));
-    const rawScores = bestDailyScoreRows(rows.filter((row) =>
-      qualifiedNames.has(((row.nickname || "Играч").trim() || "Играч").toLocaleLowerCase("sr"))
-    ).map((row) => ({
-      nickname: (row.nickname || "Играч").trim() || "Играч",
-      score: Number(row.score) || 0,
-      attempts: Number(row.attempts) || 0,
-      wins: Number(row.wins) || 0,
-      streak: Number(row.streak) || 0,
-      created_at: row.created_at || ""
-    })));
+    const rawScores = totalScoreLeaders.map((row) => ({
+      nickname: row.nickname,
+      score: row.best,
+      created_at: row.bestAt
+    }));
 
     const medals = [
       medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија. У листу улазе играчи са најмање 10 започетих обичних партија."),
@@ -22053,10 +22065,10 @@ function renderListing() {
   refreshOnlineLeaderboard();
 }
 
-function renderOnlineLeaderboard(rows) {
+function renderOnlineLeaderboard(players) {
   listingListEl.innerHTML = "";
   listingMetaEl.textContent = "СЕЗОНА TOP 100";
-  const leaderboard = aggregateLeaderboard(rows);
+  const leaderboard = players.slice(0, 100);
   if (!leaderboard.length) {
     const item = document.createElement("li");
     item.textContent = "Још нема online резултата.";
@@ -22174,7 +22186,7 @@ function restoreLocalResultsFromOnline(rows, nickname = loadPlayerName()) {
 }
 
 async function recoverExistingPlayerProfile(name) {
-  const rows = await fetchOnlineLeaderboard().catch(() => []);
+  const rows = await fetchOnlinePlayerStats(name).catch(() => []);
   if (!Array.isArray(rows) || !rows.some((row) => sameChallengeName(row.nickname, name))) return false;
   savePlayerName(name);
   updateChallengePlayerName();
@@ -22270,14 +22282,14 @@ function refreshOnlineLeaderboard() {
   if (!supabaseConfigured() || !listingListEl) return;
   const nickname = loadPlayerName();
   Promise.all([
-    fetchOnlineLeaderboard(),
+    fetchCompetitiveLeaderboard(),
     fetchOnlinePlayerStats(nickname),
     fetchCurrentPlayerProfile().catch(() => null)
   ])
-    .then(([rows, stats]) => {
-      if (Array.isArray(rows)) {
+    .then(([leaderboard, stats]) => {
+      if (Array.isArray(leaderboard)) {
         restoreLocalResultsFromOnline(stats, nickname);
-        renderOnlineLeaderboard(rows);
+        renderOnlineLeaderboard(leaderboard);
       }
       if (nickname) renderPlayerStats(stats);
     })
