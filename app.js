@@ -5818,6 +5818,7 @@ const CHALLENGE_PROGRESS_KEY = "petko-challenge-progress-v1";
 const PLAYER_NAME_KEY = "petko-player-name-v1";
 const PLAYER_RENAME_COUNT_KEY = "petko-player-rename-count-v1";
 const PROFILE_AVATAR_KEY = "petko-profile-avatar-v1";
+const PETKO_WELCOME_SEEN_KEY = "petko-welcome-seen-v1";
 const PROFILE_AVATAR_APPROVED_KEY = "petko-profile-avatar-approved-v1";
 const PROFILE_HINT_SEEN_KEY = "petko-profile-hint-seen-v1";
 const PROFILE_UNLOCK_SEEN_KEY = "petko-profile-unlock-seen-v1";
@@ -12347,13 +12348,14 @@ function petkoWelcomeItems(rows = []) {
     if (!challengeRowMine(row) || selfChallengeRow(row) || !challengeCardVisible(row)) return;
     const role = challengeRole(row);
     if (!role) return;
+    const id = String(row.code || row.id || `${row.creator}|${row.opponent}|${row.created_at}`);
+    const push = (state, entry) => items.push({ ...entry, key: `${id}:${state}` });
     const otherRole = tiebreakOtherRole(role);
     const openInvite = isOpenChallengeOpponent(row[otherRole]);
     const other = openInvite ? "" : cleanChallengeName(row[otherRole]);
     if (challengeAwaitingTiebreak(row)) {
-      items.push(challengeTiebreakSubmitted(row, role)
-        ? { kind: "muted", order: 5, text: `Двобој са ${other}: чека се противник.` }
-        : { kind: "duel", order: 0, action: true, text: `Имаш двобој са ${other}!` });
+      if (challengeTiebreakSubmitted(row, role)) push("duel-wait", { kind: "muted", order: 5, text: `Двобој са ${other}: чека се противник.` });
+      else push("duel", { kind: "duel", order: 0, action: true, text: `Имаш двобој са ${other}!` });
       return;
     }
     if (playedChallenge(row)) {
@@ -12365,39 +12367,72 @@ function petkoWelcomeItems(rows = []) {
         const detail = !byTime ? ` (+${diff})` : sameTime
           ? ` — ${byGroup(myGroup, "прва си играла", "први си играо", "први/а си играо/ла")}`
           : ` — ${byGroup(myGroup, "била си бржа", "био си бржи", "брже си потврдио/ла реч")}`;
-        items.push({ kind: "win", order: 3, text: `${byGroup(myGroup, `Победила си: ${other}`, `Победио си: ${other}`, `Победа против ${other}`)}${detail}` });
+        push("result", { kind: "win", order: 3, text: `${byGroup(myGroup, `Победила си: ${other}`, `Победио си: ${other}`, `Победа против ${other}`)}${detail}` });
       } else if (winner === otherRole) {
         const group = groupOf(other);
         const detail = !byTime ? ` (−${diff})` : sameTime
           ? ` — ${byGroup(group, "прва је играла", "први је играо", "први/а је играо/ла")}`
           : ` — ${byGroup(group, "била је бржа", "био је бржи", "брже је потврдио/ла реч")}`;
-        items.push({ kind: "loss", order: 3, text: `${byGroup(group, `${other} те је победила`, `${other} те је победио`, `Пораз од ${other}`)}${detail}` });
+        push("result", { kind: "loss", order: 3, text: `${byGroup(group, `${other} те је победила`, `${other} те је победио`, `Пораз од ${other}`)}${detail}` });
       } else {
-        items.push({ kind: "muted", order: 3, text: `Нерешено са ${other}.` });
+        push("result", { kind: "muted", order: 3, text: `Нерешено са ${other}.` });
       }
       return;
     }
     if (challengeCardState(row) === "pending") {
       if (role === "opponent") {
-        items.push({ kind: "invite", order: 1, action: true, text: byGroup(groupOf(other), `${other} те је изазвала!`, `${other} те је изазвао!`, `Нови изазов од ${other}!`) });
+        push("invite", { kind: "invite", order: 1, action: true, text: byGroup(groupOf(other), `${other} те је изазвала!`, `${other} те је изазвао!`, `Нови изазов од ${other}!`) });
       } else {
-        items.push({ kind: "muted", order: 5, text: openInvite ? "Твој отворени изазов чека противника." : `Чекаш да ${other} прихвати изазов.` });
+        push("sent", { kind: "muted", order: 5, text: openInvite ? "Твој отворени изазов чека противника." : `Чекаш да ${other} прихвати изазов.` });
       }
       return;
     }
     if (!challengeAlreadyPlayed(row, role)) {
-      items.push({ kind: "active", order: 2, action: true, text: `Изазов са ${other} чека да га одиграш.` });
+      push("active", { kind: "active", order: 2, action: true, text: `Изазов са ${other} чека да га одиграш.` });
     } else {
-      items.push({ kind: "muted", order: 5, text: byGroup(groupOf(other), `${other} још није одиграла ваш изазов.`, `${other} још није одиграо ваш изазов.`, `Чека се да ${other} одигра ваш изазов.`) });
+      push("wait", { kind: "muted", order: 5, text: byGroup(groupOf(other), `${other} још није одиграла ваш изазов.`, `${other} још није одиграо ваш изазов.`, `Чека се да ${other} одигра ваш изазов.`) });
     }
   });
   return items.sort((a, b) => a.order - b.order);
+}
+
+function loadPetkoWelcomeSeen() {
+  try {
+    const data = JSON.parse(localStorage.getItem(PETKO_WELCOME_SEEN_KEY) || "{}");
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+function markPetkoWelcomeSeen(keys = []) {
+  if (!keys.length) return;
+  const now = Date.now();
+  const maxAge = 30 * 24 * 60 * 60 * 1000;
+  const seen = loadPetkoWelcomeSeen();
+  Object.keys(seen).forEach((key) => {
+    if (!(now - Number(seen[key]) < maxAge)) delete seen[key];
+  });
+  keys.forEach((key) => {
+    seen[key] = now;
+  });
+  try {
+    localStorage.setItem(PETKO_WELCOME_SEEN_KEY, JSON.stringify(seen));
+  } catch {
+    // Pun ili blokiran localStorage: rezime će se samo ponoviti.
+  }
+}
+
+function unseenPetkoWelcomeItems(items = []) {
+  const seen = loadPetkoWelcomeSeen();
+  return items.filter((item) => !item.key || !seen[item.key]);
 }
 
 function renderPetkoWelcomeItems(items, emptyText) {
   if (!petkoWelcomeList) return;
   petkoWelcomeList.innerHTML = "";
   const shown = items.slice(0, PETKO_WELCOME_MAX_ITEMS);
+  markPetkoWelcomeSeen(shown.map((entry) => entry.key).filter(Boolean));
   if (!shown.length) {
     const item = document.createElement("li");
     item.className = "petko-welcome-item muted";
@@ -12455,7 +12490,7 @@ async function showPetkoWelcome() {
     return;
   }
   const ready = group === "female" ? " Спремна за игру?" : group === "male" ? " Спреман за игру?" : " Срећно у игри!";
-  renderPetkoWelcomeItems(petkoWelcomeItems(rows), `Нема нових изазова.${ready}`);
+  renderPetkoWelcomeItems(unseenPetkoWelcomeItems(petkoWelcomeItems(rows)), `Нема ништа ново.${ready}`);
 }
 
 function fridayLabel() {
