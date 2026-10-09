@@ -11756,6 +11756,12 @@ const nextLevelButton = document.querySelector("#nextLevelButton");
 const petkoSplash = document.querySelector("#petkoSplash");
 const petkoSplashImage = document.querySelector("#petkoSplashImage");
 const petkoSplashButton = document.querySelector("#petkoSplashButton");
+const petkoWelcome = document.querySelector("#petkoWelcome");
+const petkoWelcomeTitle = document.querySelector("#petkoWelcomeTitle");
+const petkoWelcomeList = document.querySelector("#petkoWelcomeList");
+const petkoWelcomeButton = document.querySelector("#petkoWelcomeButton");
+const PETKO_WELCOME_MAX_ITEMS = 5;
+const PETKO_WELCOME_FETCH_MS = 6000;
 const petkoMood = document.querySelector("#petkoMood");
 const petkoMoodImage = document.querySelector("#petkoMoodImage");
 const petkoMoodText = document.querySelector("#petkoMoodText");
@@ -12319,7 +12325,129 @@ function markQuietGuessForPetko() {
 
 function hidePetkoSplash() {
   if (petkoSplash) petkoSplash.hidden = true;
+  if (petkoWelcome) {
+    showPetkoWelcome();
+    return;
+  }
   showProfileHintOnce();
+}
+
+function hidePetkoWelcome() {
+  if (!petkoWelcome || petkoWelcome.hidden) return;
+  petkoWelcome.hidden = true;
+  showProfileHintOnce();
+}
+
+function petkoWelcomeItems(rows = []) {
+  const myGroup = currentProfileAvatar()?.group || "";
+  const groupOf = (name) => cachedProfileAvatar(name)?.group || "";
+  const byGroup = (group, female, male, neutral) => (group === "female" ? female : group === "male" ? male : neutral);
+  const items = [];
+  rows.forEach((row) => {
+    if (!challengeRowMine(row) || selfChallengeRow(row) || !challengeCardVisible(row)) return;
+    const role = challengeRole(row);
+    if (!role) return;
+    const otherRole = tiebreakOtherRole(role);
+    const openInvite = isOpenChallengeOpponent(row[otherRole]);
+    const other = openInvite ? "" : cleanChallengeName(row[otherRole]);
+    if (challengeAwaitingTiebreak(row)) {
+      items.push(challengeTiebreakSubmitted(row, role)
+        ? { kind: "muted", order: 5, text: `Двобој са ${other}: чека се противник.` }
+        : { kind: "duel", order: 0, action: true, text: `Имаш двобој са ${other}!` });
+      return;
+    }
+    if (playedChallenge(row)) {
+      const winner = challengeWinner(row);
+      const diff = formatScore(challengeDifference(row));
+      if (winner === role) {
+        items.push({ kind: "win", order: 3, text: byGroup(myGroup, `Победила си: ${other} (+${diff})`, `Победио си: ${other} (+${diff})`, `Победа против ${other} (+${diff})`) });
+      } else if (winner === otherRole) {
+        const group = groupOf(other);
+        items.push({ kind: "loss", order: 3, text: byGroup(group, `${other} те је победила (−${diff})`, `${other} те је победио (−${diff})`, `Пораз од ${other} (−${diff})`) });
+      } else {
+        items.push({ kind: "muted", order: 3, text: `Нерешено са ${other}.` });
+      }
+      return;
+    }
+    if (challengeCardState(row) === "pending") {
+      if (role === "opponent") {
+        items.push({ kind: "invite", order: 1, action: true, text: byGroup(groupOf(other), `${other} те је изазвала!`, `${other} те је изазвао!`, `Нови изазов од ${other}!`) });
+      } else {
+        items.push({ kind: "muted", order: 5, text: openInvite ? "Твој отворени изазов чека противника." : `Чекаш да ${other} прихвати изазов.` });
+      }
+      return;
+    }
+    if (!challengeAlreadyPlayed(row, role)) {
+      items.push({ kind: "active", order: 2, action: true, text: `Изазов са ${other} чека да га одиграш.` });
+    } else {
+      items.push({ kind: "muted", order: 5, text: byGroup(groupOf(other), `${other} још није одиграла ваш изазов.`, `${other} још није одиграо ваш изазов.`, `Чека се да ${other} одигра ваш изазов.`) });
+    }
+  });
+  return items.sort((a, b) => a.order - b.order);
+}
+
+function renderPetkoWelcomeItems(items, emptyText) {
+  if (!petkoWelcomeList) return;
+  petkoWelcomeList.innerHTML = "";
+  const shown = items.slice(0, PETKO_WELCOME_MAX_ITEMS);
+  if (!shown.length) {
+    const item = document.createElement("li");
+    item.className = "petko-welcome-item muted";
+    item.textContent = emptyText;
+    petkoWelcomeList.append(item);
+    return;
+  }
+  shown.forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = `petko-welcome-item ${entry.kind}${entry.action ? " action" : ""}`;
+    item.textContent = entry.text;
+    if (entry.action) {
+      item.setAttribute("role", "button");
+      item.tabIndex = 0;
+      item.addEventListener("click", openChallengesFromWelcome);
+    }
+    petkoWelcomeList.append(item);
+  });
+  if (items.length > shown.length) {
+    const more = document.createElement("li");
+    more.className = "petko-welcome-item muted action";
+    more.textContent = `и још ${items.length - shown.length} у изазовима`;
+    more.addEventListener("click", openChallengesFromWelcome);
+    petkoWelcomeList.append(more);
+  }
+}
+
+function openChallengesFromWelcome() {
+  hidePetkoWelcome();
+  typeButtons.find((button) => button.dataset.type === "challenge")?.click();
+}
+
+async function showPetkoWelcome() {
+  if (!petkoWelcome) return;
+  const name = loadPlayerName();
+  const group = currentProfileAvatar()?.group || "";
+  if (petkoWelcomeTitle) petkoWelcomeTitle.textContent = name ? `Здраво, ${name}!` : "Здраво!";
+  petkoWelcome.hidden = false;
+  if (!name || !supabaseConfigured()) {
+    renderPetkoWelcomeItems([], "Изабери надимак у профилу и изазови друге играче.");
+    return;
+  }
+  renderPetkoWelcomeItems([], "Гледам шта има ново…");
+  const delay = (ms) => new Promise((resolve) => window.setTimeout(() => resolve(null), ms));
+  const rows = await Promise.race([
+    Promise.all([
+      fetchChallengeHistory(),
+      Promise.race([refreshChallengePlayerAvatars().catch(() => null), delay(2500)])
+    ]).then(([history]) => history).catch(() => null),
+    delay(PETKO_WELCOME_FETCH_MS)
+  ]);
+  if (petkoWelcome.hidden) return;
+  if (!Array.isArray(rows)) {
+    renderPetkoWelcomeItems([], "Изазове тренутно не могу да учитам. Срећно у игри!");
+    return;
+  }
+  const ready = group === "female" ? " Спремна за игру?" : group === "male" ? " Спреман за игру?" : " Срећно у игри!";
+  renderPetkoWelcomeItems(petkoWelcomeItems(rows), `Нема нових изазова.${ready}`);
 }
 
 function fridayLabel() {
@@ -22362,6 +22490,16 @@ if (petkoSplashButton) {
 if (petkoSplash) {
   petkoSplash.addEventListener("click", (event) => {
     if (event.target === petkoSplash) hidePetkoSplash();
+  });
+}
+
+if (petkoWelcomeButton) {
+  petkoWelcomeButton.addEventListener("click", hidePetkoWelcome);
+}
+
+if (petkoWelcome) {
+  petkoWelcome.addEventListener("click", (event) => {
+    if (event.target === petkoWelcome) hidePetkoWelcome();
   });
 }
 

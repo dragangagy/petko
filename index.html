@@ -10,13 +10,23 @@
     <link rel="manifest" href="manifest.webmanifest?v=108">
     <link rel="icon" href="app-icon-store.png" type="image/png">
     <link rel="apple-touch-icon" href="app-icon-store.png">
-    <link rel="stylesheet" href="styles.css?v=256">
+    <link rel="stylesheet" href="styles.css?v=257">
   </head>
   <body>
     <div class="petko-splash" id="petkoSplash" role="dialog" aria-label="Петко" aria-modal="true">
       <div class="petko-splash-card">
         <img id="petkoSplashImage" src="petko-splash.png" alt="Петко">
         <button id="petkoSplashButton" type="button">Играм</button>
+      </div>
+    </div>
+    <div class="petko-welcome" id="petkoWelcome" role="dialog" aria-label="Шта има ново" aria-modal="true" hidden>
+      <div class="petko-welcome-card">
+        <img class="petko-welcome-image" src="petko-welcome.png" alt="Петко">
+        <div class="petko-welcome-body">
+          <h2 class="petko-welcome-title" id="petkoWelcomeTitle">Здраво!</h2>
+          <ul class="petko-welcome-list" id="petkoWelcomeList" aria-live="polite"></ul>
+        </div>
+        <button class="petko-welcome-button" id="petkoWelcomeButton" type="button">Идемо</button>
       </div>
     </div>
     <main class="app-shell">
@@ -329,6 +339,7 @@
         <details class="help-section">
           <summary>Профил</summary>
           <ul>
+            <li>После „Играм“ видиш кратак преглед: ко те је изазвао, кога си победио/ла и ко тебе, и да ли те чека двобој. Додир на ставку отвара изазове, а „Идемо“ улази у игру.</li>
             <li>Профил се отвара додиром на мали прозор са аватаром у горњем делу игре.</li>
             <li>У профилу мењаш име и аватар.</li>
             <li>Код за повезивање служи да исти профил користиш на више уређаја. Резултати, изазови и медаље тада се везују за истог играча.</li>
@@ -434,6 +445,6 @@
       </article>
     </div>
 
-  <script src="app.js?v=455"></script>
+  <script src="app.js?v=456"></script>
   </body>
 </html>
