@@ -97,7 +97,9 @@ alter table public.challenges
   add column if not exists tiebreak_started_by text,
   add column if not exists tiebreak_started_at timestamptz,
   add column if not exists tiebreak_creator_word text,
-  add column if not exists tiebreak_opponent_word text;
+  add column if not exists tiebreak_opponent_word text,
+  add column if not exists tiebreak_creator_ms integer,
+  add column if not exists tiebreak_opponent_ms integer;
 
 alter table public.challenges enable row level security;
 

@@ -12359,11 +12359,19 @@ function petkoWelcomeItems(rows = []) {
     if (playedChallenge(row)) {
       const winner = challengeWinner(row);
       const diff = formatScore(challengeDifference(row));
+      const byTime = String(row?.tiebreak_status || "").toLowerCase() === "done" && challengeTiebreakDecidedByTime(row);
+      const sameTime = byTime && challengeTiebreakSameTime(row);
       if (winner === role) {
-        items.push({ kind: "win", order: 3, text: byGroup(myGroup, `Победила си: ${other} (+${diff})`, `Победио си: ${other} (+${diff})`, `Победа против ${other} (+${diff})`) });
+        const detail = !byTime ? ` (+${diff})` : sameTime
+          ? ` — ${byGroup(myGroup, "прва си играла", "први си играо", "први/а си играо/ла")}`
+          : ` — ${byGroup(myGroup, "била си бржа", "био си бржи", "брже си потврдио/ла реч")}`;
+        items.push({ kind: "win", order: 3, text: `${byGroup(myGroup, `Победила си: ${other}`, `Победио си: ${other}`, `Победа против ${other}`)}${detail}` });
       } else if (winner === otherRole) {
         const group = groupOf(other);
-        items.push({ kind: "loss", order: 3, text: byGroup(group, `${other} те је победила (−${diff})`, `${other} те је победио (−${diff})`, `Пораз од ${other} (−${diff})`) });
+        const detail = !byTime ? ` (−${diff})` : sameTime
+          ? ` — ${byGroup(group, "прва је играла", "први је играо", "први/а је играо/ла")}`
+          : ` — ${byGroup(group, "била је бржа", "био је бржи", "брже је потврдио/ла реч")}`;
+        items.push({ kind: "loss", order: 3, text: `${byGroup(group, `${other} те је победила`, `${other} те је победио`, `Пораз од ${other}`)}${detail}` });
       } else {
         items.push({ kind: "muted", order: 3, text: `Нерешено са ${other}.` });
       }
@@ -14510,8 +14518,11 @@ const CHALLENGE_PROFILE_BASE_COLUMNS = [
 const CHALLENGE_PROFILE_COLUMNS = [
   ...CHALLENGE_PROFILE_BASE_COLUMNS,
   "tiebreak_status",
+  "tiebreak_started_by",
   "tiebreak_creator_word",
-  "tiebreak_opponent_word"
+  "tiebreak_opponent_word",
+  "tiebreak_creator_ms",
+  "tiebreak_opponent_ms"
 ].join(",");
 const CHALLENGE_PROFILE_COLUMNS_LEGACY = CHALLENGE_PROFILE_BASE_COLUMNS.join(",");
 const CHALLENGE_PROFILE_CACHE_MS = 5 * 60 * 1000;
@@ -15453,7 +15464,9 @@ const CHALLENGE_HISTORY_COLUMNS = [
   "tiebreak_started_by",
   "tiebreak_started_at",
   "tiebreak_creator_word",
-  "tiebreak_opponent_word"
+  "tiebreak_opponent_word",
+  "tiebreak_creator_ms",
+  "tiebreak_opponent_ms"
 ].join(",");
 
 const CHALLENGE_HISTORY_COLUMNS_LEGACY = [
@@ -16114,6 +16127,38 @@ function challengeTiebreakForfeited(row, role) {
   return row?.[`tiebreak_${role}_word`] === CHALLENGE_TIEBREAK_FORFEIT;
 }
 
+function challengeTiebreakMs(row, role) {
+  const value = row?.[`tiebreak_${role}_ms`];
+  if (value === null || value === undefined || value === "") return null;
+  const ms = Number(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Isti broj slova, a oba vremena upisana: odlučuje brzina (stari dvoboji bez vremena ostaju po azbuci). */
+function challengeTiebreakDecidedByTime(row) {
+  if (challengeTiebreakForfeited(row, "creator") || challengeTiebreakForfeited(row, "opponent")) return false;
+  if (!challengeTiebreakSubmitted(row, "creator") || !challengeTiebreakSubmitted(row, "opponent")) return false;
+  if (challengeTiebreakEffectiveLength(row.tiebreak_creator_word) !== challengeTiebreakEffectiveLength(row.tiebreak_opponent_word)) return false;
+  return challengeTiebreakMs(row, "creator") !== null && challengeTiebreakMs(row, "opponent") !== null;
+}
+
+function challengeTiebreakTimeGapText(row) {
+  const gap = Math.abs((challengeTiebreakMs(row, "creator") || 0) - (challengeTiebreakMs(row, "opponent") || 0)) / 1000;
+  return `${gap.toFixed(1).replace(".", ",")} с`;
+}
+
+function challengeTiebreakSameTime(row) {
+  return challengeTiebreakMs(row, "creator") === challengeTiebreakMs(row, "opponent");
+}
+
+function challengeTiebreakTimeVerdict(row, name = "") {
+  const female = challengeProfileAvatar(name)?.group === "female";
+  if (challengeTiebreakSameTime(row)) {
+    return `Исти број слова и исто време — предност има ${name}, јер је ${female ? "прва играла" : "први играо"}`;
+  }
+  return `Исти број слова — ${name} је ${female ? "била бржа" : "био бржи"} за ${challengeTiebreakTimeGapText(row)}`;
+}
+
 function challengeTiebreakWinnerRole(row) {
   const creatorForfeit = challengeTiebreakForfeited(row, "creator");
   const opponentForfeit = challengeTiebreakForfeited(row, "opponent");
@@ -16123,6 +16168,13 @@ function challengeTiebreakWinnerRole(row) {
   const opponentLen = challengeTiebreakEffectiveLength(row.tiebreak_opponent_word);
   if (creatorLen > opponentLen) return "creator";
   if (opponentLen > creatorLen) return "opponent";
+  if (challengeTiebreakDecidedByTime(row)) {
+    const creatorMs = challengeTiebreakMs(row, "creator");
+    const opponentMs = challengeTiebreakMs(row, "opponent");
+    if (creatorMs !== opponentMs) return creatorMs < opponentMs ? "creator" : "opponent";
+    const starter = String(row?.tiebreak_started_by || "");
+    return starter === "opponent" ? "opponent" : "creator";
+  }
   const creatorWord = challengeTiebreakEffectiveWord(row.tiebreak_creator_word);
   const opponentWord = challengeTiebreakEffectiveWord(row.tiebreak_opponent_word);
   if (creatorWord && opponentWord && creatorWord !== opponentWord) {
@@ -16499,7 +16551,9 @@ function renderTiebreakWaitingState(row) {
         ? tiebreakRoleDisplayName(row, "opponent")
         : "";
     if (challengeTiebreakMessage && winnerName) {
-      challengeTiebreakMessage.textContent = challengeTiebreakVictoryLine(winnerName);
+      challengeTiebreakMessage.textContent = challengeTiebreakDecidedByTime(row)
+        ? `${challengeTiebreakVictoryLine(winnerName)}. ${challengeTiebreakTimeVerdict(row, winnerName)}.`
+        : challengeTiebreakVictoryLine(winnerName);
     } else if (challengeTiebreakMessage) {
       challengeTiebreakMessage.textContent = "Нерешено у двобоју.";
     }
@@ -16715,6 +16769,7 @@ function beginTiebreakComposePhase(row) {
   }
   clearTiebreakTimers();
   setTiebreakComposeUi(true);
+  tiebreakSession.composeStartedAt = Date.now();
   tiebreakWordTimer = window.setInterval(() => {
     remaining -= 1;
     if (challengeTiebreakTimer) challengeTiebreakTimer.textContent = String(Math.max(0, remaining));
@@ -16858,9 +16913,20 @@ async function submitChallengeTiebreakWord(timedOut = false) {
     return;
   }
   clearTiebreakTimers();
-  const patch = { [`tiebreak_${role}_word`]: word || "" };
+  const fullMs = CHALLENGE_TIEBREAK_WORD_SECONDS * 1000;
+  const startedAt = Number(tiebreakSession.composeStartedAt) || 0;
+  const usedMs = expired || !startedAt ? fullMs : Math.max(0, Math.min(fullMs, Date.now() - startedAt));
+  const msKey = `tiebreak_${role}_ms`;
+  const patch = { [`tiebreak_${role}_word`]: word || "", [msKey]: Math.round(usedMs) };
   try {
-    let updated = await updateChallenge(row.code, patch, row);
+    let updated;
+    try {
+      updated = await updateChallenge(row.code, patch, row);
+    } catch (error) {
+      if (!postgrestSchemaColumnError(error?.message || "", msKey)) throw error;
+      delete patch[msKey];
+      updated = await updateChallenge(row.code, patch, row);
+    }
     updated = await maybeFinalizeChallengeTiebreak(updated);
     if (updated?.status === "played") {
       closeChallengeTiebreakOverlay();
@@ -17505,7 +17571,9 @@ function challengeCard(row, rows = []) {
       scoreLine.textContent = tiebreakDone
         ? challengeTiebreakForfeited(row, loserRole)
           ? "Двобој је предат"
-          : `Разлика ${formatScore(challengeDifference(row))} слова у двобоју`
+          : challengeTiebreakDecidedByTime(row)
+            ? challengeTiebreakTimeVerdict(row, winnerName)
+            : `Разлика ${formatScore(challengeDifference(row))} слова у двобоју`
         : `${challengeWinnerScoreVerb(winnerName)} ${formatScore(challengeDifference(row))} бодова`;
       outcome.append(winnerLine, scoreLine);
     }
