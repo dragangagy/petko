@@ -16287,6 +16287,7 @@ function resetTiebreakComposeExtras() {
 
 function updateTiebreakInputValidation() {
   refreshTiebreakKeyAvailability();
+  refreshTiebreakComposeTiles();
   if (!challengeTiebreakValidate || !challengeTiebreakInput) return;
   const letters = currentTiebreakLetters();
   const word = normalizeLongWord(challengeTiebreakInput.value || "");
@@ -16472,13 +16473,24 @@ function renderTiebreakLetterTiles(letters = "", lockedMask = [], lockingIndex =
 function renderTiebreakComposeLetters(letters = "") {
   if (!challengeTiebreakLetters) return;
   challengeTiebreakLetters.innerHTML = "";
-  challengeTiebreakLetters.classList.add("collapsed");
-  tiebreakLetterCounts(letters).forEach((count, letter) => {
+  challengeTiebreakLetters.classList.remove("collapsed");
+  [...String(letters || "")].forEach((letter) => {
     const tile = document.createElement("span");
     tile.className = "challenge-tiebreak-letter locked";
+    tile.dataset.letter = letter;
     tile.textContent = letter.toUpperCase();
-    setTiebreakCountBadge(tile, count);
     challengeTiebreakLetters.append(tile);
+  });
+  refreshTiebreakComposeTiles();
+}
+
+function refreshTiebreakComposeTiles() {
+  if (!challengeTiebreakLetters) return;
+  const used = tiebreakLetterCounts(normalizeLongWord(challengeTiebreakInput?.value || ""));
+  challengeTiebreakLetters.querySelectorAll(".challenge-tiebreak-letter[data-letter]").forEach((tile) => {
+    const left = used.get(tile.dataset.letter) || 0;
+    tile.classList.toggle("used", left > 0);
+    if (left > 0) used.set(tile.dataset.letter, left - 1);
   });
 }
 

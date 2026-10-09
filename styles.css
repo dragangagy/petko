@@ -3424,9 +3424,9 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 }
 
 .challenge-tiebreak-letters {
-  --tiebreak-letter-gap: 2px;
+  --tiebreak-letter-gap: 4px;
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--tiebreak-letter-gap);
   width: 100%;
   max-width: 100%;
@@ -3440,15 +3440,15 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
   max-width: 100%;
   min-width: 0;
   aspect-ratio: 0.78;
-  max-height: 32px;
+  max-height: 64px;
   display: grid;
   place-items: center;
   padding: 0 1px;
   border: 1px solid rgba(56, 189, 248, 0.22);
-  border-radius: 4px;
+  border-radius: 7px;
   background: rgba(8, 13, 27, 0.72);
   color: var(--cyan);
-  font-size: clamp(9px, 2.55vw, 12px);
+  font-size: clamp(18px, 5.1vw, 24px);
   font-weight: 950;
   line-height: 1;
   text-transform: uppercase;
@@ -3470,6 +3470,12 @@ body[data-game-type="competitive"][data-competitive-intro="true"] .idle-petko-co
 
 .challenge-tiebreak-letter.locking {
   animation: tiebreak-letter-lock 0.28s ease;
+}
+
+.challenge-tiebreak-letter.locked.used {
+  opacity: 0.3;
+  filter: grayscale(1);
+  transition: opacity 0.15s ease, filter 0.15s ease;
 }
 
 @keyframes tiebreak-letter-spin {
@@ -3642,26 +3648,6 @@ body[data-challenge-tiebreak="compose"] > .keyboard .key.tiebreak-off {
   font-weight: 950;
   line-height: 1;
   pointer-events: none;
-}
-
-.challenge-tiebreak-letters.collapsed {
-  display: flex;
-  justify-content: center;
-}
-
-.challenge-tiebreak-letters.collapsed .challenge-tiebreak-letter {
-  position: relative;
-  flex: 0 0 calc((100% - 11 * var(--tiebreak-letter-gap)) / 12);
-  width: auto;
-}
-
-.challenge-tiebreak-letters.collapsed .tiebreak-count-badge {
-  top: 0;
-  right: 0;
-  min-width: 9px;
-  height: 9px;
-  padding: 0 1px;
-  font-size: 7px;
 }
 
 body[data-challenge-tiebreak="compose"] .challenge-tiebreak-overlay {
