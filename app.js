@@ -15725,21 +15725,6 @@ function duelWinRows(rows = []) {
   return [...byName.values()];
 }
 
-async function fetchChallengeScoreStatsRows() {
-  if (!supabaseConfigured()) return [];
-  const query = [
-    "select=nickname,best_score,best_score_count,last_at",
-    "order=best_score.desc,best_score_count.desc,last_at.desc.nullslast",
-    "limit=1000"
-  ].join("&");
-  const response = await fetch(supabaseUrl(`${challengeScoreStatsTable()}?${query}`), {
-    headers: supabaseHeaders()
-  });
-  if (!response.ok) return [];
-  const rows = await response.json();
-  return Array.isArray(rows) ? rows : [];
-}
-
 function challengeSidePlayed(row, role) {
   return Boolean(challengePlayedAt(row, role));
 }
@@ -21309,74 +21294,6 @@ function bestBy(items, valueFn) {
   return best && bestValue > 0 ? { item: best, value: bestValue } : null;
 }
 
-function challengeResultCountsForMedal(row) {
-  const winner = challengeScoreWinner(row);
-  if (winner !== "creator" && winner !== "opponent") return null;
-  const loser = winner === "creator" ? "opponent" : "creator";
-  const loserSolved = Number(row[`${loser}_solved`]) || 0;
-  const loserAttempts = Number(row[`${loser}_attempts`]) || 0;
-  const loserFinished = loserSolved >= CHALLENGE_WORDS || loserAttempts >= CHALLENGE_ATTEMPTS;
-  if (!loserFinished) return null;
-  return {
-    winnerName: winner === "creator" ? row.creator : row.opponent,
-    diff: challengeDifference(row),
-    playedAt: row[`${winner}_played_at`] || row.created_at || ""
-  };
-}
-
-function challengeStrongScoreRows(rows) {
-  const byName = new Map();
-  rows.filter(playedChallenge).forEach((row) => {
-    const result = challengeResultCountsForMedal(row);
-    if (!result || !result.diff) return;
-    const nickname = (result.winnerName || "Играч").trim() || "Играч";
-    const key = nickname.toLocaleLowerCase("sr");
-    const current = byName.get(key) || {
-      nickname,
-      best: 0,
-      bestCount: 0,
-      bestAt: ""
-    };
-    if (result.diff > current.best) {
-      current.best = result.diff;
-      current.bestCount = 1;
-      current.bestAt = result.playedAt;
-    } else if (result.diff === current.best) {
-      current.bestCount += 1;
-      if (!current.bestAt || result.playedAt > current.bestAt) current.bestAt = result.playedAt;
-    }
-    byName.set(key, current);
-  });
-  return [...byName.values()];
-}
-
-function normalizeChallengeScoreStatsRows(rows = []) {
-  const byName = new Map();
-  rows.forEach((row) => {
-    const nickname = (row.nickname || "Играч").trim() || "Играч";
-    const key = nickname.toLocaleLowerCase("sr");
-    const best = Number(row.best_score) || 0;
-    const bestCount = Math.max(1, Number(row.best_score_count) || 1);
-    const bestAt = row.last_at || "";
-    const current = byName.get(key);
-    if (!current) {
-      byName.set(key, { nickname, best, bestCount, bestAt });
-      return;
-    }
-    if (best > current.best) {
-      current.nickname = nickname;
-      current.best = best;
-      current.bestCount = bestCount;
-      current.bestAt = bestAt;
-    } else if (best === current.best) {
-      current.bestCount += bestCount;
-      if (bestAt && (!current.bestAt || bestAt > current.bestAt)) current.bestAt = bestAt;
-      if (nickname.length > current.nickname.length) current.nickname = nickname;
-    }
-  });
-  return [...byName.values()];
-}
-
 function normalizeChallengeWinStatsRows(rows = []) {
   const byName = new Map();
   const ensure = (name) => {
@@ -21671,12 +21588,11 @@ async function renderHallOfFame() {
   hallPanelEl.hidden = gameType !== "hall";
   renderHallLoading();
   try {
-    const [competitiveRows, challengeRows, normalRows, lectorRows, challengeScoreRows, challengeStatsRows, duelRows] = await Promise.all([
+    const [competitiveRows, challengeRows, normalRows, lectorRows, challengeStatsRows, duelRows] = await Promise.all([
       fetchCompetitiveLeaderboard(),
       fetchChallengeHistory(),
       fetchNormalStatsRows(),
       fetchLectorStatsRows(),
-      fetchChallengeScoreStatsRows().catch(() => []),
       fetchChallengeStatsRows().catch(() => []),
       fetchDuelRows().catch(() => [])
     ]);
@@ -21687,10 +21603,6 @@ async function renderHallOfFame() {
     const challengeLeaders = onlineChallengeWinRows.length
       ? onlineChallengeWinRows
       : challengeStats(challengeRowsSafe);
-    const onlineChallengeScoreRows = normalizeChallengeScoreStatsRows(Array.isArray(challengeScoreRows) ? challengeScoreRows : []);
-    const challengeStrongLeaders = onlineChallengeScoreRows.length
-      ? onlineChallengeScoreRows
-      : challengeStrongScoreRows(challengeRowsSafe);
     const normalLeaders = normalSuccessRows(Array.isArray(normalRows) ? normalRows : []);
     const localLector = loadLectorStats();
     const onlineLectorRows = Array.isArray(lectorRows) ? lectorRows : [];
@@ -21718,17 +21630,13 @@ async function renderHallOfFame() {
     const medals = [
       medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија. У листу улазе играчи са најмање 10 започетих обичних партија."),
       medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt", "Броји се свака победа у одиграном изазову. Нерешени изазови не улазе као победа, па ни они које је после решио двобој — те победе се броје за медаљу „Највише добијених двобоја“."),
-      medalEntry("Највише добијених двобоја", duelLeaders, (row) => row.wins, " победа", "medal-duel-wins.png", "lastAt", "Броји се свака победа у двобоју — нерешеном изазову који се решава најдужом речју од задатих слова. Ове победе се не рачунају у победе у изазовима. Ако обоје искористе исти број слова, побеђује бржи. Ко преда двобој или не стигне да упише реч, противнику доноси победу."),
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор. Улазе играчи са најмање 10 одиграних турнира."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе играчи са најмање 10 одиграних турнира. Резултат = прилагођени просек + бонус за активност + бонус за низ. Прилагођени просек рачуна се као да је играч одиграо још 10 турнира са по 40 поена, па неколико јаких дана не може да донесе прво место; што више играш, то се више рачуна твој прави просек. Бонус за активност је 3 × log₂(1 + број турнира) и расте са сваким турниром, све спорије. Бонус за низ је најдужи низ, највише 10."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
       medalEntry("Најбоља успешност обичне игре", normalLeaders, (row) => row.successRate, "%", "medal-success-rate.png", "successRateAt", "Рачуна се проценат: завршене / започете × 100 (макс. 100%). Партија се рачуна као започета чим уђеш у обичну игру. Ако је не решиш у року од 7 дана, уписује се као неуспех; изгубљена партија је неуспех одмах. Ако 7 дана не започнеш ниједну партију, и то се рачуна као неуспех. Улазе играчи са најмање 10 започетих партија."),
       medalEntry("Најдужи низ", playerRows, (row) => row.streak, " дана", "medal-streak.png", "streakAt", "Гледа се најдужи уписани низ дана у којима је играч успешно играо такмичарски део."),
       medalEntry("Највише активних дана", playerRows, (row) => row.playedDays, " дана", "medal-active-days.png", "playedDaysAt", "Броји се број различитих дана у којима је играч имао такмичарски резултат."),
-      medalEntry("Најјачи изазов скор", challengeStrongLeaders, (row) => row.best, "", "medal-challenge-score.png", "bestAt", "Гледа се највећа разлика у поенима којом је играч победио у валидном изазову. Ако противник преда, не одигра до краја или има мање од 10 одиграних изазова, тај резултат не улази. Када играч више пута оствари исти најбољи скор, приказује се као 30/2, 30/3 и има предност над једним истим скором.", {
-        sortFn: (row) => (Number(row.best) || 0) * 1000 + (Number(row.bestCount) || 0),
-        displayFn: (row) => `${formatScore(row.best)}/${formatScore(row.bestCount || 1)}`
-      }),
+      medalEntry("Највише добијених двобоја", duelLeaders, (row) => row.wins, " победа", "medal-duel-wins.png", "lastAt", "Броји се свака победа у двобоју — нерешеном изазову који се решава најдужом речју од задатих слова. Ове победе се не рачунају у победе у изазовима. Ако обоје искористе исти број слова, побеђује бржи. Ко преда двобој или не стигне да упише реч, противнику доноси победу."),
       medalEntry("Лектор", lectorLeaders, (row) => row.total, " пријава", "medal-lector.png", "lastAt", "Сабирају се прихваћене пријаве речи за додавање и за избацивање из базе.")
     ];
 
