@@ -15798,6 +15798,11 @@ function challengeWinner(row) {
     if (tiebreakWinner === "creator" || tiebreakWinner === "opponent") return tiebreakWinner;
     if (tiebreakWinner === "tie") return "tie";
   }
+  return challengeScoreWinner(row);
+}
+
+function challengeScoreWinner(row) {
+  if (!playedChallenge(row)) return null;
   const creatorScore = Number(row.creator_score) || 0;
   const opponentScore = Number(row.opponent_score) || 0;
   if (creatorScore === opponentScore) return "tie";
@@ -15812,7 +15817,7 @@ function challengePairScore(rows, creator, opponent) {
     const sameOrder = row.creator === creator && row.opponent === opponent;
     const reverseOrder = row.creator === opponent && row.opponent === creator;
     if (!playedChallenge(row) || (!sameOrder && !reverseOrder)) return;
-    const winner = challengeWinner(row);
+    const winner = challengeScoreWinner(row);
     if (winner === "tie") {
       score.tie += 1;
     } else if ((sameOrder && winner === "creator") || (reverseOrder && winner === "opponent")) {
@@ -21305,7 +21310,7 @@ function bestBy(items, valueFn) {
 }
 
 function challengeResultCountsForMedal(row) {
-  const winner = challengeWinner(row);
+  const winner = challengeScoreWinner(row);
   if (winner !== "creator" && winner !== "opponent") return null;
   const loser = winner === "creator" ? "opponent" : "creator";
   const loserSolved = Number(row[`${loser}_solved`]) || 0;
@@ -21712,8 +21717,8 @@ async function renderHallOfFame() {
 
     const medals = [
       medalEntry("Највише решених дневних партија", normalLeaders, (row) => row.finished, " партија", "medal-daily-wins.png", "successRateAt", "Сабира се укупан број завршених обичних партија. У листу улазе играчи са најмање 10 започетих обичних партија."),
-      medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt", "Броји се свака победа у одиграном изазову. Нерешени изазови не улазе као победа."),
-      medalEntry("Највише добијених двобоја", duelLeaders, (row) => row.wins, " победа", "medal-duel-wins.png", "lastAt", "Броји се свака победа у двобоју — нерешеном изазову који се решава најдужом речју од задатих слова. Ако обоје искористе исти број слова, побеђује бржи. Ко преда двобој или не стигне да упише реч, противнику доноси победу."),
+      medalEntry("Највише добијених изазова", challengeLeaders, (row) => row.wins, " победа", "medal-challenge-wins.png", "winsAt", "Броји се свака победа у одиграном изазову. Нерешени изазови не улазе као победа, па ни они које је после решио двобој — те победе се броје за медаљу „Највише добијених двобоја“."),
+      medalEntry("Највише добијених двобоја", duelLeaders, (row) => row.wins, " победа", "medal-duel-wins.png", "lastAt", "Броји се свака победа у двобоју — нерешеном изазову који се решава најдужом речју од задатих слова. Ове победе се не рачунају у победе у изазовима. Ако обоје искористе исти број слова, побеђује бржи. Ко преда двобој или не стигне да упише реч, противнику доноси победу."),
       medalEntry("Највећи дневни скор", rawScores, (row) => row.score, " поена", "medal-best-daily.png", "created_at", "Гледа се највећи појединачни дневни такмичарски скор који је играч остварио једног дана. Ако исти играч има више уписа, рачуна се само његов најбољи дневни скор. Улазе играчи са најмање 10 одиграних турнира."),
       medalEntry("Највећи укупан резултат", totalScoreLeaders, (row) => row.finalScore, " финал", "medal-total-score.png", "finalScoreAt", "Улазе играчи са најмање 10 одиграних турнира. Резултат = прилагођени просек + бонус за активност + бонус за низ. Прилагођени просек рачуна се као да је играч одиграо још 10 турнира са по 40 поена, па неколико јаких дана не може да донесе прво место; што више играш, то се више рачуна твој прави просек. Бонус за активност је 3 × log₂(1 + број турнира) и расте са сваким турниром, све спорије. Бонус за низ је најдужи низ, највише 10."),
       medalEntry("Највише започетих турнира", playerRows, (row) => row.attempts, " турнир", "medal-started.png", "attemptsAt", "Броји се колико је дневних такмичарских турнира играч започео."),
