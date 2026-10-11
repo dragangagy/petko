@@ -16211,9 +16211,9 @@ function challengeTiebreakSameTime(row) {
 function challengeTiebreakTimeVerdict(row, name = "") {
   const female = challengeProfileAvatar(name)?.group === "female";
   if (challengeTiebreakSameTime(row)) {
-    return `Исти број слова и исто време — предност има ${name}, јер је ${female ? "прва играла" : "први играо"}`;
+    return `Предност има ${name}, јер је ${female ? "прва играла" : "први играо"}`;
   }
-  return `Исти број слова — ${name} је ${female ? "била бржа" : "био бржи"} за ${challengeTiebreakTimeGapText(row)}`;
+  return `${name} је ${female ? "била бржа" : "био бржи"} за ${challengeTiebreakTimeGapText(row)}`;
 }
 
 function challengeTiebreakWinnerRole(row) {
